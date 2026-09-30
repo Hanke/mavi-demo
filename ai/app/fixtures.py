@@ -29,9 +29,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any, cast
 
-from pydantic import BaseModel, ConfigDict
-
-from app.schemas import CandidateProfile, RoleRequirements
+from app.schemas import CandidateProfile, Contact, RoleRequirements
 
 ROOT = Path(__file__).resolve().parents[2] / "infra" / "fixtures"
 RESUMES_DIR = ROOT / "resumes"
@@ -42,17 +40,6 @@ EXPECTED_SUFFIX = ".expected.json"
 # first professional role to this date, so a parser test passes it as "today"
 # rather than letting the values drift a year every September.
 AS_OF = date(2026, 9, 30)
-
-
-class Contact(BaseModel):
-    """Header details a resume parser returns alongside the profile."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    full_name: str
-    email: str
-    phone: str | None = None
-    location: str | None = None
 
 
 @dataclass(frozen=True)

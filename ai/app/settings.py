@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     llm_provider: Literal["anthropic", "openai"] = "anthropic"
     anthropic_api_key: str = ""
     openai_api_key: str = ""
+    # Empty means the provider's default in app/llm.py.
+    llm_model: str = ""
 
     embedding_provider: Literal["openai", "local"] = "local"
     embedding_model: str = "text-embedding-3-small"

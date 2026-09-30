@@ -86,6 +86,17 @@ class TaxonomyModel(BaseModel):
         return data
 
 
+class Contact(BaseModel):
+    """Header details the resume parser returns alongside the profile."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    full_name: str
+    email: str
+    phone: str | None = None
+    location: str | None = None
+
+
 class CandidateProfile(TaxonomyModel):
     """What the resume parser extracts. Maps onto candidate_profiles."""
 

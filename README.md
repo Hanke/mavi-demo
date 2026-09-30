@@ -29,7 +29,7 @@ services are wired together.
 ## Health endpoints
 
 - `GET http://localhost:8080/health` — API; `200 {"status":"ok","checks":{"postgres":"ok","ai":"ok"}}`, or `503` with the failing check named.
-- `GET http://localhost:8000/health` — AI service.
+- `GET http://localhost:8000/health` — AI service; `200 {"status":"ok","llm_provider":"anthropic","embedding_provider":"local"}`.
 - `GET http://localhost:5173/` — web dev server.
 
 ## API
@@ -98,6 +98,45 @@ or returned something unparseable (`errors.Is(err, aiclient.ErrTimeout)` etc.),
 with the service's `detail` message attached. Its request and response types
 are generated from the AI service's own OpenAPI document (see
 [Contracts](#contracts)).
+
+## AI service
+
+The Python service ([`ai/`](ai/)) is stateless and never touches the database:
+four POST endpoints plus `/health`, every request and response a Pydantic model
+(the OpenAPI document at `/openapi.json` is exported to
+[`ai/openapi.json`](ai/openapi.json) for the Go client, see [Contracts](#contracts)).
+
+| Endpoint | Request | Response |
+| --- | --- | --- |
+| `POST /parse-resume` | `{text, as_of?}` — the resume as plain text; `as_of` is the date `years_experience` counts to (default today) | `{contact, profile, provider}` — `contact` is the header (`full_name`, `email`, `phone`, `location`); `profile` is a `CandidateProfile` with taxonomy ids already canonical |
+| `POST /parse-jd` | `{text}` | `{company, requirements, provider}` — `requirements` is a `RoleRequirements` |
+| `POST /rerank` | `{role, candidates: [{id, text}]}` — the JD (or a rendering of the role) and up to 50 candidates, each an opaque id plus the text to judge | `{results: [{id, score, reasons}], provider}` — every id exactly once, best first, `score` in 0..1 |
+| `POST /embed` | `{text}` | `{embedding, dim, provider}` |
+
+The three chat endpoints share one client ([`ai/app/llm.py`](ai/app/llm.py)).
+Each call sends the answer's JSON schema to the provider (Anthropic
+`output_config.format`, or OpenAI's JSON-schema response format when
+`LLM_PROVIDER=openai`) and validates the text that comes back with the same
+Pydantic model, including the taxonomy resolution in
+[`ai/app/schemas.py`](ai/app/schemas.py). Output that fails validation, or a
+rerank that drops or invents a candidate id, is sent back to the model once
+with the validation errors quoted; a second failure is a `502` whose `detail`
+starts with `llm output invalid:` and names the fields. Nothing that did not
+validate is ever returned. A provider failure (no credentials, rate limit,
+refusal, truncation) is a `502` with `detail` starting `llm provider error:`;
+the Go client treats both as retryable. Prompts and the extraction rules live
+in [`ai/app/extract.py`](ai/app/extract.py).
+
+```sh
+curl -s -X POST localhost:8000/parse-jd -H 'Content-Type: application/json' \
+  -d @<(jq -Rs '{text: .}' infra/fixtures/jds/senior_accountant_strict.txt)
+curl -s -X POST localhost:8000/rerank -H 'Content-Type: application/json' \
+  -d '{"role":"Senior Accountant, CPA required, NetSuite","candidates":[{"id":"c1","text":"CPA, 6 years NetSuite close"},{"id":"c2","text":"Bookkeeper, QuickBooks"}]}'
+```
+
+Tests run the endpoints over a `FakeProvider` that replays canned answers
+(`ai/tests/test_endpoints.py`, `ai/tests/test_llm.py`), so nothing in
+`make test` or CI calls a model.
 
 ## Background jobs
 
@@ -416,5 +455,8 @@ job may go unfinished before another worker reclaims it.
 
 `EMBEDDING_PROVIDER=local` (the default) uses a deterministic hash-based stub so
 the stack runs with no API keys. Set it to `openai` with `OPENAI_API_KEY` for real
-embeddings. `LLM_PROVIDER` selects `anthropic` or `openai` for chat calls; the
-matching key must be set.
+embeddings. `LLM_PROVIDER` selects `anthropic` or `openai` for the chat calls
+behind `/parse-resume`, `/parse-jd` and `/rerank`; the matching key must be set,
+or those endpoints answer `502 llm provider error: ... no credentials configured`
+while everything else keeps working. `LLM_MODEL` overrides the provider's default
+chat model (`claude-opus-5-5` for Anthropic).

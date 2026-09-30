@@ -125,6 +125,36 @@
         "title": "CandidateProfile",
         "type": "object"
       },
+      "Contact": {
+        "additionalProperties": false,
+        "description": "Header details the resume parser returns alongside the profile.",
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "location": {
+            "nullable": true,
+            "title": "Location",
+            "type": "string"
+          },
+          "phone": {
+            "nullable": true,
+            "title": "Phone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "full_name",
+          "email"
+        ],
+        "title": "Contact",
+        "type": "object"
+      },
       "EmbedRequest": {
         "properties": {
           "text": {
@@ -201,6 +231,193 @@
           "embedding_provider"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "ParseJDRequest": {
+        "properties": {
+          "text": {
+            "description": "The job description as plain text.",
+            "maxLength": 60000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "ParseJDRequest",
+        "type": "object"
+      },
+      "ParseJDResponse": {
+        "properties": {
+          "company": {
+            "nullable": true,
+            "title": "Company",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "requirements": {
+            "$ref": "#/components/schemas/RoleRequirements"
+          }
+        },
+        "required": [
+          "company",
+          "requirements",
+          "provider"
+        ],
+        "title": "ParseJDResponse",
+        "type": "object"
+      },
+      "ParseResumeRequest": {
+        "properties": {
+          "as_of": {
+            "description": "The date years_experience is counted to. Default: today.",
+            "format": "date",
+            "nullable": true,
+            "title": "As Of",
+            "type": "string"
+          },
+          "text": {
+            "description": "The resume as plain text.",
+            "maxLength": 60000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "ParseResumeRequest",
+        "type": "object"
+      },
+      "ParseResumeResponse": {
+        "properties": {
+          "contact": {
+            "$ref": "#/components/schemas/Contact"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/CandidateProfile"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "contact",
+          "profile",
+          "provider"
+        ],
+        "title": "ParseResumeResponse",
+        "type": "object"
+      },
+      "RerankCandidate": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "description": "Opaque id echoed back in the result.",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "text": {
+            "description": "Resume text or a rendered profile; whatever the model should judge.",
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text"
+        ],
+        "title": "RerankCandidate",
+        "type": "object"
+      },
+      "RerankRequest": {
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/RerankCandidate"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Candidates",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "role": {
+            "description": "The job description, or a rendering of the role.",
+            "maxLength": 60000,
+            "minLength": 1,
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "candidates"
+        ],
+        "title": "RerankRequest",
+        "type": "object"
+      },
+      "RerankResponse": {
+        "properties": {
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "results": {
+            "description": "Every candidate, best first.",
+            "items": {
+              "$ref": "#/components/schemas/RerankResult"
+            },
+            "title": "Results",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          }
+        },
+        "required": [
+          "results",
+          "provider"
+        ],
+        "title": "RerankResponse",
+        "type": "object"
+      },
+      "RerankResult": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "score": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Score",
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "score"
+        ],
+        "title": "RerankResult",
         "type": "object"
       },
       "RoleRequirements": {
@@ -409,6 +626,120 @@
           }
         },
         "summary": "Health"
+      }
+    },
+    "/parse-jd": {
+      "post": {
+        "operationId": "parse_jd",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParseJDRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParseJDResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Parse Jd"
+      }
+    },
+    "/parse-resume": {
+      "post": {
+        "operationId": "parse_resume",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParseResumeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParseResumeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Parse Resume"
+      }
+    },
+    "/rerank": {
+      "post": {
+        "operationId": "rerank",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RerankRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RerankResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rerank"
       }
     }
   }

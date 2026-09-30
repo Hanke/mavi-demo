@@ -77,6 +77,14 @@ type CandidateProfile struct {
 // CandidateProfileAvailability defines model for CandidateProfile.Availability.
 type CandidateProfileAvailability string
 
+// Contact Header details the resume parser returns alongside the profile.
+type Contact struct {
+	Email    string  `json:"email"`
+	FullName string  `json:"full_name"`
+	Location *string `json:"location,omitempty"`
+	Phone    *string `json:"phone,omitempty"`
+}
+
 // EmbedRequest defines model for EmbedRequest.
 type EmbedRequest struct {
 	Text string `json:"text"`
@@ -99,6 +107,72 @@ type HealthResponse struct {
 	EmbeddingProvider string `json:"embedding_provider"`
 	LlmProvider       string `json:"llm_provider"`
 	Status            string `json:"status"`
+}
+
+// ParseJDRequest defines model for ParseJDRequest.
+type ParseJDRequest struct {
+	// Text The job description as plain text.
+	Text string `json:"text"`
+}
+
+// ParseJDResponse defines model for ParseJDResponse.
+type ParseJDResponse struct {
+	Company  *string `json:"company"`
+	Provider string  `json:"provider"`
+
+	// Requirements What the JD parser extracts. Maps onto roles.
+	Requirements RoleRequirements `json:"requirements"`
+}
+
+// ParseResumeRequest defines model for ParseResumeRequest.
+type ParseResumeRequest struct {
+	// AsOf The date years_experience is counted to. Default: today.
+	AsOf *openapi_types.Date `json:"as_of,omitempty"`
+
+	// Text The resume as plain text.
+	Text string `json:"text"`
+}
+
+// ParseResumeResponse defines model for ParseResumeResponse.
+type ParseResumeResponse struct {
+	// Contact Header details the resume parser returns alongside the profile.
+	Contact Contact `json:"contact"`
+
+	// Profile What the resume parser extracts. Maps onto candidate_profiles.
+	Profile  CandidateProfile `json:"profile"`
+	Provider string           `json:"provider"`
+}
+
+// RerankCandidate defines model for RerankCandidate.
+type RerankCandidate struct {
+	// ID Opaque id echoed back in the result.
+	ID string `json:"id"`
+
+	// Text Resume text or a rendered profile; whatever the model should judge.
+	Text string `json:"text"`
+}
+
+// RerankRequest defines model for RerankRequest.
+type RerankRequest struct {
+	Candidates []RerankCandidate `json:"candidates"`
+
+	// Role The job description, or a rendering of the role.
+	Role string `json:"role"`
+}
+
+// RerankResponse defines model for RerankResponse.
+type RerankResponse struct {
+	Provider string `json:"provider"`
+
+	// Results Every candidate, best first.
+	Results []RerankResult `json:"results"`
+}
+
+// RerankResult defines model for RerankResult.
+type RerankResult struct {
+	ID      string   `json:"id"`
+	Reasons []string `json:"reasons,omitempty"`
+	Score   float32  `json:"score"`
 }
 
 // RoleRequirements What the JD parser extracts. Maps onto roles.
@@ -155,6 +229,15 @@ type ValidationError_Loc_Item struct {
 
 // EmbedJSONRequestBody defines body for Embed for application/json ContentType.
 type EmbedJSONRequestBody = EmbedRequest
+
+// ParseJdJSONRequestBody defines body for ParseJd for application/json ContentType.
+type ParseJdJSONRequestBody = ParseJDRequest
+
+// ParseResumeJSONRequestBody defines body for ParseResume for application/json ContentType.
+type ParseResumeJSONRequestBody = ParseResumeRequest
+
+// RerankJSONRequestBody defines body for Rerank for application/json ContentType.
+type RerankJSONRequestBody = RerankRequest
 
 // AsValidationErrorLoc0 returns the union data inside the ValidationError_Loc_Item as a ValidationErrorLoc0
 func (t ValidationError_Loc_Item) AsValidationErrorLoc0() (ValidationErrorLoc0, error) {
