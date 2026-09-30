@@ -1,5 +1,5 @@
 {
-  "$comment": "UK CV: British spelling, pound signs, 'notice period: one month' rather than a date, ACCA with no CPA. Adaptive Insights is the old name of Workday Adaptive Planning; Snowflake and SQL are separate taxonomy entries; NetSuite counts even though it is only a reporting source.",
+  "$comment": "UK CV: British spelling, pound signs, 'notice period: one month' rather than a date, ACCA with no CPA. Adaptive Insights is the old name of Workday Adaptive Planning; Snowflake and SQL are separate taxonomy entries; NetSuite counts even though it is only a reporting source. A UK candidate who names no framework: gaap_exposure stays empty rather than assuming UK GAAP or IFRS.",
   "contact": {
     "full_name": "Amara Nwosu",
     "email": "amara.nwosu@example.com",
@@ -9,12 +9,18 @@
   "profile": {
     "headline": "FP&A Manager, ACCA - Anaplan and Power BI planning for fintech and e-commerce",
     "years_experience": 9,
+    "positions": [
+      {"title": "FP&A Manager", "employer": "Paylane Technologies", "start_year": 2022, "end_year": null, "current": true},
+      {"title": "Senior FP&A Analyst", "employer": "Brightcart Ltd", "start_year": 2019, "end_year": 2022, "current": false},
+      {"title": "Management Accountant", "employer": "Brightcart Ltd", "start_year": 2017, "end_year": 2019, "current": false}
+    ],
     "certifications": ["acca"],
     "other_certifications": [],
     "software": ["anaplan", "excel", "power_bi", "netsuite", "sql", "snowflake", "adaptive_planning"],
     "other_software": [],
     "industries": ["fintech", "ecommerce"],
     "other_industries": [],
+    "gaap_exposure": [],
     "skills": [
       "budgeting and forecasting",
       "rolling forecasts",

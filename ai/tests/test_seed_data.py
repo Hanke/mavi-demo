@@ -17,7 +17,7 @@ from typing import Any, cast
 
 import pytest
 
-from app import fixtures, taxonomy
+from app import fixtures, grounding, taxonomy
 from app.schemas import CandidateProfile, RoleRequirements
 from app.seedgen import generate, plan, render
 
@@ -83,6 +83,10 @@ def test_candidates_are_well_formed(candidates: list[dict[str, Any]], profiles: 
             assert days >= 0, c["id"]
         # The stored JSON is exactly the parser's shape, nothing extra.
         assert set(c["profile"]) == set(CandidateProfile.model_fields), c["id"]
+        assert len(p.positions) >= generate.MIN_POSITIONS, c["id"]
+        # Both are read off the resume text, so they cannot drift from it.
+        assert c["profile"]["positions"] == generate.positions_from(c["resume_text"]), c["id"]
+        assert p.gaap_exposure == grounding.standards_named(c["resume_text"]), c["id"]
 
 
 def test_resumes_mention_every_hard_filter_value(candidates: list[dict[str, Any]], profiles: list[CandidateProfile]):

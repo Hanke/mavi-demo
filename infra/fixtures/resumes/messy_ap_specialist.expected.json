@@ -1,5 +1,5 @@
 {
-  "$comment": "The messy one: all-caps name, contact details at the bottom, three bullet styles, tabs, a stray table, inconsistent date formats and typos ('excell', 'reimbursments'). Years run from the first temp role (Sep 2022). Studying for a certification is not holding one. Concur must resolve to concur, not sap.",
+  "$comment": "The messy one: all-caps name, contact details at the bottom, three bullet styles, tabs, a stray table, inconsistent date formats and typos ('excell', 'reimbursments'). Years run from the first temp role (Sep 2022). Studying for a certification is not holding one. Concur must resolve to concur, not sap. Position years come from three date styles (2023-present, Jan '23, Sep 2022).",
   "contact": {
     "full_name": "Jordan Blake",
     "email": "jordan.blake@example.com",
@@ -9,12 +9,18 @@
   "profile": {
     "headline": "Accounts Payable Specialist - high-volume NetSuite AP with AR cover",
     "years_experience": 4,
+    "positions": [
+      {"title": "AP Specialist II", "employer": "Redline Freight Solutions", "start_year": 2023, "end_year": null, "current": true},
+      {"title": "AP/AR Clerk", "employer": "Brickhaven Builders", "start_year": 2023, "end_year": 2023, "current": false},
+      {"title": "AP data entry / clerk", "employer": "Robertson Staffing", "start_year": 2022, "end_year": 2022, "current": false}
+    ],
     "certifications": [],
     "other_certifications": [],
     "software": ["netsuite", "concur", "quickbooks", "bill_com", "excel"],
     "other_software": [],
     "industries": ["logistics", "construction"],
     "other_industries": [],
+    "gaap_exposure": [],
     "skills": [
       "high-volume invoice processing",
       "three-way match",

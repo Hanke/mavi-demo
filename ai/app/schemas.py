@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Annotated, Any, ClassVar, Literal, cast
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app import taxonomy
 from app.taxonomy import Kind
@@ -87,14 +87,46 @@ class TaxonomyModel(BaseModel):
 
 
 class Contact(BaseModel):
-    """Header details the resume parser returns alongside the profile."""
+    """Header details the resume parser returns alongside the profile.
+
+    Every field is nullable: a resume with no email gets null, not a made-up
+    address, and a blank string from the model means the same thing."""
 
     model_config = ConfigDict(extra="forbid")
 
-    full_name: str
-    email: str
+    full_name: str | None = None
+    email: str | None = None
     phone: str | None = None
     location: str | None = None
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def _blank_is_absent(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
+
+
+class Position(BaseModel):
+    """One job in the candidate's work history, as the resume lists it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1, description="Job title as written, e.g. 'Senior Accountant'.")
+    employer: str | None = Field(default=None, description="Employer as written; null if the resume names none.")
+    start_year: int | None = Field(default=None, ge=1950, le=2100, description="Four-digit year the role began.")
+    end_year: int | None = Field(
+        default=None, ge=1950, le=2100, description="Four-digit year the role ended; null for a current role."
+    )
+    current: bool = Field(default=False, description="True when the resume says the role runs to the present.")
+
+    @model_validator(mode="after")
+    def _years_are_ordered(self) -> Position:
+        if self.current:
+            self.end_year = None
+        if self.start_year is not None and self.end_year is not None and self.end_year < self.start_year:
+            raise ValueError(f"end_year {self.end_year} is before start_year {self.start_year}")
+        return self
 
 
 class CandidateProfile(TaxonomyModel):
@@ -110,6 +142,9 @@ class CandidateProfile(TaxonomyModel):
         default=None, description="One-line summary of the candidate, e.g. 'Senior Accountant'."
     )
     years_experience: int | None = Field(default=None, ge=0, le=70)
+    positions: list[Position] = Field(
+        default_factory=list[Position], description="Jobs held, in the order the resume lists them."
+    )
     certifications: list[CertificationID] = _taxonomy_list(
         "certifications", "Certifications the candidate holds, as taxonomy ids."
     )
@@ -122,6 +157,10 @@ class CandidateProfile(TaxonomyModel):
         "industries", "Industries the candidate has worked in, as taxonomy ids."
     )
     other_industries: list[str] = Field(default_factory=list, description="Industries not in the taxonomy, verbatim.")
+    gaap_exposure: list[str] = Field(
+        default_factory=list,
+        description="Accounting frameworks and standards the resume names, e.g. 'US GAAP', 'ASC 606', 'IFRS 17'.",
+    )
     skills: list[str] = Field(default_factory=list, description="Free-text skills, e.g. 'month-end close'.")
     languages: list[str] = Field(default_factory=list, description="Spoken languages as ISO 639-1 codes.")
     availability: Availability = "unknown"

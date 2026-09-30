@@ -19,9 +19,10 @@ import zoneinfo
 import pytest
 
 from app import fixtures, taxonomy
+from app.extract import ResumeExtraction, ground_resume
 from app.fixtures import JDFixture, ResumeFixture
+from app.grounding import mentions
 from app.schemas import CandidateProfile, RoleRequirements
-from app.seedgen.generate import mentions
 
 RESUME_IDS = fixtures.resume_slugs()
 JD_IDS = fixtures.jd_slugs()
@@ -84,7 +85,9 @@ def test_resume_expected_is_canonical(resume: ResumeFixture):
 def test_resume_text_carries_the_expected_values(resume: ResumeFixture):
     tax = taxonomy.load()
     text = resume.text
+    assert resume.contact.full_name
     assert resume.contact.full_name.lower() in text.lower()
+    assert resume.contact.email
     assert resume.contact.email in text
     assert resume.contact.phone is None or resume.contact.phone in text
     terms = [tax.term("certifications", c) for c in resume.expected.certifications]
@@ -97,6 +100,15 @@ def test_resume_text_carries_the_expected_values(resume: ResumeFixture):
             assert tax.resolve(kind, other) is None, f"{resume.slug}: {other!r} is in the taxonomy; use its id"
     if resume.expected.available_from is not None:
         assert resume.expected.availability != "unknown"
+    assert resume.expected.positions, resume.slug
+    assert resume.expected.positions[0].current, f"{resume.slug}: positions are in resume order, current role first"
+
+
+def test_resume_expected_survives_grounding(resume: ResumeFixture):
+    """Nothing in an expected output is absent from its resume: the pass that
+    strips invented values from the parser's answer leaves it untouched."""
+    expected = ResumeExtraction(contact=resume.contact, profile=resume.expected)
+    assert ground_resume(expected, resume.text) == expected, resume.slug
 
 
 def test_resume_pdf_is_the_text(resume: ResumeFixture):
@@ -186,8 +198,11 @@ def test_resume_set_covers_the_brief(resumes: list[ResumeFixture]):
     assert any(not r.expected.certifications for r in resumes)
     assert any(len(r.expected.certifications) >= 2 for r in resumes)
     assert any(r.expected.languages != ["en"] for r in resumes)
+    assert any(not r.expected.gaap_exposure for r in resumes), "one resume should name no accounting standard"
+    assert {"US GAAP", "IFRS"} <= {g for r in resumes for g in r.expected.gaap_exposure}
+    assert any(len({p.employer for p in r.expected.positions}) < len(r.expected.positions) for r in resumes)
     assert len({r.contact.email for r in resumes}) == len(resumes)
-    assert all(r.contact.email.endswith("@example.com") for r in resumes), "no real-looking contact details"
+    assert all((r.contact.email or "").endswith("@example.com") for r in resumes), "no real-looking contact details"
 
 
 def test_jd_set_covers_the_brief(jds: list[JDFixture]):

@@ -108,7 +108,7 @@ four POST endpoints plus `/health`, every request and response a Pydantic model
 
 | Endpoint | Request | Response |
 | --- | --- | --- |
-| `POST /parse-resume` | `{text, as_of?}` — the resume as plain text; `as_of` is the date `years_experience` counts to (default today) | `{contact, profile, provider}` — `contact` is the header (`full_name`, `email`, `phone`, `location`); `profile` is a `CandidateProfile` with taxonomy ids already canonical |
+| `POST /parse-resume` | `{text, as_of?}` — the resume as plain text; `as_of` is the date `years_experience` counts to (default today) | `{contact, profile, provider}` — `contact` is the header (`full_name`, `email`, `phone`, `location`, each null when the resume does not give it); `profile` is a `CandidateProfile`: `positions` (title, employer, start and end year), `years_experience`, `certifications`, `software`, `industries` (taxonomy ids, already canonical), `gaap_exposure` (the frameworks and standards the resume names), plus headline, skills, languages, availability and time zone |
 | `POST /parse-jd` | `{text}` | `{company, requirements, provider}` — `requirements` is a `RoleRequirements` |
 | `POST /rerank` | `{role, candidates: [{id, text}]}` — the JD (or a rendering of the role) and up to 50 candidates, each an opaque id plus the text to judge | `{results: [{id, score, reasons}], provider}` — every id exactly once, best first, `score` in 0..1 |
 | `POST /embed` | `{text}` | `{embedding, dim, provider}` |
@@ -133,6 +133,18 @@ curl -s -X POST localhost:8000/parse-jd -H 'Content-Type: application/json' \
 curl -s -X POST localhost:8000/rerank -H 'Content-Type: application/json' \
   -d '{"role":"Senior Accountant, CPA required, NetSuite","candidates":[{"id":"c1","text":"CPA, 6 years NetSuite close"},{"id":"c2","text":"Bookkeeper, QuickBooks"}]}'
 ```
+
+The resume parser does not take the model's word for what the resume says.
+After validation, `ground_resume` ([`ai/app/extract.py`](ai/app/extract.py))
+checks every value that is read off the page against the text: a
+certification or software id the resume does not name (by label or taxonomy
+alias), an `other_*` entry, standard, job title or employer that is not in
+the text verbatim, a year the text never writes, or an email, phone number or
+name that is not there is dropped or set to null, and logged. Derived values
+(headline, skills, industries, availability, time zone) are left to the
+model. Missing information therefore comes back as null or an empty list;
+`ai/tests/test_parse_resume.py` runs every sample resume through this with
+an answer padded with invented values and asserts none survive.
 
 Tests run the endpoints over a `ScriptedProvider` that replays canned answers
 (`ai/tests/test_endpoints.py`, `ai/tests/test_llm.py`) and over the key-free
@@ -347,7 +359,9 @@ candidates come from `ai/app/seedgen`, in two halves:
   certification and software product in the spec must be named in the resume
   (by label or a taxonomy alias), and the structured profile is validated as a
   `CandidateProfile`, so the parser and the evidence quotes have real text to
-  work on. `make seed-generate` does this over the API (`ANTHROPIC_API_KEY` in
+  work on. The profile's `positions` and `gaap_exposure` are read off that
+  text (the EXPERIENCE heading lines and the standards it names), not taken
+  from the model. `make seed-generate` does this over the API (`ANTHROPIC_API_KEY` in
   `.env`; `SLOTS=3,17` or `SLOTS=1-20` regenerates a subset). Each batch's
   answer is kept in the [response cache](#response-cache), so running it again
   the same day (the specs carry today's date) only calls the model for batches
@@ -397,6 +411,15 @@ Conventions the expected outputs follow, so the parser and the eval agree:
 - `years_experience` runs from the first professional role to
   `app.fixtures.AS_OF` (2026-09-30, the day these were written), so a parser
   test passes that date as "today"; overlapping part-time roles do not add.
+- `positions` are the jobs in the order the resume lists them, title and
+  employer as written. Two titles in one date range ("Staff Accountant, then
+  Accountant") are one position with the later title; clients of a
+  self-employed or consulting role are not positions; an internship is a
+  position but does not count towards `years_experience`. A current role has
+  `current: true` and no `end_year`.
+- `gaap_exposure` lists the accounting frameworks and standards the resume
+  names, as written (`US GAAP`, `ASC 606`, `IFRS 17`). Nothing is inferred
+  from the candidate's country or title, and SOX is not an accounting standard.
 - `availability` is the nearest bucket to what the resume says;
   `available_from` is set only when a date is written; "not looking" is
   `unavailable`, no statement is `unknown`.
@@ -510,7 +533,8 @@ run, and `make cache-clear` deletes the local entries. Things to know:
 
 `make eval` (`python -m app.eval`) runs the parsers and the reranker over the
 [parser fixtures](#parser-fixtures) with the configured provider and prints a
-score per field: exact match for scalars, F1 for the taxonomy lists, and for
+score per field: exact match for scalars, F1 for the lists (taxonomy ids,
+named standards, and positions compared by title and years), and for
 each JD with hard-filter matches the share of the top k ranked resumes that
 are among its k matches. `make eval PROVIDER=fake` runs it with no key. The
 last line counts the calls that reached the provider, and a second run reports

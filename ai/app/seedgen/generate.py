@@ -31,6 +31,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from app import cache as cachemod
 from app import taxonomy
 from app.cache import Cache
+from app.grounding import mentions, standards_named
 from app.schemas import CandidateProfile
 from app.seedgen.plan import PLAN_SEED, Slot
 
@@ -39,6 +40,7 @@ BATCH_SIZE = 5
 MAX_ATTEMPTS = 3
 WORKERS = 4
 MIN_WORDS = 200
+MIN_POSITIONS = 2
 
 SYSTEM_PROMPT = """You write synthetic resumes for a demo of a finance and accounting recruiting product.
 
@@ -49,7 +51,7 @@ For each candidate spec, produce:
 resume_text - plain text, 260 to 450 words, sections in this order:
   1. Header: full name on the first line, then "location | email | phone" (omit the phone if the spec has none).
   2. SUMMARY: two or three sentences. State the availability in the candidate's own words (e.g. "available immediately", "two weeks' notice", "available from mid-November", "not currently looking but open to the right role", or nothing specific for 'unknown').
-  3. EXPERIENCE: two to four positions, most recent first. Each has employer, title, city, and a month/year range ("Mar 2021 - Present"), then three to five bullets starting with "- ". The ranges must be contiguous, must not overlap, and must add up to the stated years of experience ending in the present (today's date is given in the spec). Someone who is 'unavailable' is still employed; do not end their current job.
+  3. EXPERIENCE: two to four positions, most recent first. Each starts with one heading line, "Employer, Title, City, Region, Mar 2021 - Present" (employer first, month/year range last), then three to five bullets starting with "- ". The ranges must be contiguous, must not overlap, and must add up to the stated years of experience ending in the present (today's date is given in the spec). Someone who is 'unavailable' is still employed; do not end their current job.
   4. EDUCATION: one or two lines.
   5. CERTIFICATIONS: one line per certification, or "None".
   6. SOFTWARE: one line listing the tools.
@@ -169,27 +171,62 @@ def _spec(slot: Slot, tax: taxonomy.Taxonomy, today: date, feedback: str | None)
     return spec
 
 
-_WORD = r"(?<![A-Za-z0-9]){}(?![A-Za-z0-9])"
-
-
-def mentions(text: str, term: taxonomy.Term) -> bool:
-    """True when the resume names the term by label or alias. Short aliases
-    ("CA", "EA", "SQL") are matched case-sensitively so "California" does not
-    count as a Chartered Accountant."""
-    for name in (term.label, *term.aliases):
-        pattern = _WORD.format(re.escape(name))
-        flags = 0 if len(name) <= 4 else re.IGNORECASE
-        if re.search(pattern, text, flags):
-            return True
-    return False
-
-
 def missing_mentions(slot: Slot, resume_text: str, tax: taxonomy.Taxonomy) -> list[str]:
     certs = [tax.term("certifications", cid) for cid in slot.certifications]
     software = [tax.term("software", sid) for sid in slot.software]
     missing = [f"certification {t.label}" for t in certs if not mentions(resume_text, t)]
     missing += [f"software {t.label}" for t in software if not mentions(resume_text, t)]
     return missing
+
+
+_MONTH = r"(?:(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.? )?"
+_YEAR = r"(?:19|20)\d\d"
+# An EXPERIENCE heading as the brief lays it out, "Employer, Title, City,
+# Region, Mar 2021 - Present": " - " or " | " may stand in for a comma, and
+# the date range may sit on the next line.
+_POSITION = re.compile(
+    rf"^(?P<head>[^-\n][^\n]*?)\s*(?:[,|\u2013\u2014-]\s*|\n){_MONTH}(?P<start>{_YEAR})\s*(?:-|\u2013|\u2014|to)\s*"
+    rf"(?:(?P<current>Present|Current)|{_MONTH}(?P<end>{_YEAR}))\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+_FIELD_SEP = re.compile(r"\s+[-\u2013\u2014|]\s+|,\s+")
+# The last field of a two-field location: a state or province code, or a country.
+_REGION = re.compile(
+    r"[A-Z]{2}|Australia|Canada|Colombia|France|Germany|India|Ireland|Mexico|Philippines|Poland|Portugal|Singapore"
+)
+# "Tax Associate to Tax Senior", "Controller, later VP Finance": the title held last.
+_PROMOTED = re.compile(r"^.*?(?:\bto\b|,?\s*\b(?:later|then))\s+(?=[A-Z])")
+# The EXPERIENCE section: from its heading to the next all-caps heading line,
+# so a dated EDUCATION line is not read as a job.
+_EXPERIENCE = re.compile(r"^EXPERIENCE[ \t]*\n(.*?)(?=^[A-Z][A-Z &]+[ \t]*$|\Z)", re.DOTALL | re.MULTILINE)
+
+
+def positions_from(resume_text: str) -> list[dict[str, Any]]:
+    """The jobs a generated resume lists, read off its EXPERIENCE heading lines.
+
+    This relies on the layout the brief prescribes and is only for resumes
+    written to it; the parser proper leaves free-form resumes to the model."""
+    positions: list[dict[str, Any]] = []
+    section = _EXPERIENCE.search(resume_text)
+    for m in _POSITION.finditer(section.group(1) if section else resume_text):
+        head = m["head"].strip()
+        seps = list(_FIELD_SEP.finditer(head))
+        # Employer, title, then one location field (a city) or two (city, region).
+        location_fields = 2 if len(seps) >= 3 and _REGION.fullmatch(head[seps[-1].end() :]) else 1
+        if len(seps) < 1 + location_fields:
+            continue
+        title = head[seps[0].end() : seps[-location_fields].start()]
+        title = _PROMOTED.sub("", re.sub(r"\s*\([^)]*\)$", "", title))
+        positions.append(
+            {
+                "title": title,
+                "employer": re.sub(r"\s*\([^)]*\)$", "", head[: seps[0].start()]),
+                "start_year": int(m["start"]),
+                "end_year": int(m["end"]) if m["end"] else None,
+                "current": m["current"] is not None,
+            }
+        )
+    return positions
 
 
 def assemble(slot: Slot, gen: GeneratedCandidate) -> CandidateProfile:
@@ -200,12 +237,14 @@ def assemble(slot: Slot, gen: GeneratedCandidate) -> CandidateProfile:
         {
             "headline": gen.headline.strip(),
             "years_experience": slot.years_experience,
+            "positions": positions_from(gen.resume_text),
             "certifications": list(slot.certifications),
             "other_certifications": gen.other_certifications,
             "software": list(slot.software),
             "other_software": gen.other_software,
             "industries": list(slot.industries),
             "other_industries": [],
+            "gaap_exposure": standards_named(gen.resume_text),
             "skills": [s.strip() for s in gen.skills if s.strip()],
             "languages": list(slot.languages),
             "availability": slot.availability,
@@ -224,6 +263,10 @@ def check(slot: Slot, gen: GeneratedCandidate | None, tax: taxonomy.Taxonomy) ->
     words = len(gen.resume_text.split())
     if words < MIN_WORDS:
         problems.append(f"resume is only {words} words; write 260-450")
+    if len(positions_from(gen.resume_text)) < MIN_POSITIONS:
+        problems.append(
+            'each position needs a heading line of the form "Employer, Title, City, Region, Mar 2021 - Present"'
+        )
     if slot.full_name not in gen.resume_text:
         problems.append("resume must start with the candidate's full name")
     try:

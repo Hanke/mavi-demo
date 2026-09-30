@@ -1,5 +1,5 @@
 {
-  "$comment": "Explicit start date in prose ('I can start on November 9, 2026') gives available_from; the bucket is one_month, the nearest enum. Dates are MM/YYYY with en dashes. Workday is named as 'Workday Financials' (an alias).",
+  "$comment": "Explicit start date in prose ('I can start on November 9, 2026') gives available_from; the bucket is one_month, the nearest enum. Dates are MM/YYYY with en dashes. Workday is named as 'Workday Financials' (an alias). The PAYROLL MANAGER banner is a headline, not a fourth position.",
   "contact": {
     "full_name": "Terrence Whitfield",
     "email": "terrence.whitfield@example.com",
@@ -9,12 +9,18 @@
   "profile": {
     "headline": "Payroll Manager, CPP - multi-state ADP Workforce Now payroll for 6,500 employees",
     "years_experience": 11,
+    "positions": [
+      {"title": "Payroll Manager", "employer": "Carolina Regional Health System", "start_year": 2019, "end_year": null, "current": true},
+      {"title": "Senior Payroll Specialist", "employer": "Harborview Hospitality Partners", "start_year": 2017, "end_year": 2019, "current": false},
+      {"title": "Payroll Specialist", "employer": "Harborview Hospitality Partners", "start_year": 2015, "end_year": 2017, "current": false}
+    ],
     "certifications": ["cpp"],
     "other_certifications": [],
     "software": ["adp", "paylocity", "workday", "excel"],
     "other_software": [],
     "industries": ["healthcare", "hospitality"],
     "other_industries": [],
+    "gaap_exposure": [],
     "skills": [
       "multi-state payroll",
       "payroll tax filings",

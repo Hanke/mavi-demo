@@ -45,6 +45,9 @@ type CandidateProfile struct {
 	// Certifications Certifications the candidate holds, as taxonomy ids.
 	Certifications []string `json:"certifications,omitempty"`
 
+	// GaapExposure Accounting frameworks and standards the resume names, e.g. 'US GAAP', 'ASC 606', 'IFRS 17'.
+	GaapExposure []string `json:"gaap_exposure,omitempty"`
+
 	// Headline One-line summary of the candidate, e.g. 'Senior Accountant'.
 	Headline *string `json:"headline,omitempty"`
 
@@ -63,6 +66,9 @@ type CandidateProfile struct {
 	// OtherSoftware Software not in the taxonomy, verbatim.
 	OtherSoftware []string `json:"other_software,omitempty"`
 
+	// Positions Jobs held, in the order the resume lists them.
+	Positions []Position `json:"positions,omitempty"`
+
 	// Skills Free-text skills, e.g. 'month-end close'.
 	Skills []string `json:"skills,omitempty"`
 
@@ -78,9 +84,12 @@ type CandidateProfile struct {
 type CandidateProfileAvailability string
 
 // Contact Header details the resume parser returns alongside the profile.
+//
+// Every field is nullable: a resume with no email gets null, not a made-up
+// address, and a blank string from the model means the same thing.
 type Contact struct {
-	Email    string  `json:"email"`
-	FullName string  `json:"full_name"`
+	Email    *string `json:"email,omitempty"`
+	FullName *string `json:"full_name,omitempty"`
 	Location *string `json:"location,omitempty"`
 	Phone    *string `json:"phone,omitempty"`
 }
@@ -136,11 +145,32 @@ type ParseResumeRequest struct {
 // ParseResumeResponse defines model for ParseResumeResponse.
 type ParseResumeResponse struct {
 	// Contact Header details the resume parser returns alongside the profile.
+	//
+	// Every field is nullable: a resume with no email gets null, not a made-up
+	// address, and a blank string from the model means the same thing.
 	Contact Contact `json:"contact"`
 
 	// Profile What the resume parser extracts. Maps onto candidate_profiles.
 	Profile  CandidateProfile `json:"profile"`
 	Provider string           `json:"provider"`
+}
+
+// Position One job in the candidate's work history, as the resume lists it.
+type Position struct {
+	// Current True when the resume says the role runs to the present.
+	Current *bool `json:"current,omitempty"`
+
+	// Employer Employer as written; null if the resume names none.
+	Employer *string `json:"employer,omitempty"`
+
+	// EndYear Four-digit year the role ended; null for a current role.
+	EndYear *int `json:"end_year,omitempty"`
+
+	// StartYear Four-digit year the role began.
+	StartYear *int `json:"start_year,omitempty"`
+
+	// Title Job title as written, e.g. 'Senior Accountant'.
+	Title string `json:"title"`
 }
 
 // RerankCandidate defines model for RerankCandidate.

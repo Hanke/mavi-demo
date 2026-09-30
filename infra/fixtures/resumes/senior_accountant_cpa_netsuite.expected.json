@@ -1,5 +1,5 @@
 {
-  "$comment": "Mid-career CPA in SaaS; the strict Senior Accountant JD is written to match this profile exactly. Uses bullet glyphs and en dashes. NetSuite is named only by the alias 'NetSuite OneWorld' in the header of the current role, Stripe is a taxonomy product as well as a payments company, and the public-accounting year counts as accounting_services.",
+  "$comment": "Mid-career CPA in SaaS; the strict Senior Accountant JD is written to match this profile exactly. Uses bullet glyphs and en dashes. NetSuite is named only by the alias 'NetSuite OneWorld' in the header of the current role, Stripe is a taxonomy product as well as a payments company, and the public-accounting year counts as accounting_services. 'Staff Accountant, then Accountant' is one position with the later title; the employer name contains a comma.",
   "contact": {
     "full_name": "Daniel Okafor",
     "email": "daniel.okafor@example.com",
@@ -9,12 +9,18 @@
   "profile": {
     "headline": "Senior Accountant, CPA - multi-entity NetSuite close and BlackLine reconciliations in SaaS",
     "years_experience": 7,
+    "positions": [
+      {"title": "Senior Accountant", "employer": "Lumen Grid Software", "start_year": 2023, "end_year": null, "current": true},
+      {"title": "Accountant", "employer": "Harborline Analytics", "start_year": 2020, "end_year": 2023, "current": false},
+      {"title": "Audit Associate", "employer": "Keller, Tan & Associates LLP", "start_year": 2019, "end_year": 2020, "current": false}
+    ],
     "certifications": ["cpa"],
     "other_certifications": [],
     "software": ["netsuite", "blackline", "expensify", "stripe", "excel", "google_sheets"],
     "other_software": [],
     "industries": ["saas", "accounting_services"],
     "other_industries": [],
+    "gaap_exposure": ["ASC 606", "ASC 350-40"],
     "skills": [
       "month-end close",
       "multi-entity consolidation",

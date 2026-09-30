@@ -1,5 +1,5 @@
 {
-  "$comment": "Paragraph style with no bullets, no availability statement (unknown), Arizona (no daylight saving, so America/Phoenix). Tax software (CCH Axcess, Lacerte) is outside the taxonomy. The firm is accounting_services; the client industries named as the candidate's focus are included too.",
+  "$comment": "Paragraph style with no bullets, no availability statement (unknown), Arizona (no daylight saving, so America/Phoenix). Tax software (CCH Axcess, Lacerte) is outside the taxonomy. The firm is accounting_services; the client industries named as the candidate's focus are included too. Positions are embedded in paragraphs with spelled-out months.",
   "contact": {
     "full_name": "Luis Herrera-Campos",
     "email": "luis.herrera@example.com",
@@ -9,12 +9,17 @@
   "profile": {
     "headline": "Tax Senior, EA - review and preparation of business and individual returns in CCH Axcess",
     "years_experience": 5,
+    "positions": [
+      {"title": "Tax Senior", "employer": "Saguaro Tax & Advisory, PLLC", "start_year": 2024, "end_year": null, "current": true},
+      {"title": "Tax Associate", "employer": "Saguaro Tax & Advisory, PLLC", "start_year": 2021, "end_year": 2023, "current": false}
+    ],
     "certifications": ["ea"],
     "other_certifications": [],
     "software": ["quickbooks", "excel"],
     "other_software": ["CCH Axcess", "Lacerte", "Adobe Acrobat"],
     "industries": ["accounting_services", "construction", "real_estate", "healthcare"],
     "other_industries": [],
+    "gaap_exposure": [],
     "skills": [
       "tax return review",
       "partnership and S-corporation taxation",

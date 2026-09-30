@@ -1,5 +1,5 @@
 {
-  "$comment": "Senior, two certifications, competency-block format with pipe separators. 'SAP S/4HANA and ECC' and 'SAP Concur' are two different products; Concur must not collapse into sap. Automotive supplier is both automotive and manufacturing.",
+  "$comment": "Senior, two certifications, competency-block format with pipe separators. 'SAP S/4HANA and ECC' and 'SAP Concur' are two different products; Concur must not collapse into sap. Automotive supplier is both automotive and manufacturing. Two employers, two positions each. US GAAP is named once in the competency block; SOX 404 is a control regime, not an accounting standard.",
   "contact": {
     "full_name": "Renata Volkov",
     "email": "renata.volkov@example.com",
@@ -9,12 +9,19 @@
   "profile": {
     "headline": "Controller, CPA, CMA - SAP S/4HANA close, standard costing and SOX for an automotive supplier",
     "years_experience": 15,
+    "positions": [
+      {"title": "Controller", "employer": "Corvid Automotive Components", "start_year": 2020, "end_year": null, "current": true},
+      {"title": "Assistant Controller", "employer": "Corvid Automotive Components", "start_year": 2016, "end_year": 2019, "current": false},
+      {"title": "Senior Cost Accountant", "employer": "Great Lakes Fastener Corp.", "start_year": 2013, "end_year": 2016, "current": false},
+      {"title": "Staff Accountant", "employer": "Great Lakes Fastener Corp.", "start_year": 2011, "end_year": 2013, "current": false}
+    ],
     "certifications": ["cpa", "cma"],
     "other_certifications": [],
     "software": ["sap", "concur", "power_bi", "excel"],
     "other_software": [],
     "industries": ["automotive", "manufacturing"],
     "other_industries": [],
+    "gaap_exposure": ["US GAAP"],
     "skills": [
       "standard costing",
       "variance analysis",

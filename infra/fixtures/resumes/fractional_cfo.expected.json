@@ -1,5 +1,5 @@
 {
-  "$comment": "Very senior, narrative format organised by engagement rather than by job. Not looking ('not taking on new roles at the moment') is unavailable, not unknown. Software is scattered through prose with no software section. Years run from 2004.",
+  "$comment": "Very senior, narrative format organised by engagement rather than by job. Not looking ('not taking on new roles at the moment') is unavailable, not unknown. Software is scattered through prose with no software section. Years run from 2004. The client engagements are not positions; 'VP Finance, then CFO' is one position with the later title.",
   "contact": {
     "full_name": "Beatriz Almeida",
     "email": "beatriz.almeida@example.com",
@@ -9,12 +9,18 @@
   "profile": {
     "headline": "Fractional CFO, CPA, CGMA - venture-backed software finance, fundraising and systems",
     "years_experience": 22,
+    "positions": [
+      {"title": "Fractional CFO", "employer": "Almeida Advisory", "start_year": 2019, "end_year": null, "current": true},
+      {"title": "CFO", "employer": "Vantage Signal Software", "start_year": 2011, "end_year": 2019, "current": false},
+      {"title": "Audit Senior Manager", "employer": "Corbett Haynes LLP", "start_year": 2004, "end_year": 2011, "current": false}
+    ],
     "certifications": ["cpa", "cgma"],
     "other_certifications": [],
     "software": ["netsuite", "quickbooks", "carta", "sage_intacct", "google_sheets", "adaptive_planning", "excel"],
     "other_software": [],
     "industries": ["technology", "saas", "education", "professional_services", "accounting_services"],
     "other_industries": [],
+    "gaap_exposure": ["ASC 606"],
     "skills": [
       "three-statement modelling",
       "board reporting",

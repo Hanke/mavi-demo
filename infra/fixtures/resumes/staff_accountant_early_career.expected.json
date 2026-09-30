@@ -1,5 +1,5 @@
 {
-  "$comment": "Early career, conventional chronological format. The CPA exam progress must not become a certification: the candidate holds none, so certifications and other_certifications are both empty. Google Sheets is only named in a bullet, not in the SOFTWARE section.",
+  "$comment": "Early career, conventional chronological format. The CPA exam progress must not become a certification: the candidate holds none, so certifications and other_certifications are both empty. Google Sheets is only named in a bullet, not in the SOFTWARE section. The internship is a position but does not count towards years_experience.",
   "contact": {
     "full_name": "Maya Lindqvist",
     "email": "maya.lindqvist@example.com",
@@ -9,12 +9,17 @@
   "profile": {
     "headline": "Staff Accountant - QuickBooks Online client accounting at a CPA firm",
     "years_experience": 2,
+    "positions": [
+      {"title": "Staff Accountant", "employer": "Cottonwood & Reyes CPAs", "start_year": 2024, "end_year": null, "current": true},
+      {"title": "Accounting Intern", "employer": "Cottonwood & Reyes CPAs", "start_year": 2024, "end_year": 2024, "current": false}
+    ],
     "certifications": [],
     "other_certifications": [],
     "software": ["quickbooks", "bill_com", "excel", "google_sheets"],
     "other_software": [],
     "industries": ["accounting_services"],
     "other_industries": [],
+    "gaap_exposure": [],
     "skills": [
       "full-cycle bookkeeping",
       "bank reconciliations",

@@ -24,12 +24,12 @@ from datetime import date
 from typing import Any
 
 from app import taxonomy
+from app.grounding import mentions, standards_named
 from app.llm import ProviderError
-from app.seedgen.generate import mentions
 from app.taxonomy import Kind
 
 # Bump when the answers change, so cached answers from the old rules are not replayed.
-FAKE_MODEL = "fake-1"
+FAKE_MODEL = "fake-2"
 
 _RETRY_MARKER = "\n\nYour previous answer did not match the required schema."
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
@@ -107,20 +107,22 @@ def _resume(prompt: str) -> dict[str, Any]:
     availability = next((value for value, pattern in _AVAILABILITY if pattern.search(text)), "unknown")
     return {
         "contact": {
-            "full_name": name or "Unknown",
-            "email": email.group() if email else "",
+            "full_name": name or None,
+            "email": email.group() if email else None,
             "phone": phone,
             "location": None,
         },
         "profile": {
             "headline": None,
             "years_experience": min(today.year - min(years), MAX_YEARS) if years else None,
+            "positions": [],
             "certifications": _named("certifications", text),
             "other_certifications": [],
             "software": _named("software", text),
             "other_software": [],
             "industries": _named("industries", text),
             "other_industries": [],
+            "gaap_exposure": standards_named(text),
             "skills": [],
             "languages": ["en"],
             "availability": availability,

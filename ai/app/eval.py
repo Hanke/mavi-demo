@@ -29,6 +29,7 @@ from typing import cast
 from app import extract, fixtures, llm
 from app.extract import RerankCandidate
 from app.llm import LLMError, Provider
+from app.schemas import CandidateProfile, Contact
 from app.settings import get_settings
 
 RESUME_FIELDS = (
@@ -37,9 +38,11 @@ RESUME_FIELDS = (
     "phone",
     "location",
     "years_experience",
+    "positions",
     "certifications",
     "software",
     "industries",
+    "gaap_exposure",
     "availability",
     "timezone",
 )
@@ -97,6 +100,17 @@ def _section[F](
     report.counts[name] = len(cases)
 
 
+def _resume_values(contact: Contact, profile: CandidateProfile) -> dict[str, object]:
+    """Contact and profile as one flat dict, with the two free-form lists made
+    comparable: a position is its title and years, a standard its lower-cased name."""
+    return {
+        **contact.model_dump(),
+        **profile.model_dump(),
+        "positions": [f"{p.title.lower()} {p.start_year}-{p.end_year}" for p in profile.positions],
+        "gaap_exposure": [g.lower() for g in profile.gaap_exposure],
+    }
+
+
 def run(provider: Provider) -> Report:
     report = Report()
     resumes = fixtures.load_resumes()
@@ -104,8 +118,8 @@ def run(provider: Provider) -> Report:
 
     def resume(fx: fixtures.ResumeFixture) -> dict[str, float]:
         out = extract.parse_resume(provider, fx.text, fixtures.AS_OF)
-        got = {**out.contact.model_dump(), **out.profile.model_dump()}
-        want = {**fx.contact.model_dump(), **fx.expected.model_dump()}
+        got = _resume_values(out.contact, out.profile)
+        want = _resume_values(fx.contact, fx.expected)
         return {f: _score(got[f], want[f]) for f in RESUME_FIELDS}
 
     def jd(fx: fixtures.JDFixture) -> dict[str, float]:

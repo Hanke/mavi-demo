@@ -34,6 +34,15 @@
             "type": "array",
             "x-go-type-skip-optional-pointer": true
           },
+          "gaap_exposure": {
+            "description": "Accounting frameworks and standards the resume names, e.g. 'US GAAP', 'ASC 606', 'IFRS 17'.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Gaap Exposure",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
           "headline": {
             "default": null,
             "description": "One-line summary of the candidate, e.g. 'Senior Accountant'.",
@@ -87,6 +96,15 @@
             "type": "array",
             "x-go-type-skip-optional-pointer": true
           },
+          "positions": {
+            "description": "Jobs held, in the order the resume lists them.",
+            "items": {
+              "$ref": "#/components/schemas/Position"
+            },
+            "title": "Positions",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
           "skills": {
             "description": "Free-text skills, e.g. 'month-end close'.",
             "items": {
@@ -127,13 +145,15 @@
       },
       "Contact": {
         "additionalProperties": false,
-        "description": "Header details the resume parser returns alongside the profile.",
+        "description": "Header details the resume parser returns alongside the profile.\n\nEvery field is nullable: a resume with no email gets null, not a made-up\naddress, and a blank string from the model means the same thing.",
         "properties": {
           "email": {
+            "nullable": true,
             "title": "Email",
             "type": "string"
           },
           "full_name": {
+            "nullable": true,
             "title": "Full Name",
             "type": "string"
           },
@@ -148,10 +168,6 @@
             "type": "string"
           }
         },
-        "required": [
-          "full_name",
-          "email"
-        ],
         "title": "Contact",
         "type": "object"
       },
@@ -314,6 +330,54 @@
           "provider"
         ],
         "title": "ParseResumeResponse",
+        "type": "object"
+      },
+      "Position": {
+        "additionalProperties": false,
+        "description": "One job in the candidate's work history, as the resume lists it.",
+        "properties": {
+          "current": {
+            "default": false,
+            "description": "True when the resume says the role runs to the present.",
+            "title": "Current",
+            "type": "boolean"
+          },
+          "employer": {
+            "default": null,
+            "description": "Employer as written; null if the resume names none.",
+            "nullable": true,
+            "title": "Employer",
+            "type": "string"
+          },
+          "end_year": {
+            "default": null,
+            "description": "Four-digit year the role ended; null for a current role.",
+            "maximum": 2100,
+            "minimum": 1950,
+            "nullable": true,
+            "title": "End Year",
+            "type": "integer"
+          },
+          "start_year": {
+            "default": null,
+            "description": "Four-digit year the role began.",
+            "maximum": 2100,
+            "minimum": 1950,
+            "nullable": true,
+            "title": "Start Year",
+            "type": "integer"
+          },
+          "title": {
+            "description": "Job title as written, e.g. 'Senior Accountant'.",
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "Position",
         "type": "object"
       },
       "RerankCandidate": {

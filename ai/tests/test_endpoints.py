@@ -71,14 +71,14 @@ def test_parse_resume_resolves_aliases_the_model_used(provider: ScriptedProvider
 
 
 def test_parse_resume_retries_then_errors_on_invalid_output(provider: ScriptedProvider):
-    provider.queue('{"contact": {"full_name": "A"}, "profile": {}}', "garbage")
+    provider.queue('{"contact": {"full_name": "A"}, "profile": {"years_experience": -1}}', "garbage")
     resp = client.post("/parse-resume", json={"text": "some resume"})
     assert resp.status_code == 502
     detail = resp.json()["detail"]
     assert detail.startswith("llm output invalid")
     assert f"after {llm.MAX_ATTEMPTS} attempts" in detail
     assert len(provider.calls) == llm.MAX_ATTEMPTS
-    assert "contact.email" in provider.calls[1][1]
+    assert "profile.years_experience" in provider.calls[1][1]
 
 
 def test_parse_resume_provider_failure_is_a_clear_error(provider: ScriptedProvider):

@@ -1,5 +1,5 @@
 {
-  "$comment": "Canadian, accented name, designations listed at the top. 'CPA, CA' is two taxonomy ids (cpa and ca) plus CIA. AuditBoard is outside the taxonomy. Year-only date ranges. Languages listed French first.",
+  "$comment": "Canadian, accented name, designations listed at the top. 'CPA, CA' is two taxonomy ids (cpa and ca) plus CIA. AuditBoard is outside the taxonomy. Year-only date ranges. Languages listed French first. Titles contain commas. IFRS 17 and IFRS are both named; SOX 404 is not an accounting standard.",
   "contact": {
     "full_name": "Étienne Roy",
     "email": "etienne.roy@example.com",
@@ -9,12 +9,18 @@
   "profile": {
     "headline": "Internal Audit Senior Manager, CPA, CA, CIA - risk-based audit with Alteryx and Tableau in financial services",
     "years_experience": 8,
+    "positions": [
+      {"title": "Senior Manager, Internal Audit", "employer": "Lakeshore Mutual Insurance", "start_year": 2024, "end_year": null, "current": true},
+      {"title": "Manager, Internal Audit", "employer": "Dominion Trust Bank", "start_year": 2021, "end_year": 2024, "current": false},
+      {"title": "Senior Associate", "employer": "Whitcombe Hale LLP", "start_year": 2018, "end_year": 2021, "current": false}
+    ],
     "certifications": ["cpa", "ca", "cia"],
     "other_certifications": [],
     "software": ["sap", "workday", "alteryx", "tableau", "excel"],
     "other_software": ["AuditBoard"],
     "industries": ["insurance", "banking", "accounting_services"],
     "other_industries": [],
+    "gaap_exposure": ["IFRS 17", "IFRS"],
     "skills": [
       "risk-based internal audit",
       "continuous monitoring",
