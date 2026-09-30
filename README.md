@@ -1,5 +1,7 @@
 # Mavi
 
+[![CI](https://github.com/Hanke/mavi-demo/actions/workflows/ci.yml/badge.svg)](https://github.com/Hanke/mavi-demo/actions/workflows/ci.yml)
+
 Monorepo for the Mavi demo stack.
 
 | Path | What | Port |
@@ -223,8 +225,9 @@ Run `make` to list them. The main ones:
 - `make worker` — an extra background job worker container next to the one inside the API (see [Background jobs](#background-jobs))
 - `make test-db` — migration up/down round-trip, the API CRUD / role tests and the job queue tests against the compose DB (each test creates and drops a throwaway database)
 - `make generate` / `make check-contracts` — regenerate the shared types from the OpenAPI documents, or fail if regenerating changes anything (see [Contracts](#contracts))
-- `make lint` — `gofmt` + `go vet` for the API; `ruff check`, `ruff format --check` and strict `pyright` for the AI service (`make fmt-ai` fixes what ruff can)
+- `make lint` — `gofmt` + `go vet` for the API; `ruff check`, `ruff format --check` and strict `pyright` for the AI service; `eslint` for the web app (`make fmt-ai` fixes what ruff can)
 - `make test` — contract check, lint, then the Go, Python and web test suites (host toolchains: Go 1.24, Python 3.12+, Node 22)
+- CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main` and every pull request: `go vet` + `go test`, `ruff` + `pytest`, and the web typecheck, lint, tests and build, one job per service. It sets `EMBEDDING_PROVIDER=local` and no provider keys, so nothing in CI calls an LLM.
 - `make health` — curl every health endpoint
 
 ## Database

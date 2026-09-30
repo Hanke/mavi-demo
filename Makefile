@@ -10,7 +10,7 @@ PYTHON ?= $(shell test -x $(CURDIR)/ai/.venv/bin/python && echo $(CURDIR)/ai/.ve
 GENERATED := ai/openapi.json api/internal/aiclient/types.gen.go api/internal/contract/types.gen.go web/src/api/schema.d.ts
 
 .PHONY: help up down logs ps migrate migrate-down migrate-status seed worker test test-api test-ai test-db test-web health \
-        lint lint-api lint-ai fmt-ai generate generate-ai-spec generate-api generate-web check-contracts
+        lint lint-api lint-ai lint-web fmt-ai generate generate-ai-spec generate-api generate-web check-contracts
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -46,7 +46,7 @@ worker: ## Run an extra background job worker next to the one inside the API (Ct
 
 test: check-contracts lint test-api test-ai test-web ## Contract freshness, lint, then every test suite
 
-lint: lint-api lint-ai ## Lint every service
+lint: lint-api lint-ai lint-web ## Lint every service
 
 lint-api: ## gofmt and go vet
 	@cd api && unformatted="$$(gofmt -l .)"; if [ -n "$$unformatted" ]; then echo "gofmt: run gofmt -w on:"; echo "$$unformatted"; exit 1; fi
@@ -54,6 +54,9 @@ lint-api: ## gofmt and go vet
 
 lint-ai: ## ruff check, ruff format --check and pyright (strict) on the AI service
 	cd ai && $(PYTHON) -m ruff check . && $(PYTHON) -m ruff format --check . && $(PYTHON) -m pyright
+
+lint-web: ## eslint on the web app
+	cd web && npm run lint
 
 fmt-ai: ## Fix what ruff can and reformat the AI service
 	cd ai && $(PYTHON) -m ruff check --fix . && $(PYTHON) -m ruff format .
