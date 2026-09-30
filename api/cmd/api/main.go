@@ -7,12 +7,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/colehanke/mavi-demo/api/internal/aiclient"
 	"github.com/colehanke/mavi-demo/api/internal/db"
 	"github.com/colehanke/mavi-demo/api/internal/server"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
@@ -31,11 +33,15 @@ func run() error {
 	}
 	defer pool.Close()
 
-	// Subcommands used by the Makefile: `api migrate`, `api seed`.
+	// Subcommands used by the Makefile:
+	//   api migrate [up]          apply pending migrations
+	//   api migrate down [N|all]  roll back the last N (default 1) or all
+	//   api migrate status        list migrations and whether they are applied
+	//   api seed                  load seed data
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "migrate":
-			return db.Migrate(ctx, pool, envOr("MIGRATIONS_DIR", "/app/infra/db/migrations"))
+			return runMigrate(ctx, pool, os.Args[2:])
 		case "seed":
 			return db.Seed(ctx, pool, envOr("SEED_DIR", "/app/infra/db/seed"))
 		default:
@@ -62,6 +68,50 @@ func run() error {
 		return err
 	}
 	return nil
+}
+
+func runMigrate(ctx context.Context, pool *pgxpool.Pool, args []string) error {
+	dir := envOr("MIGRATIONS_DIR", "/app/infra/db/migrations")
+	sub := "up"
+	if len(args) > 0 {
+		sub = args[0]
+	}
+	switch sub {
+	case "up":
+		return db.Migrate(ctx, pool, dir)
+	case "down":
+		steps := 1
+		if len(args) > 1 {
+			if args[1] == "all" {
+				steps = 0
+			} else {
+				n, err := strconv.Atoi(args[1])
+				if err != nil || n < 1 {
+					return fmt.Errorf("migrate down: expected a positive step count or \"all\", got %q", args[1])
+				}
+				steps = n
+			}
+		}
+		return db.MigrateDown(ctx, pool, dir, steps)
+	case "status":
+		statuses, err := db.Status(ctx, pool, dir)
+		if err != nil {
+			return err
+		}
+		for _, s := range statuses {
+			state := "pending"
+			if s.Applied {
+				state = "applied " + s.AppliedAt.UTC().Format(time.RFC3339)
+			}
+			if s.FilesMissing {
+				state += " (files missing)"
+			}
+			fmt.Printf("%-40s %s\n", s.Version, state)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown migrate command %q (want up, down or status)", sub)
+	}
 }
 
 func envOr(key, fallback string) string {

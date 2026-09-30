@@ -35,9 +35,44 @@ services are wired together.
 Run `make` to list them. The main ones:
 
 - `make up` / `make down` / `make logs` / `make ps`
-- `make migrate` / `make seed` — run inside the `api` image against the compose DB
+- `make migrate` / `make migrate-down` / `make migrate-status` / `make seed` — run inside the `api` image against the compose DB. `make migrate-down STEPS=2` or `STEPS=all` rolls back further.
+- `make test-db` — migration up/down round-trip against the compose DB (creates and drops a throwaway database)
 - `make test` — Go, Python and web test suites (host toolchains: Go 1.24, Python 3.12+, Node 22)
 - `make health` — curl every health endpoint
+
+## Database
+
+Migrations live in `infra/db/migrations` as paired `NNNN_name.up.sql` /
+`NNNN_name.down.sql` files and are applied by the Go API (`api migrate up|down|status`).
+Each migration commits together with its `schema_migrations` row, and the runner
+takes an advisory lock so two runs cannot interleave. The Python service never
+touches these tables; it only produces embeddings and structured extractions that
+the API writes.
+
+| Table | Purpose |
+| --- | --- |
+| `candidates` | The person as ingested: contact details, raw resume text, status |
+| `candidate_profiles` | One structured profile per candidate: `profile` JSONB, `embedding` (pgvector, HNSW index), and the hard-filter columns `certifications[]`, `software[]`, `availability`, `available_from`, `timezone` |
+| `roles` | Raw JD plus `must_haves` / `nice_to_haves` JSONB, promoted `required_certifications[]`, `required_software[]`, `timezone`, `starts_on`, and an embedding |
+| `matches` | One row per (role, candidate): `score`, `explanation`, `breakdown`, `status` (proposed / approved / rejected / swapped) |
+| `review_events` | Append-only audit of ops approve / reject / swap actions on a match |
+| `jobs` | Postgres-backed background queue (`FOR UPDATE SKIP LOCKED` dequeue on the partial `jobs_dequeue_idx`) |
+
+The hard-filter fields are real, indexed columns rather than JSON keys, so a
+shortlist query can be written directly in SQL:
+
+```sql
+SELECT c.full_name, p.certifications, p.software, p.timezone
+FROM roles r
+JOIN candidate_profiles p
+  ON p.certifications @> r.required_certifications
+ AND p.software       @> r.required_software
+ AND (r.starts_on IS NULL OR p.available_from <= r.starts_on)
+JOIN candidates c ON c.id = p.candidate_id
+WHERE r.id = $1 AND c.status = 'active'
+ORDER BY p.embedding <=> r.embedding
+LIMIT 20;
+```
 
 ## Local dev without Docker
 
