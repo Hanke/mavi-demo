@@ -30,13 +30,77 @@ services are wired together.
 - `GET http://localhost:8000/health` — AI service.
 - `GET http://localhost:5173/` — web dev server.
 
+## API
+
+The Go service is the system of record: JSON CRUD for candidates, their
+profiles, roles and matches, all against Postgres. There is no real auth. Every
+request outside `/health` picks a persona with the `X-Role` header (`talent`,
+`employer` or `ops`; the `mavi_role` cookie works as a session fallback) and may
+identify itself with `X-Actor`: the candidate id for talent, an email for ops.
+A missing or unknown role is a `401`; a known role calling an endpoint it may
+not use is a `403`.
+
+| Endpoint | talent | employer | ops |
+| --- | --- | --- | --- |
+| `POST /candidates` | yes (marked `source: self`) | | yes |
+| `GET /candidates` | | | yes |
+| `GET` / `PUT /candidates/{id}` | own record only (`X-Actor` = id) | | yes |
+| `DELETE /candidates/{id}` | | | yes |
+| `GET` / `PUT /candidates/{id}/profile` | own record only | | yes |
+| `DELETE /candidates/{id}/profile` | | | yes |
+| `POST` / `PUT` / `DELETE /roles…` | | yes | yes |
+| `GET /roles`, `GET /roles/{id}` | open roles only | yes | yes |
+| `POST` / `PUT` / `DELETE /matches…` | | | yes |
+| `POST /matches/{id}/release`, `…/unrelease` | | | yes |
+| `GET /matches`, `GET /matches/{id}` | own, **released only** | **released only** | all |
+
+Rules worth knowing:
+
+- **Employers only ever see released matches.** `matches.released_at` is set by
+  `POST /matches/{id}/release` (ops) and cleared by `…/unrelease`; both are
+  recorded in `review_events` with the `X-Actor` value. The employer filter is
+  applied inside the SQL, so no query parameter can widen it, and an unreleased
+  match is a `404` for an employer rather than a `403`.
+- **Talent is scoped by `X-Actor`.** A talent request without it is a `403`;
+  another candidate's record is a `404`.
+- **Taxonomy values are accepted as free text** (`"QuickBooks Online"`, `"QBO"`)
+  and stored as canonical ids (`quickbooks`). Anything the taxonomy does not know
+  is a `422` naming the value, so a hard-filter column never holds a value that
+  cannot match.
+- `PUT` on candidates and roles replaces the fields you send and keeps the rest;
+  an explicit `null` clears an optional field and is a `422` on a required one
+  (`full_name`, `title`, `status`). `PUT …/profile` replaces the whole profile
+  and returns `201` when it created one.
+- Validation errors are `422 {"error": "validation failed", "fields": {...}}`;
+  malformed or unknown JSON fields are `400`; a duplicate email or (role,
+  candidate) pair is `409`; a delete blocked by review history is `409`.
+- Lists take `limit` (default 50, max 200) and `offset`, plus `status` and, for
+  matches, `role_id` / `candidate_id`.
+
+```sh
+# employer creates a role, ops matches a seeded candidate, releases it
+curl -s -X POST localhost:8080/roles -H 'X-Role: employer' -H 'Content-Type: application/json' \
+  -d '{"title":"Controller","company":"Acme","required_software":["QBO"]}'
+curl -s -X POST localhost:8080/matches -H 'X-Role: ops' -H 'Content-Type: application/json' \
+  -d '{"role_id":"<role id>","candidate_id":"11111111-0000-0000-0000-000000000001","score":0.9}'
+curl -s localhost:8080/matches -H 'X-Role: employer'                       # []
+curl -s -X POST localhost:8080/matches/<match id>/release -H 'X-Role: ops' -H 'X-Actor: ops@example.com'
+curl -s localhost:8080/matches -H 'X-Role: employer'                       # [ {...released_at...} ]
+```
+
+The AI service client (`api/internal/aiclient`) bounds every call with a
+per-operation timeout (3s health, 15s embed) and reports failures as an `*Error`
+that says whether the service was unreachable, timed out, rejected the request
+or returned something unparseable (`errors.Is(err, aiclient.ErrTimeout)` etc.),
+with the service's `detail` message attached.
+
 ## Make targets
 
 Run `make` to list them. The main ones:
 
 - `make up` / `make down` / `make logs` / `make ps`
 - `make migrate` / `make migrate-down` / `make migrate-status` / `make seed` — run inside the `api` image against the compose DB. `make migrate-down STEPS=2` or `STEPS=all` rolls back further.
-- `make test-db` — migration up/down round-trip against the compose DB (creates and drops a throwaway database)
+- `make test-db` — migration up/down round-trip plus the API CRUD / role tests against the compose DB (each test creates and drops a throwaway database)
 - `make test` — Go, Python and web test suites (host toolchains: Go 1.24, Python 3.12+, Node 22)
 - `make health` — curl every health endpoint
 
@@ -54,8 +118,8 @@ the API writes.
 | `candidates` | The person as ingested: contact details, raw resume text, status |
 | `candidate_profiles` | One structured profile per candidate: `profile` JSONB, `embedding` (pgvector, HNSW index), and the hard-filter columns `certifications[]`, `software[]`, `availability`, `available_from`, `timezone` |
 | `roles` | Raw JD plus `must_haves` / `nice_to_haves` JSONB, promoted `required_certifications[]`, `required_software[]`, `timezone`, `starts_on`, and an embedding |
-| `matches` | One row per (role, candidate): `score`, `explanation`, `breakdown`, `status` (proposed / approved / rejected / swapped) |
-| `review_events` | Append-only audit of ops approve / reject / swap actions on a match |
+| `matches` | One row per (role, candidate): `score`, `explanation`, `breakdown`, `status` (proposed / approved / rejected / swapped), `released_at` (set when ops releases it to the employer) |
+| `review_events` | Append-only audit of ops approve / reject / swap / release / unrelease actions on a match |
 | `jobs` | Postgres-backed background queue (`FOR UPDATE SKIP LOCKED` dequeue on the partial `jobs_dequeue_idx`) |
 
 The hard-filter fields are real, indexed columns rather than JSON keys, so a

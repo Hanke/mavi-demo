@@ -42,10 +42,10 @@ test-api: ## Go API tests
 test-ai: ## Python AI service tests
 	cd ai && python -m pytest -q
 
-test-db: ## Migration up/down round-trip against the compose DB (creates a throwaway database)
+test-db: ## Migration round-trip and API CRUD tests against the compose DB (each test gets a throwaway database)
 	@url="$$(grep '^DATABASE_URL=' .env 2>/dev/null | cut -d= -f2-)"; \
 	if [ -z "$$url" ]; then echo "test-db: DATABASE_URL not set in .env (run make up first)"; exit 1; fi; \
-	cd api && TEST_DATABASE_URL="$$url" go test ./internal/db/ -v -count=1
+	cd api && TEST_DATABASE_URL="$$url" go test ./internal/db/ ./internal/server/ -v -count=1
 
 test-web: ## Web typecheck + tests
 	cd web && npm run typecheck && npm test

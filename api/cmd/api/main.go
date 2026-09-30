@@ -10,10 +10,12 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+	_ "time/tzdata" // the alpine image has no zoneinfo; handlers validate IANA names
 
 	"github.com/colehanke/mavi-demo/api/internal/aiclient"
 	"github.com/colehanke/mavi-demo/api/internal/db"
 	"github.com/colehanke/mavi-demo/api/internal/server"
+	"github.com/colehanke/mavi-demo/api/internal/store"
 	"github.com/colehanke/mavi-demo/api/internal/taxonomy"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -51,10 +53,20 @@ func run() error {
 		}
 	}
 
+	tax, err := taxonomy.Load(taxonomyPath())
+	if err != nil {
+		return err
+	}
 	ai := aiclient.New(envOr("AI_SERVICE_URL", "http://localhost:8000"))
 	srv := &http.Server{
-		Addr:              ":" + envOr("PORT", "8080"),
-		Handler:           server.New(pool, ai, envOr("CORS_ORIGIN", "http://localhost:5173")),
+		Addr: ":" + envOr("PORT", "8080"),
+		Handler: server.New(server.Config{
+			DB:         pool,
+			AI:         ai,
+			Store:      store.New(pool),
+			Taxonomy:   tax,
+			CORSOrigin: envOr("CORS_ORIGIN", "http://localhost:5173"),
+		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -77,7 +89,7 @@ func run() error {
 // shortlist query compares those columns with `@>`, so a stray "QBO" in a seed
 // would silently never match a profile that says "quickbooks".
 func runSeed(ctx context.Context, pool *pgxpool.Pool) error {
-	tax, err := taxonomy.Load(envOr("TAXONOMY_PATH", "/app/infra/taxonomy.json"))
+	tax, err := taxonomy.Load(taxonomyPath())
 	if err != nil {
 		return err
 	}
@@ -126,6 +138,20 @@ func runMigrate(ctx context.Context, pool *pgxpool.Pool, args []string) error {
 	default:
 		return fmt.Errorf("unknown migrate command %q (want up, down or status)", sub)
 	}
+}
+
+// taxonomyPath honours TAXONOMY_PATH, then the container mount, then the
+// monorepo layout for `go run ./cmd/api` from api/.
+func taxonomyPath() string {
+	if p := os.Getenv("TAXONOMY_PATH"); p != "" {
+		return p
+	}
+	for _, p := range []string{"/app/infra/taxonomy.json", "../infra/taxonomy.json"} {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return "/app/infra/taxonomy.json"
 }
 
 func envOr(key, fallback string) string {

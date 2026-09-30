@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -157,15 +158,29 @@ func TestMigrateRoundTrip(t *testing.T) {
 		t.Fatal("refused rollback must not touch the schema")
 	}
 
-	// Down one step removes only jobs.
+	// Down one step reverts only the newest migration.
 	if err := MigrateDown(ctx, pool, dir, 1); err != nil {
 		t.Fatalf("down 1: %v", err)
 	}
-	if tableExists(t, pool, "jobs") {
-		t.Error("after down 1: jobs still exists")
+	if got := appliedVersions(t, pool); strings.Join(got, ",") != strings.Join(allVersions[:len(allVersions)-1], ",") {
+		t.Errorf("after down 1: applied = %v, want all but the last", got)
 	}
 	if !tableExists(t, pool, "candidates") {
 		t.Error("after down 1: candidates should still exist")
+	}
+	// Rolling back through the jobs migration drops that table and nothing else.
+	jobsIdx := slices.IndexFunc(allVersions, func(v string) bool { return strings.HasSuffix(v, "_jobs") })
+	if jobsIdx < 0 {
+		t.Fatal("no *_jobs migration found")
+	}
+	if err := MigrateDown(ctx, pool, dir, len(allVersions)-1-jobsIdx); err != nil {
+		t.Fatalf("down through jobs: %v", err)
+	}
+	if tableExists(t, pool, "jobs") {
+		t.Error("after rolling back 0003_jobs: jobs still exists")
+	}
+	if !tableExists(t, pool, "candidates") {
+		t.Error("after rolling back 0003_jobs: candidates should still exist")
 	}
 
 	// Down everything leaves only the bookkeeping table.
