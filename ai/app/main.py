@@ -1,10 +1,11 @@
 from datetime import date
 from functools import lru_cache
+from typing import Self
 
 from fastapi import Depends, FastAPI, HTTPException
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app import embeddings, extract, llm
+from app import embeddings, embedtext, extract, llm
 from app.extract import RerankCandidate, RerankResult
 from app.llm import InvalidOutputError, Provider
 from app.schemas import CandidateProfile, Contact, RoleRequirements
@@ -15,6 +16,7 @@ app = FastAPI(title="Mavi AI", version="0.1.0", generate_unique_id_function=lamb
 
 MAX_TEXT_CHARS = 60_000  # ~15 pages; anything bigger is not a resume or a JD
 MAX_RERANK_CANDIDATES = 50
+MAX_EMBED_INPUTS = 256  # the seed embeds ~200 profiles in one request
 MAX_ERROR_DETAIL_CHARS = 2000  # the Go client reads at most 4KB of an error body
 
 
@@ -53,11 +55,46 @@ class HealthResponse(BaseModel):
 
 
 class EmbedRequest(BaseModel):
-    text: str = Field(min_length=1)
+    text: str = Field(min_length=1, max_length=MAX_TEXT_CHARS)
 
 
 class EmbedResponse(BaseModel):
     embedding: list[float]
+    dim: int
+    provider: str
+
+
+class EmbedInput(BaseModel):
+    """One thing to embed: exactly one of the three fields. A profile or a
+    role's requirements is rendered to its canonical text (app/embedtext.py)
+    first, so the two are embedded in a comparable form."""
+
+    text: str | None = Field(default=None, min_length=1, max_length=MAX_TEXT_CHARS, description="Embedded as given.")
+    profile: CandidateProfile | None = Field(default=None, description="Embedded as its canonical profile text.")
+    requirements: RoleRequirements | None = Field(default=None, description="Embedded as its canonical role text.")
+
+    @model_validator(mode="after")
+    def _exactly_one(self) -> Self:
+        given = [name for name in ("text", "profile", "requirements") if getattr(self, name) is not None]
+        if len(given) != 1:
+            raise ValueError(f"give exactly one of text, profile, requirements (got {', '.join(given) or 'none'})")
+        return self
+
+    def rendered(self) -> str:
+        if self.profile is not None:
+            return embedtext.profile_text(self.profile)
+        if self.requirements is not None:
+            return embedtext.role_text(self.requirements)
+        return self.text or ""
+
+
+class EmbedBatchRequest(BaseModel):
+    inputs: list[EmbedInput] = Field(min_length=1, max_length=MAX_EMBED_INPUTS)
+
+
+class EmbedBatchResponse(BaseModel):
+    embeddings: list[list[float]] = Field(description="One vector per input, in the order given.")
+    texts: list[str] = Field(description="The text each vector was computed from, in the same order.")
     dim: int
     provider: str
 
@@ -114,8 +151,27 @@ def health(settings: Settings = Depends(get_settings)) -> HealthResponse:
 
 @app.post("/embed", response_model=EmbedResponse)
 def embed(req: EmbedRequest, settings: Settings = Depends(get_settings)) -> EmbedResponse:
-    vector = embeddings.embed(req.text, settings)
+    try:
+        vector = embeddings.embed(req.text, settings)
+    except embeddings.EmbeddingError as e:
+        raise HTTPException(status_code=502, detail=f"embedding provider error: {e}") from e
     return EmbedResponse(embedding=vector, dim=len(vector), provider=settings.embedding_provider)
+
+
+@app.post("/embed-batch", response_model=EmbedBatchResponse)
+def embed_batch(req: EmbedBatchRequest, settings: Settings = Depends(get_settings)) -> EmbedBatchResponse:
+    texts = [item.rendered() for item in req.inputs]
+    for i, text in enumerate(texts):
+        if not text.strip():
+            # Blank text, or a profile or a role with every field empty, which renders to nothing.
+            raise HTTPException(status_code=422, detail=f"inputs[{i}] has nothing to embed")
+    try:
+        vectors = embeddings.embed_many(texts, settings)
+    except embeddings.EmbeddingError as e:
+        raise HTTPException(status_code=502, detail=f"embedding provider error: {e}") from e
+    return EmbedBatchResponse(
+        embeddings=vectors, texts=texts, dim=settings.embedding_dim, provider=settings.embedding_provider
+    )
 
 
 @app.post("/parse-resume", response_model=ParseResumeResponse)

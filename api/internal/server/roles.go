@@ -180,11 +180,13 @@ func (s *Server) deleteRole(w http.ResponseWriter, r *http.Request) {
 }
 
 // embedRole queues an embedding job when a write left the role without an
-// embedding and there is a description to embed. The store clears the
-// embedding only when the description changes, so an edit that leaves it in
-// place queues nothing.
+// embedding and there is something to embed: structured requirements, or
+// failing those a description. The store clears the embedding only when one
+// of those (or the title) changes, so an edit that leaves them in place
+// queues nothing.
 func (s *Server) embedRole(r *http.Request, role store.Role) {
-	if role.EmbeddedAt == nil && strings.TrimSpace(role.Description) != "" {
+	structured := tasks.RoleStructured(role.Requirements, role.MustHaves, role.NiceToHaves, role.RequiredCertifications, role.RequiredSoftware)
+	if role.EmbeddedAt == nil && (structured || strings.TrimSpace(role.Description) != "") {
 		s.enqueueEmbedding(r, tasks.KindEmbedRole, "role_id", role.ID)
 	}
 }

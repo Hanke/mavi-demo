@@ -104,6 +104,34 @@ class Cache:
         self.put(key, value, **meta)
         return value
 
+    def get_or_call_many[T](
+        self, keys: list[str], call: Callable[[list[str]], list[T]], *, batch: int | None = None, **meta: str
+    ) -> list[T]:
+        """`get_or_call` for a batch: one value per key, in order. `call`
+        gets the keys with nothing stored (each once, in first-seen order,
+        at most `batch` at a time) and returns their values in that order;
+        it is not called when everything is stored. Each call's values are
+        stored as soon as it returns, so when a later call raises, the
+        exception propagates and a retry pays only for what is still missing."""
+        found: dict[str, T] = {}
+        missing: list[str] = []
+        for key in dict.fromkeys(keys):
+            cached = self.get(key)
+            if cached is not None:
+                found[key] = cast(T, cached)
+            else:
+                missing.append(key)
+        with self._lock:
+            self.hits += len(found)
+            self.calls += len(missing)
+        size = batch or len(missing)
+        for start in range(0, len(missing), size):
+            chunk = missing[start : start + size]
+            for key, value in zip(chunk, call(chunk), strict=True):
+                self.put(key, value, **meta)
+                found[key] = value
+        return [found[key] for key in keys]
+
 
 def from_settings(settings: Settings) -> Cache:
     return Cache(Path(settings.ai_cache_dir) if settings.ai_cache_dir else DEFAULT_DIR, settings.ai_cache)

@@ -309,18 +309,27 @@ func (s *Store) UpdateRole(ctx context.Context, id string, in RoleInput) (Role, 
 	if err != nil {
 		return Role{}, err
 	}
-	// Clear the embedding when the text it was computed from changes.
+	// Clear the embedding when anything it was computed from changes (roleTextChanged).
 	return scanRole(s.pool.QueryRow(ctx, `
 		UPDATE roles SET
 			title = $2, company = $3, description = $4, requirements = $5, must_haves = $6, nice_to_haves = $7,
 			required_certifications = $8, required_software = $9, min_years_experience = $10, timezone = $11,
 			starts_on = $12, status = $13,
-			embedding = CASE WHEN description IS DISTINCT FROM $4 THEN NULL ELSE embedding END,
-			embedding_model = CASE WHEN description IS DISTINCT FROM $4 THEN NULL ELSE embedding_model END,
-			embedded_at = CASE WHEN description IS DISTINCT FROM $4 THEN NULL ELSE embedded_at END
+			embedding = CASE WHEN `+roleTextChanged+` THEN NULL ELSE embedding END,
+			embedding_model = CASE WHEN `+roleTextChanged+` THEN NULL ELSE embedding_model END,
+			embedded_at = CASE WHEN `+roleTextChanged+` THEN NULL ELSE embedded_at END
 		WHERE id = $1
 		RETURNING `+roleCols, append([]any{id}, args...)...))
 }
+
+// roleTextChanged is true inside UpdateRole's SET when any column the
+// embedding is derived from differs from the stored row: the title and the
+// structured requirements the canonical role text is rendered from, and the
+// description a role without them is embedded from (tasks.KindEmbedRole).
+const roleTextChanged = `(title IS DISTINCT FROM $2 OR description IS DISTINCT FROM $4
+	OR requirements IS DISTINCT FROM $5::jsonb OR must_haves IS DISTINCT FROM $6::jsonb
+	OR nice_to_haves IS DISTINCT FROM $7::jsonb OR required_certifications IS DISTINCT FROM $8
+	OR required_software IS DISTINCT FROM $9)`
 
 func (s *Store) DeleteRole(ctx context.Context, id string) error {
 	return s.deleteRow(ctx, `DELETE FROM roles WHERE id = $1`, id)

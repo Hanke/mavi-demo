@@ -127,14 +127,14 @@ def test_build_provider_puts_the_configured_cache_in_front(tmp_path: Path):
 
 
 def test_provider_embeddings_are_cached_on_model_and_text(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    calls: list[tuple[str, str]] = []
+    calls: list[tuple[str, list[str]]] = []
 
-    def fake_openai(text: str, settings: Settings) -> list[float]:
-        calls.append((settings.embedding_model, text))
-        return [0.25, float(len(calls))]
+    def fake_openai(texts: list[str], settings: Settings) -> list[list[float]]:
+        calls.append((settings.embedding_model, texts))
+        return [[0.25, float(len(calls))] for _ in texts]
 
     monkeypatch.setattr(embeddings, "_embed_openai", fake_openai)
-    settings = Settings(embedding_provider="openai", ai_cache_dir=str(tmp_path))
+    settings = Settings(embedding_provider="openai", embedding_dim=2, ai_cache_dir=str(tmp_path))
     first = embeddings.embed("hello", settings)
     assert embeddings.embed("hello", settings) == first
     assert len(calls) == 1

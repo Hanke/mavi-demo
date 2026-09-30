@@ -102,7 +102,7 @@ are generated from the AI service's own OpenAPI document (see
 ## AI service
 
 The Python service ([`ai/`](ai/)) is stateless and never touches the database:
-four POST endpoints plus `/health`, every request and response a Pydantic model
+five POST endpoints plus `/health`, every request and response a Pydantic model
 (the OpenAPI document at `/openapi.json` is exported to
 [`ai/openapi.json`](ai/openapi.json) for the Go client, see [Contracts](#contracts)).
 
@@ -111,7 +111,73 @@ four POST endpoints plus `/health`, every request and response a Pydantic model
 | `POST /parse-resume` | `{text, as_of?}` — the resume as plain text; `as_of` is the date `years_experience` counts to (default today) | `{contact, profile, provider}` — `contact` is the header (`full_name`, `email`, `phone`, `location`, each null when the resume does not give it); `profile` is a `CandidateProfile`: `positions` (title, employer, start and end year), `years_experience`, `certifications`, `software`, `industries` (taxonomy ids, already canonical), `qualifications` (each one as written, with its issuing body, jurisdiction and whether it is fully held; see [Qualifications](#qualifications-across-jurisdictions)), `gaap_exposure` (the frameworks and standards the resume names), plus headline, skills, languages, availability and time zone |
 | `POST /parse-jd` | `{text}` | `{company, requirements, provider}` — `requirements` is a `RoleRequirements`, split into must-haves and nice-to-haves in fields that line up with the candidate profile (see [JD requirements](#jd-requirements)); each entry of `required_qualifications` says whether an equivalent is acceptable (`accept_equivalents`) and whether the JD said so (`equivalents_stated`) |
 | `POST /rerank` | `{role, candidates: [{id, text}]}` — the JD (or a rendering of the role) and up to 50 candidates, each an opaque id plus the text to judge | `{results: [{id, score, reasons}], provider}` — every id exactly once, best first, `score` in 0..1 |
-| `POST /embed` | `{text}` | `{embedding, dim, provider}` |
+| `POST /embed` | `{text}` — up to 60,000 characters, like the parsers | `{embedding, dim, provider}` |
+| `POST /embed-batch` | `{inputs: [...]}` — up to 256 inputs, each exactly one of `{text}`, `{profile}` (a `CandidateProfile`) or `{requirements}` (a `RoleRequirements`) | `{embeddings, texts, dim, provider}` — one vector per input in the order given, and the text each was computed from |
+
+### Embeddings
+
+Every vector is `EMBEDDING_DIM` wide (1536, the width of the `vector(1536)`
+columns). With `EMBEDDING_PROVIDER=openai` the `text-embedding-3` models are
+asked for that width, and an answer of any other width is a `502`, never a
+stored vector; so is any provider failure, with the reason in `detail`. A batch
+is sent to the provider in as few requests as possible (64 texts each): texts
+already in the [response cache](#response-cache) are not sent, a text that
+appears twice is sent once, and each request's vectors are stored as it
+returns, so retrying a batch that failed part-way pays only for the rest.
+
+A role and a profile are compared by the cosine distance of their vectors, so
+both are embedded from text of the same form. `/embed-batch` renders a
+`profile` or a `requirements` input to the same labelled lines in the same
+order ([`ai/app/embedtext.py`](ai/app/embedtext.py)), with taxonomy ids written
+as their labels:
+
+| Line | From a profile | From a role |
+| --- | --- | --- |
+| `Role` | `headline`, then the titles of `positions` | `title` |
+| `Qualifications` | `certifications`, `other_certifications` | required, then preferred |
+| `Software` | `software`, `other_software` | required, then preferred |
+| `Industries` | `industries`, `other_industries` | the same fields |
+| `Standards` | `gaap_exposure` | (a JD names them in its must-haves) |
+| `Skills` | `skills` | `must_haves`, then `nice_to_haves` |
+
+An empty line is left out. A must-have is free text, so its clauses (split at
+`;`) about location, working hours, start date or the right to work are
+recognised by their wording and dropped: "Central time; on-site in Chicago"
+says nothing a candidate's skills can answer. That is a word list
+(`LOGISTICS`), not a parse; a clause it misses stays in as a little noise, and
+the rerank still sees every must-have in full. What a hard filter decides by comparison is not in
+the text: time zone, start date, availability, and years of experience (the
+role's number is a minimum and the profile's a total, so the two would read as
+different when the candidate passes). Neither are employer names, contact
+details or languages.
+
+The worker sends the stored documents, not text it builds itself
+([`api/internal/tasks/embed.go`](api/internal/tasks/embed.go)):
+
+- **Profile**: `candidate_profiles.profile` with the `headline`,
+  `certifications` and `software` columns laid over it where they have a
+  value. `profile` is free-form JSON in the API, so one that is not a valid
+  `CandidateProfile` is refused (`422`) and embedded as plain text instead
+  (headline, the JSON, the two lists).
+- **Role**: a role with structured requirements (a non-empty `requirements`
+  document, or any of `must_haves`, `nice_to_haves`, `required_certifications`,
+  `required_software`) is sent as `requirements` with the title and those
+  columns laid over it. A role that has only a description, or whose
+  requirements are refused, is embedded from the description; such a vector is
+  a stopgap until the JD is parsed, since it is not in the comparable form.
+
+The embedding is cleared (and the job queued again) when anything it was
+computed from changes: for a role the title, description, `requirements`,
+`must_haves`, `nice_to_haves`, `required_certifications` and
+`required_software`; for a profile the `profile` JSON, headline,
+certifications and software.
+
+```sh
+curl -s localhost:8000/embed-batch -H 'Content-Type: application/json' -d '{"inputs": [
+  {"requirements": {"title": "Senior Payroll Specialist", "required_software": ["adp"], "must_haves": ["Multi-state payroll"]}},
+  {"profile": {"headline": "Payroll Manager", "software": ["adp"], "skills": ["multi-state payroll"]}}
+]}' | jq '{dim, texts}'
+```
 
 The three chat endpoints share one client ([`ai/app/llm.py`](ai/app/llm.py)).
 Each call sends the answer's JSON schema to the provider (Anthropic
@@ -199,9 +265,10 @@ or CI calls a model.
 
 Slow work is not done inside a request. The API writes a row to the `jobs`
 table and a worker picks it up; there is no broker to run. Today the kinds
-are `embed_role` and `embed_profile`: creating or editing a role with a
-description, or saving a profile, leaves the row's embedding `NULL` and
-queues the job that fills it through the AI service's `/embed`. (Profile
+are `embed_role` and `embed_profile`: creating or editing a role, or saving a
+profile, leaves the row's embedding `NULL` and queues the job that fills it
+through the AI service's `/embed-batch` (see [Embeddings](#embeddings) for
+what is sent). (Profile
 extraction and matching runs will be further kinds.)
 
 How it works (`api/internal/jobs`, handlers in `api/internal/tasks`):
@@ -626,8 +693,10 @@ runs at once; `0` disables its worker. `WORKER_ID` names the process in
 job may go unfinished before another worker reclaims it.
 
 
-`EMBEDDING_PROVIDER=local` (the default) uses a deterministic hash-based stub so
-the stack runs with no API keys. Set it to `openai` with `OPENAI_API_KEY` for real
+`EMBEDDING_PROVIDER=local` (the default) uses a deterministic hashed bag of words so
+the stack runs with no API keys: texts that share vocabulary sit close together,
+which is enough for a payroll JD to rank payroll profiles first, but it knows
+nothing about synonyms. Set it to `openai` with `OPENAI_API_KEY` for real
 embeddings. `LLM_PROVIDER` selects `anthropic` or `openai` for the chat calls
 behind `/parse-resume`, `/parse-jd` and `/rerank`; the matching key must be set,
 or those endpoints answer `502 llm provider error: ... no credentials configured`
@@ -649,7 +718,7 @@ also an ordinary word (the "Monday" in a start date) will fool it.
 
 Every LLM completion and every provider embedding is stored on disk under a
 SHA-256 of the provider, the model, the prompt (system and user) and the
-output schema, or the model and the input text for an embedding
+output schema, or the model, the width and the input text for an embedding
 ([`ai/app/cache.py`](ai/app/cache.py)). Re-running the seed generation, the
 eval or a demo reads those answers back instead of paying for them again, and
 gets the same results. Entries live in `ai/.cache` (git-ignored; the
@@ -672,7 +741,7 @@ run, and `make cache-clear` deletes the local entries. Things to know:
   resume is a new entry each day unless the caller pins `as_of`.
 - Changing a prompt, a schema (including the taxonomy ids in it) or the model
   changes the key; nothing needs clearing by hand.
-- The `local` embedding stub is already a pure function and is not cached.
+- The `local` embedder is already a pure function and is not cached.
 
 ## Eval
 

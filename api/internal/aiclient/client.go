@@ -44,7 +44,7 @@ var (
 
 // Error is the failure type for every client call.
 type Error struct {
-	Op         string // "health", "embed"
+	Op         string // "health", "embed", "embed-batch"
 	StatusCode int    // 0 when no response was received
 	Detail     string // the service's `detail` field or body excerpt, if any
 	cause      error  // one of the sentinels
@@ -116,6 +116,38 @@ func (c *Client) Health(ctx context.Context) error {
 		return &Error{Op: "health", StatusCode: http.StatusOK, cause: ErrUnavailable, Detail: "status " + out.Status}
 	}
 	return nil
+}
+
+// EmbedItem is one input of EmbedBatch: exactly one field is set. Profile
+// and Requirements carry stored JSON (a CandidateProfile, a
+// RoleRequirements) as it is, which the AI service renders to the canonical
+// text it embeds; a document that is not valid for its model is a 422.
+type EmbedItem struct {
+	Text         string          `json:"text,omitempty"`
+	Profile      json.RawMessage `json:"profile,omitempty"`
+	Requirements json.RawMessage `json:"requirements,omitempty"`
+}
+
+// EmbedBatch asks the AI service for one embedding per item, in order. The
+// response also says which text each vector was computed from.
+func (c *Client) EmbedBatch(ctx context.Context, items []EmbedItem) (EmbedBatchResponse, error) {
+	var out EmbedBatchResponse
+	body := struct {
+		Inputs []EmbedItem `json:"inputs"`
+	}{items}
+	if err := c.do(ctx, "embed-batch", http.MethodPost, "/embed-batch", body, c.embedTimeout, &out); err != nil {
+		return EmbedBatchResponse{}, err
+	}
+	if len(out.Embeddings) != len(items) {
+		return EmbedBatchResponse{}, &Error{Op: "embed-batch", StatusCode: http.StatusOK, cause: ErrBadResponse,
+			Detail: fmt.Sprintf("%d embeddings for %d inputs", len(out.Embeddings), len(items))}
+	}
+	for _, v := range out.Embeddings {
+		if len(v) == 0 {
+			return EmbedBatchResponse{}, &Error{Op: "embed-batch", StatusCode: http.StatusOK, cause: ErrBadResponse, Detail: "empty embedding"}
+		}
+	}
+	return out, nil
 }
 
 // Embed asks the AI service for an embedding of text.

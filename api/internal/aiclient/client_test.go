@@ -3,6 +3,7 @@ package aiclient
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -25,6 +26,39 @@ func TestEmbedOK(t *testing.T) {
 	}
 	if len(got) != 2 || got[0] != 0.1 {
 		t.Fatalf("embedding = %v", got)
+	}
+}
+
+func TestEmbedBatch(t *testing.T) {
+	var body string
+	answer := `{"embeddings":[[0.1,0.2],[0.3,0.4]],"texts":["hello","Role: Controller"],"dim":2,"provider":"local"}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/embed-batch" || r.Method != http.MethodPost {
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		raw, _ := io.ReadAll(r.Body)
+		body = string(raw)
+		_, _ = w.Write([]byte(answer))
+	}))
+	defer srv.Close()
+
+	items := []EmbedItem{{Text: "hello"}, {Requirements: []byte(`{"title":"Controller"}`)}}
+	got, err := New(srv.URL).EmbedBatch(context.Background(), items)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `{"inputs":[{"text":"hello"},{"requirements":{"title":"Controller"}}]}`; body != want {
+		t.Fatalf("request body = %s, want %s", body, want)
+	}
+	if len(got.Embeddings) != 2 || got.Embeddings[1][0] != 0.3 || got.Texts[1] != "Role: Controller" || got.Provider != "local" {
+		t.Fatalf("response = %+v", got)
+	}
+
+	// One vector short, or an empty one, is a bad response, not a partial result.
+	for _, answer = range []string{`{"embeddings":[[0.1]]}`, `{"embeddings":[[0.1],[]]}`} {
+		if _, err := New(srv.URL).EmbedBatch(context.Background(), items); !errors.Is(err, ErrBadResponse) {
+			t.Fatalf("answer %s: err = %v, want ErrBadResponse", answer, err)
+		}
 	}
 }
 

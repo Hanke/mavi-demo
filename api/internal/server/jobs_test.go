@@ -109,6 +109,17 @@ func TestWritesEnqueueEmbeddingJobs(t *testing.T) {
 	if n := jobsFor(tasks.KindEmbedRole, "role_id", bare); n != 2 {
 		t.Fatalf("want 2 embed_role jobs after a description change, got %d", n)
 	}
+	// So does changing a requirement the structured text is rendered from,
+	// and a role with requirements but no description has something to embed.
+	workerRan()
+	a.want(a.do("PUT", "/roles/"+bare, "employer", "", map[string]any{"must_haves": []string{"Runs the close"}}), 200, "edit must-haves")
+	if n := jobsFor(tasks.KindEmbedRole, "role_id", bare); n != 3 {
+		t.Fatalf("want 3 embed_role jobs after a must-have change, got %d", n)
+	}
+	structured := a.want(a.do("POST", "/roles", "employer", "", map[string]any{"title": "Payroll Lead", "must_haves": []string{"Multi-state payroll"}}), 201, "create with must-haves only")
+	if n := jobsFor(tasks.KindEmbedRole, "role_id", structured.str("id")); n != 1 {
+		t.Fatalf("create with must-haves queued %d jobs, want 1", n)
+	}
 	// Creating with a description queues on create.
 	r := a.want(a.do("POST", "/roles", "employer", "", map[string]any{"title": "Controller", "description": "Owns the close."}), 201, "create with description")
 	if n := jobsFor(tasks.KindEmbedRole, "role_id", r.str("id")); n != 1 {

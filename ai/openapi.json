@@ -180,9 +180,103 @@
         "title": "Contact",
         "type": "object"
       },
+      "EmbedBatchRequest": {
+        "properties": {
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/EmbedInput"
+            },
+            "maxItems": 256,
+            "minItems": 1,
+            "title": "Inputs",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          }
+        },
+        "required": [
+          "inputs"
+        ],
+        "title": "EmbedBatchRequest",
+        "type": "object"
+      },
+      "EmbedBatchResponse": {
+        "properties": {
+          "dim": {
+            "title": "Dim",
+            "type": "integer"
+          },
+          "embeddings": {
+            "description": "One vector per input, in the order given.",
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Embeddings",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "texts": {
+            "description": "The text each vector was computed from, in the same order.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Texts",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          }
+        },
+        "required": [
+          "embeddings",
+          "texts",
+          "dim",
+          "provider"
+        ],
+        "title": "EmbedBatchResponse",
+        "type": "object"
+      },
+      "EmbedInput": {
+        "description": "One thing to embed: exactly one of the three fields. A profile or a\nrole's requirements is rendered to its canonical text (app/embedtext.py)\nfirst, so the two are embedded in a comparable form.",
+        "properties": {
+          "profile": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CandidateProfile"
+              }
+            ],
+            "description": "Embedded as its canonical profile text.",
+            "nullable": true
+          },
+          "requirements": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RoleRequirements"
+              }
+            ],
+            "description": "Embedded as its canonical role text.",
+            "nullable": true
+          },
+          "text": {
+            "description": "Embedded as given.",
+            "maxLength": 60000,
+            "minLength": 1,
+            "nullable": true,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "title": "EmbedInput",
+        "type": "object"
+      },
       "EmbedRequest": {
         "properties": {
           "text": {
+            "maxLength": 60000,
             "minLength": 1,
             "title": "Text",
             "type": "string"
@@ -844,6 +938,44 @@
           }
         },
         "summary": "Embed"
+      }
+    },
+    "/embed-batch": {
+      "post": {
+        "operationId": "embed_batch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmbedBatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbedBatchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Embed Batch"
       }
     },
     "/health": {

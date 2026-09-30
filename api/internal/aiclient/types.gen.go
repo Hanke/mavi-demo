@@ -118,6 +118,37 @@ type Contact struct {
 	Phone    *string `json:"phone,omitempty"`
 }
 
+// EmbedBatchRequest defines model for EmbedBatchRequest.
+type EmbedBatchRequest struct {
+	Inputs []EmbedInput `json:"inputs"`
+}
+
+// EmbedBatchResponse defines model for EmbedBatchResponse.
+type EmbedBatchResponse struct {
+	Dim int `json:"dim"`
+
+	// Embeddings One vector per input, in the order given.
+	Embeddings [][]float32 `json:"embeddings"`
+	Provider   string      `json:"provider"`
+
+	// Texts The text each vector was computed from, in the same order.
+	Texts []string `json:"texts"`
+}
+
+// EmbedInput One thing to embed: exactly one of the three fields. A profile or a
+// role's requirements is rendered to its canonical text (app/embedtext.py)
+// first, so the two are embedded in a comparable form.
+type EmbedInput struct {
+	// Profile Embedded as its canonical profile text.
+	Profile *CandidateProfile `json:"profile,omitempty"`
+
+	// Requirements Embedded as its canonical role text.
+	Requirements *RoleRequirements `json:"requirements,omitempty"`
+
+	// Text Embedded as given.
+	Text *string `json:"text,omitempty"`
+}
+
 // EmbedRequest defines model for EmbedRequest.
 type EmbedRequest struct {
 	Text string `json:"text"`
@@ -359,6 +390,9 @@ type ValidationError_Loc_Item struct {
 
 // EmbedJSONRequestBody defines body for Embed for application/json ContentType.
 type EmbedJSONRequestBody = EmbedRequest
+
+// EmbedBatchJSONRequestBody defines body for EmbedBatch for application/json ContentType.
+type EmbedBatchJSONRequestBody = EmbedBatchRequest
 
 // ParseJdJSONRequestBody defines body for ParseJd for application/json ContentType.
 type ParseJdJSONRequestBody = ParseJDRequest
