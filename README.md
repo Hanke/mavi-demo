@@ -4,7 +4,7 @@ Monorepo for the Mavi demo stack.
 
 | Path | What | Port |
 | --- | --- | --- |
-| [`web/`](web/) | React + TypeScript (Vite dev server) | 5173 |
+| [`web/`](web/) | React + TypeScript (Vite dev server); API types generated from `api/openapi.yaml` | 5173 |
 | [`api/`](api/) | Go HTTP API | 8080 |
 | [`ai/`](ai/) | Python FastAPI service (embeddings / LLM) | 8000 |
 | [`infra/`](infra/) | Postgres init scripts, SQL migrations, seed data, shared taxonomy | 5433 (host) → 5432 |
@@ -92,7 +92,59 @@ The AI service client (`api/internal/aiclient`) bounds every call with a
 per-operation timeout (3s health, 15s embed) and reports failures as an `*Error`
 that says whether the service was unreachable, timed out, rejected the request
 or returned something unparseable (`errors.Is(err, aiclient.ErrTimeout)` etc.),
-with the service's `detail` message attached.
+with the service's `detail` message attached. Its request and response types
+are generated from the AI service's own OpenAPI document (see
+[Contracts](#contracts)).
+
+## Contracts
+
+The three services share their shapes through two OpenAPI documents, each
+written in one place and generated into the others. Nothing hand-writes a
+duplicate: the Go store's row types, the handlers' request types and the web
+app's types all come out of the generators.
+
+| Contract | Source of truth | Generated into |
+| --- | --- | --- |
+| Web ↔ Go API | [`api/openapi.yaml`](api/openapi.yaml), hand-written | `api/internal/contract/types.gen.go` (Go, [oapi-codegen](https://github.com/oapi-codegen/oapi-codegen), pinned as a `tool` in `api/go.mod`) and `web/src/api/schema.d.ts` (TypeScript, [openapi-typescript](https://openapi-ts.dev)) |
+| Go API → AI service | [`ai/openapi.json`](ai/openapi.json), exported from the FastAPI app by `python -m app.openapi` | `api/internal/aiclient/types.gen.go` (Go, oapi-codegen) |
+
+```sh
+make generate         # re-export ai/openapi.json, regenerate all Go and TS types
+make check-contracts  # regenerate and fail if anything changed, i.e. a spec moved without its outputs (make test runs this first)
+```
+
+What a schema change does:
+
+- **Edit `api/openapi.yaml`** (say, rename a `Match` field). `make generate`
+  rewrites the Go and TypeScript types; `go build` fails in every handler or
+  store scan that still uses the old name, and `npm run typecheck` fails in
+  every component that does. The server's route table is checked against the
+  spec's paths and `x-roles` by `TestRoutesMatchOpenAPISpec`, so an endpoint or
+  a permission that exists in only one place fails `go test`.
+- **Edit a FastAPI model** in `ai/app/main.py` or `ai/app/schemas.py`.
+  `tests/test_openapi.py` fails until `ai/openapi.json` is re-exported;
+  regenerating then changes `aiclient/types.gen.go`, and `go build` fails
+  wherever the Go client used the old shape.
+- **Forget to run the generator** after editing a spec: `make check-contracts`
+  (and so `make test` and CI) regenerates, sees the output change, and fails
+  naming the file. It compares against the working tree, not the last commit,
+  so a freshly regenerated tree passes before it is committed.
+
+In the web app, `src/api/index.ts` exposes a typed
+[openapi-fetch](https://openapi-ts.dev/openapi-fetch/) client, so a call like
+`client.GET("/matches", { params: { query: { status: "released" } } })` is a
+type error, and `src/api/types.ts` gives the schemas short names (`Candidate`,
+`Match`, `Persona`, …). Add an alias there when a schema lands in the YAML;
+never declare a shape.
+
+Two things about the exported AI document: it is downgraded from OpenAPI 3.1
+to 3.0.3 (`anyOf [X, null]` becomes `nullable`), which is what oapi-codegen
+reads, and the parser output models (`CandidateProfile`, `RoleRequirements`)
+are included as components even though no endpoint returns them yet, with
+the taxonomy id enums stripped so a taxonomy edit is not a schema change
+(their never-null list fields are marked so Go gets plain slices).
+The Go API stores those as free-form JSON (`profile`, `requirements`); the
+match `breakdown` is free-form too, since no service defines a rubric yet.
 
 ## Make targets
 
@@ -101,7 +153,8 @@ Run `make` to list them. The main ones:
 - `make up` / `make down` / `make logs` / `make ps`
 - `make migrate` / `make migrate-down` / `make migrate-status` / `make seed` — run inside the `api` image against the compose DB. `make migrate-down STEPS=2` or `STEPS=all` rolls back further.
 - `make test-db` — migration up/down round-trip plus the API CRUD / role tests against the compose DB (each test creates and drops a throwaway database)
-- `make test` — Go, Python and web test suites (host toolchains: Go 1.24, Python 3.12+, Node 22)
+- `make generate` / `make check-contracts` — regenerate the shared types from the OpenAPI documents, or fail if regenerating changes anything (see [Contracts](#contracts))
+- `make test` — contract check, then the Go, Python and web test suites (host toolchains: Go 1.24, Python 3.12+, Node 22)
 - `make health` — curl every health endpoint
 
 ## Database

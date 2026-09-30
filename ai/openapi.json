@@ -1,0 +1,415 @@
+{
+  "components": {
+    "schemas": {
+      "CandidateProfile": {
+        "additionalProperties": false,
+        "description": "What the resume parser extracts. Maps onto candidate_profiles.",
+        "properties": {
+          "availability": {
+            "default": "unknown",
+            "enum": [
+              "immediate",
+              "two_weeks",
+              "one_month",
+              "unavailable",
+              "unknown"
+            ],
+            "title": "Availability",
+            "type": "string"
+          },
+          "available_from": {
+            "default": null,
+            "format": "date",
+            "nullable": true,
+            "title": "Available From",
+            "type": "string"
+          },
+          "certifications": {
+            "description": "Certifications the candidate holds, as taxonomy ids.",
+            "items": {
+              "description": "A canonical id from infra/taxonomy.json; validated at runtime.",
+              "type": "string"
+            },
+            "title": "Certifications",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "headline": {
+            "default": null,
+            "description": "One-line summary of the candidate, e.g. 'Senior Accountant'.",
+            "nullable": true,
+            "title": "Headline",
+            "type": "string"
+          },
+          "industries": {
+            "description": "Industries the candidate has worked in, as taxonomy ids.",
+            "items": {
+              "description": "A canonical id from infra/taxonomy.json; validated at runtime.",
+              "type": "string"
+            },
+            "title": "Industries",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "languages": {
+            "description": "Spoken languages as ISO 639-1 codes.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Languages",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "other_certifications": {
+            "description": "Certifications not in the taxonomy, verbatim.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Other Certifications",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "other_industries": {
+            "description": "Industries not in the taxonomy, verbatim.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Other Industries",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "other_software": {
+            "description": "Software not in the taxonomy, verbatim.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Other Software",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "skills": {
+            "description": "Free-text skills, e.g. 'month-end close'.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Skills",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "software": {
+            "description": "Software the candidate has used, as taxonomy ids.",
+            "items": {
+              "description": "A canonical id from infra/taxonomy.json; validated at runtime.",
+              "type": "string"
+            },
+            "title": "Software",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "timezone": {
+            "default": null,
+            "description": "IANA name, e.g. America/Chicago.",
+            "nullable": true,
+            "title": "Timezone",
+            "type": "string"
+          },
+          "years_experience": {
+            "default": null,
+            "maximum": 70,
+            "minimum": 0,
+            "nullable": true,
+            "title": "Years Experience",
+            "type": "integer"
+          }
+        },
+        "title": "CandidateProfile",
+        "type": "object"
+      },
+      "EmbedRequest": {
+        "properties": {
+          "text": {
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "EmbedRequest",
+        "type": "object"
+      },
+      "EmbedResponse": {
+        "properties": {
+          "dim": {
+            "title": "Dim",
+            "type": "integer"
+          },
+          "embedding": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Embedding",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "embedding",
+          "dim",
+          "provider"
+        ],
+        "title": "EmbedResponse",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthResponse": {
+        "properties": {
+          "embedding_provider": {
+            "title": "Embedding Provider",
+            "type": "string"
+          },
+          "llm_provider": {
+            "title": "Llm Provider",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "llm_provider",
+          "embedding_provider"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "RoleRequirements": {
+        "additionalProperties": false,
+        "description": "What the JD parser extracts. Maps onto roles.",
+        "properties": {
+          "industries": {
+            "description": "Industry context of the role, as taxonomy ids.",
+            "items": {
+              "description": "A canonical id from infra/taxonomy.json; validated at runtime.",
+              "type": "string"
+            },
+            "title": "Industries",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "must_haves": {
+            "description": "Every hard requirement in the JD's own words.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Must Haves",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "nice_to_haves": {
+            "description": "Preferred but not required, in the JD's own words.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Nice To Haves",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "other_industries": {
+            "description": "Industries not in the taxonomy, verbatim.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Other Industries",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "other_required_certifications": {
+            "description": "Required certifications not in the taxonomy, verbatim.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Other Required Certifications",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "other_required_software": {
+            "description": "Required software not in the taxonomy, verbatim.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Other Required Software",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "required_certifications": {
+            "description": "Certifications the role requires, as taxonomy ids.",
+            "items": {
+              "description": "A canonical id from infra/taxonomy.json; validated at runtime.",
+              "type": "string"
+            },
+            "title": "Required Certifications",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "required_software": {
+            "description": "Software the role requires, as taxonomy ids.",
+            "items": {
+              "description": "A canonical id from infra/taxonomy.json; validated at runtime.",
+              "type": "string"
+            },
+            "title": "Required Software",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "starts_on": {
+            "default": null,
+            "format": "date",
+            "nullable": true,
+            "title": "Starts On",
+            "type": "string"
+          },
+          "timezone": {
+            "default": null,
+            "description": "IANA name the role operates in.",
+            "nullable": true,
+            "title": "Timezone",
+            "type": "string"
+          },
+          "title": {
+            "default": null,
+            "nullable": true,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "title": "RoleRequirements",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Mavi AI",
+    "version": "0.1.0"
+  },
+  "openapi": "3.0.3",
+  "paths": {
+    "/embed": {
+      "post": {
+        "operationId": "embed",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmbedRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Embed"
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    }
+  }
+}

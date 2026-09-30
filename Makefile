@@ -3,7 +3,14 @@ SHELL := /bin/bash
 
 COMPOSE := docker compose
 
-.PHONY: help up down logs ps migrate migrate-down migrate-status seed test test-api test-ai test-db test-web health
+# Python for the AI service: the checkout's venv when present, else whatever is on PATH.
+PYTHON ?= $(shell test -x $(CURDIR)/ai/.venv/bin/python && echo $(CURDIR)/ai/.venv/bin/python || echo python)
+
+# Every file a generator writes. `make check-contracts` fails when one is stale.
+GENERATED := ai/openapi.json api/internal/aiclient/types.gen.go api/internal/contract/types.gen.go web/src/api/schema.d.ts
+
+.PHONY: help up down logs ps migrate migrate-down migrate-status seed test test-api test-ai test-db test-web health \
+        generate generate-ai-spec generate-api generate-web check-contracts
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -34,13 +41,13 @@ migrate-status: ## Show which migrations are applied
 seed: ## Load seed data from infra/db/seed
 	$(COMPOSE) run --build --rm --no-deps api seed
 
-test: test-api test-ai test-web ## Run all test suites
+test: check-contracts test-api test-ai test-web ## Contract freshness, then every test suite
 
 test-api: ## Go API tests
 	cd api && go test ./...
 
 test-ai: ## Python AI service tests
-	cd ai && python -m pytest -q
+	cd ai && $(PYTHON) -m pytest -q
 
 test-db: ## Migration round-trip and API CRUD tests against the compose DB (each test gets a throwaway database)
 	@url="$$(grep '^DATABASE_URL=' .env 2>/dev/null | cut -d= -f2-)"; \
@@ -49,6 +56,27 @@ test-db: ## Migration round-trip and API CRUD tests against the compose DB (each
 
 test-web: ## Web typecheck + tests
 	cd web && npm run typecheck && npm test
+
+generate: generate-ai-spec generate-api generate-web ## Regenerate every contract artifact from the specs
+
+generate-ai-spec: ## Export the FastAPI app's OpenAPI document to ai/openapi.json
+	cd ai && $(PYTHON) -m app.openapi
+
+generate-api: generate-ai-spec ## Go types from api/openapi.yaml and ai/openapi.json (oapi-codegen, pinned in api/go.mod)
+	cd api && go generate ./...
+
+generate-web: ## TypeScript types from api/openapi.yaml (openapi-typescript)
+	cd web && npm run generate
+
+check-contracts: ## Fail if regenerating changes any generated contract file (i.e. a spec changed without `make generate`)
+	@before="$$(git hash-object $(GENERATED) 2>/dev/null)"; \
+	$(MAKE) --no-print-directory generate >/dev/null; \
+	after="$$(git hash-object $(GENERATED))"; \
+	if [ "$$before" != "$$after" ]; then \
+	  echo "check-contracts: these generated files were out of date and have been regenerated; review and commit them:"; \
+	  paste <(echo "$$before") <(echo "$$after") <(printf '%s\n' $(GENERATED)) | awk '$$1 != $$2 {print "  " $$3}'; \
+	  exit 1; fi
+	@echo "check-contracts: ok"
 
 health: ## Hit every health endpoint
 	@for s in "api http://localhost:$${API_PORT:-8080}/health" \

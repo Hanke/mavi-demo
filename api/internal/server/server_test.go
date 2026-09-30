@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/colehanke/mavi-demo/api/internal/contract"
 )
 
 type stub struct{ err error }
@@ -22,7 +24,7 @@ func TestHealthOK(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
-	var body healthResponse
+	var body contract.HealthResponse
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}

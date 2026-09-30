@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 from app import taxonomy
 from app.schemas import CandidateProfile, RoleRequirements
-from app.taxonomy import KINDS, Taxonomy, TaxonomyError, normalize_key
+from app.taxonomy import KINDS, Kind, Taxonomy, TaxonomyError, normalize_key
 
 INFRA = Path(__file__).resolve().parents[2] / "infra"
 CASES = json.loads((INFRA / "taxonomy_cases.json").read_text())["cases"]
@@ -61,7 +61,7 @@ def test_shared_alias_cases(tax: Taxonomy, case: dict):
         ("software", "---", ""),
     ],
 )
-def test_normalize_key(kind: str, raw: str, key: str):
+def test_normalize_key(kind: Kind, raw: str, key: str):
     assert normalize_key(kind, raw) == key
 
 

@@ -4,7 +4,8 @@ from pydantic import BaseModel, Field
 from app import embeddings
 from app.settings import Settings, get_settings
 
-app = FastAPI(title="Mavi AI", version="0.1.0")
+# Route names double as operation ids so generated clients get `embed`, not `embed_embed_post`.
+app = FastAPI(title="Mavi AI", version="0.1.0", generate_unique_id_function=lambda route: route.name)
 
 
 class HealthResponse(BaseModel):

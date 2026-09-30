@@ -1,0 +1,12 @@
+# oapi-codegen config for api/openapi.yaml -> types.gen.go (run via `go generate ./internal/contract`).
+# oapi-codegen is pinned as a tool in api/go.mod. v2.7.x is the last line that builds with
+# Go 1.24 (v2.8 requires Go 1.25), which is what the Dockerfile and README commit to.
+package: contract
+output: types.gen.go
+generate:
+  models: true
+output-options:
+  skip-prune: true
+  name-normalizer: ToCamelCaseWithInitialisms
+compatibility:
+  always-prefix-enum-values: true

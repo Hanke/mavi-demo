@@ -18,6 +18,7 @@ import (
 
 	"github.com/colehanke/mavi-demo/api/internal/aiclient"
 	"github.com/colehanke/mavi-demo/api/internal/auth"
+	"github.com/colehanke/mavi-demo/api/internal/contract"
 	"github.com/colehanke/mavi-demo/api/internal/store"
 	"github.com/colehanke/mavi-demo/api/internal/taxonomy"
 )
@@ -57,42 +58,59 @@ const maxBody = 1 << 20
 func New(cfg Config) http.Handler {
 	s := &Server{db: cfg.DB, ai: cfg.AI, store: cfg.Store, tax: cfg.Taxonomy, corsOrigin: cfg.CORSOrigin}
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", s.handleHealth)
-
-	// route registers a handler that only the listed roles may call.
-	route := func(pattern string, h http.HandlerFunc, roles ...auth.Role) {
-		mux.Handle(pattern, auth.Require(writeError, s.ready(h), roles...))
+	mux.HandleFunc(healthRoute, s.handleHealth)
+	for _, rt := range s.routes() {
+		mux.Handle(rt.pattern, auth.Require(writeError, s.ready(rt.handler), rt.roles...))
 	}
-	talent, employer, ops := auth.Talent, auth.Employer, auth.Ops
-
-	// Candidates: talent manages their own record, ops manages all.
-	route("POST /candidates", s.createCandidate, talent, ops)
-	route("GET /candidates", s.listCandidates, ops)
-	route("GET /candidates/{id}", s.getCandidate, talent, ops)
-	route("PUT /candidates/{id}", s.updateCandidate, talent, ops)
-	route("DELETE /candidates/{id}", s.deleteCandidate, ops)
-	route("GET /candidates/{id}/profile", s.getProfile, talent, ops)
-	route("PUT /candidates/{id}/profile", s.putProfile, talent, ops)
-	route("DELETE /candidates/{id}/profile", s.deleteProfile, ops)
-
-	// Roles: employers and ops write; talent reads open roles.
-	route("POST /roles", s.createRole, employer, ops)
-	route("GET /roles", s.listRoles, talent, employer, ops)
-	route("GET /roles/{id}", s.getRole, talent, employer, ops)
-	route("PUT /roles/{id}", s.updateRole, employer, ops)
-	route("DELETE /roles/{id}", s.deleteRole, employer, ops)
-
-	// Matches: ops writes and releases; employers and talent only ever see
-	// released rows (talent only their own).
-	route("POST /matches", s.createMatch, ops)
-	route("GET /matches", s.listMatches, talent, employer, ops)
-	route("GET /matches/{id}", s.getMatch, talent, employer, ops)
-	route("PUT /matches/{id}", s.updateMatch, ops)
-	route("POST /matches/{id}/release", s.releaseMatch(true), ops)
-	route("POST /matches/{id}/unrelease", s.releaseMatch(false), ops)
-	route("DELETE /matches/{id}", s.deleteMatch, ops)
-
 	return s.cors(mux)
+}
+
+const healthRoute = "GET /health"
+
+// routeDef is one row of the route table: a ServeMux pattern and the roles
+// that may call it.
+type routeDef struct {
+	pattern string
+	handler http.HandlerFunc
+	roles   []auth.Role
+}
+
+// routes is every role-gated route. contract_test.go checks it against the
+// operations and x-roles in api/openapi.yaml, so the spec and the server
+// cannot disagree about what exists or who may call it.
+func (s *Server) routes() []routeDef {
+	talent, employer, ops := auth.Talent, auth.Employer, auth.Ops
+	r := func(pattern string, h http.HandlerFunc, roles ...auth.Role) routeDef {
+		return routeDef{pattern: pattern, handler: h, roles: roles}
+	}
+	return []routeDef{
+		// Candidates: talent manages their own record, ops manages all.
+		r("POST /candidates", s.createCandidate, talent, ops),
+		r("GET /candidates", s.listCandidates, ops),
+		r("GET /candidates/{id}", s.getCandidate, talent, ops),
+		r("PUT /candidates/{id}", s.updateCandidate, talent, ops),
+		r("DELETE /candidates/{id}", s.deleteCandidate, ops),
+		r("GET /candidates/{id}/profile", s.getProfile, talent, ops),
+		r("PUT /candidates/{id}/profile", s.putProfile, talent, ops),
+		r("DELETE /candidates/{id}/profile", s.deleteProfile, ops),
+
+		// Roles: employers and ops write; talent reads open roles.
+		r("POST /roles", s.createRole, employer, ops),
+		r("GET /roles", s.listRoles, talent, employer, ops),
+		r("GET /roles/{id}", s.getRole, talent, employer, ops),
+		r("PUT /roles/{id}", s.updateRole, employer, ops),
+		r("DELETE /roles/{id}", s.deleteRole, employer, ops),
+
+		// Matches: ops writes and releases; employers and talent only ever see
+		// released rows (talent only their own).
+		r("POST /matches", s.createMatch, ops),
+		r("GET /matches", s.listMatches, talent, employer, ops),
+		r("GET /matches/{id}", s.getMatch, talent, employer, ops),
+		r("PUT /matches/{id}", s.updateMatch, ops),
+		r("POST /matches/{id}/release", s.releaseMatch(true), ops),
+		r("POST /matches/{id}/unrelease", s.releaseMatch(false), ops),
+		r("DELETE /matches/{id}", s.deleteMatch, ops),
+	}
 }
 
 // ready refuses CRUD requests on a server built without a store.
@@ -106,21 +124,16 @@ func (s *Server) ready(next http.HandlerFunc) http.Handler {
 	})
 }
 
-type healthResponse struct {
-	Status string            `json:"status"`
-	Checks map[string]string `json:"checks"`
-}
-
 // handleHealth reports 200 only when both downstream dependencies are reachable,
 // which is what the compose healthcheck and the acceptance criteria key off.
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 	defer cancel()
 
-	resp := healthResponse{Status: "ok", Checks: map[string]string{}}
+	resp := contract.HealthResponse{Status: contract.HealthStatusOk, Checks: map[string]string{}}
 	check := func(name string, err error) {
 		if err != nil {
-			resp.Status = "degraded"
+			resp.Status = contract.HealthStatusDegraded
 			resp.Checks[name] = "error: " + err.Error()
 			return
 		}
@@ -130,7 +143,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	check("ai", s.ai.Health(ctx))
 
 	code := http.StatusOK
-	if resp.Status != "ok" {
+	if resp.Status != contract.HealthStatusOk {
 		code = http.StatusServiceUnavailable
 	}
 	writeJSON(w, code, resp)
@@ -156,11 +169,6 @@ func (s *Server) cors(next http.Handler) http.Handler {
 // ---------------------------------------------------------------------------
 // request / response helpers
 // ---------------------------------------------------------------------------
-
-type errorResponse struct {
-	Error  string            `json:"error"`
-	Fields map[string]string `json:"fields,omitempty"`
-}
 
 // validationError is a 422 with per-field messages.
 type validationError struct {
@@ -198,7 +206,7 @@ func writeJSON(w http.ResponseWriter, code int, v any) {
 }
 
 func writeError(w http.ResponseWriter, code int, msg string) {
-	writeJSON(w, code, errorResponse{Error: msg})
+	writeJSON(w, code, contract.Error{Error: msg})
 }
 
 // fail maps store and validation errors onto status codes.
@@ -206,7 +214,7 @@ func fail(w http.ResponseWriter, err error) {
 	var ve *validationError
 	switch {
 	case errors.As(err, &ve):
-		writeJSON(w, http.StatusUnprocessableEntity, errorResponse{Error: "validation failed", Fields: ve.Fields})
+		writeJSON(w, http.StatusUnprocessableEntity, contract.Error{Error: "validation failed", Fields: &ve.Fields})
 	case errors.Is(err, store.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not found")
 	case errors.Is(err, store.ErrConflict):
@@ -214,7 +222,7 @@ func fail(w http.ResponseWriter, err error) {
 	case errors.Is(err, store.ErrInUse):
 		writeError(w, http.StatusConflict, "cannot delete: still referenced by "+constraint(err))
 	case errors.Is(err, store.ErrBadRef):
-		writeJSON(w, http.StatusUnprocessableEntity, errorResponse{Error: "referenced row does not exist: " + constraint(err)})
+		writeJSON(w, http.StatusUnprocessableEntity, contract.Error{Error: "referenced row does not exist: " + constraint(err)})
 	case errors.Is(err, context.Canceled):
 		// client went away; nothing useful to write
 	default:
@@ -237,6 +245,9 @@ func constraint(err error) string {
 type body map[string]json.RawMessage
 
 func (b body) has(key string) bool { _, ok := b[key]; return ok }
+
+// set reports whether the body carried key with a non-null value.
+func (b body) set(key string) bool { raw, ok := b[key]; return ok && string(raw) != "null" }
 
 // decodeBody reads a JSON object into v and writes a 400 on failure,
 // returning false when it did. Unknown fields are an error so a typo in a
@@ -323,14 +334,25 @@ func talentActor(w http.ResponseWriter, id auth.Identity) bool {
 	return true
 }
 
-// oneOf validates an enumerated field.
-func oneOf(v *validationError, field, value string, allowed ...string) {
-	for _, a := range allowed {
-		if value == a {
-			return
-		}
+// enumOr is the string value of an optional enum field from a generated
+// request type, or fallback when the field was omitted or null.
+func enumOr[T ~string](p *T, fallback string) string {
+	if p == nil {
+		return fallback
 	}
-	v.add(field, "must be one of "+strings.Join(allowed, ", "))
+	return string(*p)
+}
+
+// validEnum validates value against a generated enum type. The members come
+// from api/openapi.yaml, so a value added there is accepted here with no code
+// change, and there is no second list to keep in step.
+func validEnum[T interface {
+	~string
+	Valid() bool
+}](v *validationError, field, value string) {
+	if !T(value).Valid() {
+		v.add(field, "is not a "+field+" the API contract allows")
+	}
 }
 
 // resolveTerms maps free-text taxonomy values to canonical ids, recording

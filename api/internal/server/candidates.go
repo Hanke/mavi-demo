@@ -1,30 +1,23 @@
 package server
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/colehanke/mavi-demo/api/internal/auth"
+	"github.com/colehanke/mavi-demo/api/internal/contract"
 	"github.com/colehanke/mavi-demo/api/internal/store"
 	"github.com/colehanke/mavi-demo/api/internal/taxonomy"
 )
 
-// candidateBody is the JSON a client sends. Pointer fields distinguish
-// "omitted" (keep the current value on PUT) from an explicit null (clear).
-type candidateBody struct {
-	FullName   *string `json:"full_name"`
-	Email      *string `json:"email"`
-	Phone      *string `json:"phone"`
-	Location   *string `json:"location"`
-	ResumeText *string `json:"resume_text"`
-	Source     *string `json:"source"`
-	Status     *string `json:"status"`
-}
+// Request bodies decode into the generated input types from api/openapi.yaml
+// (contract.CandidateInput, contract.ProfileInput). Their pointer fields
+// distinguish "omitted" (keep the current value on PUT) from an explicit
+// null (clear); the body key set says which keys were actually sent.
 
-// apply overlays the body on base and validates the result.
-func (b candidateBody) apply(base store.CandidateInput, sent body) (store.CandidateInput, error) {
+// applyCandidate overlays the body on base and validates the result.
+func applyCandidate(b contract.CandidateInput, base store.CandidateInput, sent body) (store.CandidateInput, error) {
 	v := &validationError{}
 	// Nullable fields: an explicit null clears them.
 	if sent.has("email") {
@@ -47,9 +40,9 @@ func (b candidateBody) apply(base store.CandidateInput, sent body) (store.Candid
 		base.FullName = strings.TrimSpace(strOr(b.FullName, ""))
 	}
 	if sent.has("status") {
-		base.Status = strOr(b.Status, "")
+		base.Status = enumOr(b.Status, "")
 	} else if base.Status == "" {
-		base.Status = "active"
+		base.Status = string(contract.CandidateStatusActive)
 	}
 	if base.FullName == "" {
 		v.add("full_name", "required")
@@ -57,17 +50,17 @@ func (b candidateBody) apply(base store.CandidateInput, sent body) (store.Candid
 	if base.Email != nil && !strings.Contains(*base.Email, "@") {
 		v.add("email", "must contain @")
 	}
-	oneOf(v, "status", base.Status, "active", "archived")
+	validEnum[contract.CandidateStatus](v, "status", base.Status)
 	return base, v.err()
 }
 
 func (s *Server) createCandidate(w http.ResponseWriter, r *http.Request) {
-	var in candidateBody
+	var in contract.CandidateInput
 	sent, ok := decodeBody(w, r, &in, false)
 	if !ok {
 		return
 	}
-	input, err := in.apply(store.CandidateInput{}, sent)
+	input, err := applyCandidate(in, store.CandidateInput{}, sent)
 	if err != nil {
 		fail(w, err)
 		return
@@ -95,7 +88,7 @@ func (s *Server) listCandidates(w http.ResponseWriter, r *http.Request) {
 	v := &validationError{}
 	status := r.URL.Query().Get("status")
 	if status != "" {
-		oneOf(v, "status", status, "active", "archived")
+		validEnum[contract.CandidateStatus](v, "status", status)
 	}
 	if err := v.err(); err != nil {
 		fail(w, err)
@@ -127,7 +120,7 @@ func (s *Server) updateCandidate(w http.ResponseWriter, r *http.Request) {
 	if !ownsCandidate(w, r, id) {
 		return
 	}
-	var in candidateBody
+	var in contract.CandidateInput
 	sent, ok := decodeBody(w, r, &in, false)
 	if !ok {
 		return
@@ -137,9 +130,9 @@ func (s *Server) updateCandidate(w http.ResponseWriter, r *http.Request) {
 		fail(w, err)
 		return
 	}
-	input, err := in.apply(store.CandidateInput{
+	input, err := applyCandidate(in, store.CandidateInput{
 		FullName: cur.FullName, Email: cur.Email, Phone: cur.Phone, Location: cur.Location,
-		ResumeText: cur.ResumeText, Source: cur.Source, Status: cur.Status,
+		ResumeText: cur.ResumeText, Source: cur.Source, Status: string(cur.Status),
 	}, sent)
 	if err != nil {
 		fail(w, err)
@@ -165,21 +158,10 @@ func (s *Server) deleteCandidate(w http.ResponseWriter, r *http.Request) {
 // Profiles
 // ---------------------------------------------------------------------------
 
-// profileBody accepts taxonomy values as free text ("QuickBooks Online") and
-// stores the canonical ids; anything the taxonomy does not know is a 422 so
-// it can never silently miss a hard filter.
-type profileBody struct {
-	Profile         json.RawMessage `json:"profile"`
-	Headline        *string         `json:"headline"`
-	YearsExperience *int16          `json:"years_experience"`
-	Certifications  []string        `json:"certifications"`
-	Software        []string        `json:"software"`
-	Availability    string          `json:"availability"`
-	AvailableFrom   *store.Date     `json:"available_from"`
-	Timezone        *string         `json:"timezone"`
-}
-
-func (s *Server) profileInput(b profileBody) (store.ProfileInput, error) {
+// profileInput validates a ProfileInput. Taxonomy values arrive as free text
+// ("QuickBooks Online") and are stored as canonical ids; anything the
+// taxonomy does not know is a 422 so it can never silently miss a hard filter.
+func (s *Server) profileInput(b contract.ProfileInput) (store.ProfileInput, error) {
 	v := &validationError{}
 	in := store.ProfileInput{
 		Profile:         jsonObject(v, "profile", b.Profile),
@@ -187,14 +169,14 @@ func (s *Server) profileInput(b profileBody) (store.ProfileInput, error) {
 		YearsExperience: b.YearsExperience,
 		Certifications:  s.resolveTerms(v, "certifications", taxonomy.Certifications, trimAll(b.Certifications)),
 		Software:        s.resolveTerms(v, "software", taxonomy.Software, trimAll(b.Software)),
-		Availability:    b.Availability,
+		Availability:    enumOr(b.Availability, ""),
 		AvailableFrom:   b.AvailableFrom,
 		Timezone:        strPtr(b.Timezone),
 	}
 	if in.Availability == "" {
-		in.Availability = "unknown"
+		in.Availability = string(contract.AvailabilityUnknown)
 	}
-	oneOf(v, "availability", in.Availability, "immediate", "two_weeks", "one_month", "unavailable", "unknown")
+	validEnum[contract.Availability](v, "availability", in.Availability)
 	if in.YearsExperience != nil && (*in.YearsExperience < 0 || *in.YearsExperience > 70) {
 		v.add("years_experience", "must be between 0 and 70")
 	}
@@ -220,7 +202,7 @@ func (s *Server) putProfile(w http.ResponseWriter, r *http.Request) {
 	if !ownsCandidate(w, r, id) {
 		return
 	}
-	var in profileBody
+	var in contract.ProfileInput
 	if _, ok := decodeBody(w, r, &in, false); !ok {
 		return
 	}

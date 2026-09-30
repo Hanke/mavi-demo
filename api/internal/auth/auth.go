@@ -12,15 +12,18 @@ import (
 	"context"
 	"net/http"
 	"strings"
+
+	"github.com/colehanke/mavi-demo/api/internal/contract"
 )
 
-// Role is one of the three demo personas.
-type Role string
+// Role is one of the three demo personas: the API contract's Persona enum
+// (api/openapi.yaml), so the header values are defined once.
+type Role = contract.Persona
 
 const (
-	Talent   Role = "talent"   // a candidate managing their own record
-	Employer Role = "employer" // a hiring company; only ever sees released matches
-	Ops      Role = "ops"      // internal reviewer; sees and edits everything
+	Talent   = contract.PersonaTalent   // a candidate managing their own record
+	Employer = contract.PersonaEmployer // a hiring company; only ever sees released matches
+	Ops      = contract.PersonaOps      // internal reviewer; sees and edits everything
 )
 
 // All lists every valid role.

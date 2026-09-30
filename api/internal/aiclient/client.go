@@ -5,7 +5,14 @@
 // service was unreachable, timed out, or answered with an error status (and
 // what it said), so callers can decide between retrying, degrading and
 // failing.
+//
+// Request and response types come from ai/openapi.json, the OpenAPI document
+// the FastAPI app exports, generated into types.gen.go by oapi-codegen. A
+// change to a Python model has to be re-exported (`make generate`) before
+// this package compiles against it.
 package aiclient
+
+//go:generate go tool oapi-codegen -config oapi-codegen.yaml ../../../ai/openapi.json
 
 import (
 	"bytes"
@@ -99,22 +106,22 @@ func New(baseURL string, opts ...Option) *Client {
 	return c
 }
 
-// Health returns nil when the AI service reports healthy.
+// Health returns nil when the AI service answers /health with status "ok".
 func (c *Client) Health(ctx context.Context) error {
-	return c.do(ctx, "health", http.MethodGet, "/health", nil, c.healthTimeout, nil)
-}
-
-// EmbedResult is what /embed returns.
-type EmbedResult struct {
-	Embedding []float32 `json:"embedding"`
-	Dim       int       `json:"dim"`
-	Provider  string    `json:"provider"`
+	var out HealthResponse
+	if err := c.do(ctx, "health", http.MethodGet, "/health", nil, c.healthTimeout, &out); err != nil {
+		return err
+	}
+	if out.Status != "ok" {
+		return &Error{Op: "health", StatusCode: http.StatusOK, cause: ErrUnavailable, Detail: "status " + out.Status}
+	}
+	return nil
 }
 
 // Embed asks the AI service for an embedding of text.
 func (c *Client) Embed(ctx context.Context, text string) ([]float32, error) {
-	var out EmbedResult
-	err := c.do(ctx, "embed", http.MethodPost, "/embed", map[string]string{"text": text}, c.embedTimeout, &out)
+	var out EmbedResponse
+	err := c.do(ctx, "embed", http.MethodPost, "/embed", EmbedRequest{Text: text}, c.embedTimeout, &out)
 	if err != nil {
 		return nil, err
 	}

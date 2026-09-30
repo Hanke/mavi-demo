@@ -11,10 +11,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/colehanke/mavi-demo/api/internal/contract"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// The row types are the API's response schemas from api/openapi.yaml,
+// generated into internal/contract, so what the store scans is exactly what
+// the handlers serialise. The *Input types are internal and hand-written.
 
 // Sentinel errors handlers map to HTTP status codes. The constraint ones
 // arrive wrapped in a ConstraintError naming the constraint.
@@ -65,18 +70,7 @@ func (p Page) clamp() Page {
 // Candidates
 // ---------------------------------------------------------------------------
 
-type Candidate struct {
-	ID         string    `json:"id"`
-	FullName   string    `json:"full_name"`
-	Email      *string   `json:"email"`
-	Phone      *string   `json:"phone"`
-	Location   *string   `json:"location"`
-	ResumeText string    `json:"resume_text"`
-	Source     *string   `json:"source"`
-	Status     string    `json:"status"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
-}
+type Candidate = contract.Candidate
 
 // CandidateInput is everything a caller may set on a candidate.
 type CandidateInput struct {
@@ -141,31 +135,16 @@ func (s *Store) DeleteCandidate(ctx context.Context, id string) error {
 // Profiles (1:1 with candidates)
 // ---------------------------------------------------------------------------
 
-type Profile struct {
-	ID              string          `json:"id"`
-	CandidateID     string          `json:"candidate_id"`
-	Profile         json.RawMessage `json:"profile"`
-	Headline        *string         `json:"headline"`
-	YearsExperience *int16          `json:"years_experience"`
-	Certifications  []string        `json:"certifications"`
-	Software        []string        `json:"software"`
-	Availability    string          `json:"availability"`
-	AvailableFrom   *Date           `json:"available_from"`
-	Timezone        *string         `json:"timezone"`
-	EmbeddingModel  *string         `json:"embedding_model"`
-	EmbeddedAt      *time.Time      `json:"embedded_at"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
-}
+type Profile = contract.Profile
 
 type ProfileInput struct {
 	Profile         json.RawMessage
 	Headline        *string
-	YearsExperience *int16
+	YearsExperience *int
 	Certifications  []string // canonical taxonomy ids
 	Software        []string // canonical taxonomy ids
 	Availability    string
-	AvailableFrom   *Date
+	AvailableFrom   *contract.Date
 	Timezone        *string
 }
 
@@ -179,10 +158,7 @@ func scanProfile(row pgx.Row, extra ...any) (Profile, error) {
 	dest := append([]any{&p.ID, &p.CandidateID, &p.Profile, &p.Headline, &p.YearsExperience, &p.Certifications, &p.Software,
 		&p.Availability, &from, &p.Timezone, &p.EmbeddingModel, &p.EmbeddedAt, &p.CreatedAt, &p.UpdatedAt}, extra...)
 	err := row.Scan(dest...)
-	if from != nil {
-		d := Date(*from)
-		p.AvailableFrom = &d
-	}
+	p.AvailableFrom = contract.DatePtr(from)
 	if p.Certifications == nil {
 		p.Certifications = []string{}
 	}
@@ -217,7 +193,7 @@ func (s *Store) UpsertProfile(ctx context.Context, candidateID string, in Profil
 			embedded_at     = CASE WHEN `+profileTextChanged+` THEN NULL ELSE cp.embedded_at END
 		RETURNING `+profileCols+`, (xmax = 0) AS inserted`,
 		candidateID, in.Profile, in.Headline, in.YearsExperience, nonNil(in.Certifications), nonNil(in.Software),
-		in.Availability, in.AvailableFrom.timePtr(), in.Timezone)
+		in.Availability, in.AvailableFrom.TimePtr(), in.Timezone)
 	p, err = scanProfile(row, &inserted)
 	return p, inserted, err
 }
@@ -235,24 +211,7 @@ func (s *Store) DeleteProfile(ctx context.Context, candidateID string) error {
 // Roles
 // ---------------------------------------------------------------------------
 
-type Role struct {
-	ID                     string          `json:"id"`
-	Title                  string          `json:"title"`
-	Company                *string         `json:"company"`
-	Description            string          `json:"description"`
-	Requirements           json.RawMessage `json:"requirements"`
-	MustHaves              []string        `json:"must_haves"`
-	NiceToHaves            []string        `json:"nice_to_haves"`
-	RequiredCertifications []string        `json:"required_certifications"`
-	RequiredSoftware       []string        `json:"required_software"`
-	Timezone               *string         `json:"timezone"`
-	StartsOn               *Date           `json:"starts_on"`
-	Status                 string          `json:"status"`
-	EmbeddingModel         *string         `json:"embedding_model"`
-	EmbeddedAt             *time.Time      `json:"embedded_at"`
-	CreatedAt              time.Time       `json:"created_at"`
-	UpdatedAt              time.Time       `json:"updated_at"`
-}
+type Role = contract.Role
 
 type RoleInput struct {
 	Title                  string
@@ -264,7 +223,7 @@ type RoleInput struct {
 	RequiredCertifications []string // canonical taxonomy ids
 	RequiredSoftware       []string // canonical taxonomy ids
 	Timezone               *string
-	StartsOn               *Date
+	StartsOn               *contract.Date
 	Status                 string
 }
 
@@ -287,10 +246,7 @@ func scanRole(row pgx.Row) (Role, error) {
 	if err := json.Unmarshal(nice, &r.NiceToHaves); err != nil {
 		return r, fmt.Errorf("nice_to_haves: %w", err)
 	}
-	if starts != nil {
-		d := Date(*starts)
-		r.StartsOn = &d
-	}
+	r.StartsOn = contract.DatePtr(starts)
 	r.MustHaves = nonNil(r.MustHaves)
 	r.NiceToHaves = nonNil(r.NiceToHaves)
 	r.RequiredCertifications = nonNil(r.RequiredCertifications)
@@ -311,7 +267,7 @@ func roleArgs(in RoleInput) ([]any, error) {
 		return nil, err
 	}
 	return []any{in.Title, in.Company, in.Description, in.Requirements, must, nice,
-		nonNil(in.RequiredCertifications), nonNil(in.RequiredSoftware), in.Timezone, in.StartsOn.timePtr(), in.Status}, nil
+		nonNil(in.RequiredCertifications), nonNil(in.RequiredSoftware), in.Timezone, in.StartsOn.TimePtr(), in.Status}, nil
 }
 
 func (s *Store) CreateRole(ctx context.Context, in RoleInput) (Role, error) {
@@ -370,22 +326,7 @@ func (s *Store) DeleteRole(ctx context.Context, id string) error {
 // Matches
 // ---------------------------------------------------------------------------
 
-type Match struct {
-	ID          string          `json:"id"`
-	RoleID      string          `json:"role_id"`
-	CandidateID string          `json:"candidate_id"`
-	Score       float64         `json:"score"`
-	Explanation string          `json:"explanation"`
-	Breakdown   json.RawMessage `json:"breakdown"`
-	Status      string          `json:"status"`
-	ReleasedAt  *time.Time      `json:"released_at"`
-	CreatedAt   time.Time       `json:"created_at"`
-	UpdatedAt   time.Time       `json:"updated_at"`
-
-	// Denormalised for list views so a shortlist needs one request.
-	RoleTitle     string `json:"role_title"`
-	CandidateName string `json:"candidate_name"`
-}
+type Match = contract.Match
 
 type MatchInput struct {
 	RoleID      string
@@ -519,34 +460,6 @@ func (s *Store) DeleteMatch(ctx context.Context, id string) error {
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
-
-// Date is a calendar day serialised as YYYY-MM-DD.
-type Date time.Time
-
-func (d Date) MarshalJSON() ([]byte, error) {
-	return json.Marshal(time.Time(d).Format("2006-01-02"))
-}
-
-func (d *Date) UnmarshalJSON(b []byte) error {
-	var s string
-	if err := json.Unmarshal(b, &s); err != nil {
-		return err
-	}
-	t, err := time.Parse("2006-01-02", s)
-	if err != nil {
-		return fmt.Errorf("date %q: want YYYY-MM-DD", s)
-	}
-	*d = Date(t)
-	return nil
-}
-
-func (d *Date) timePtr() *time.Time {
-	if d == nil {
-		return nil
-	}
-	t := time.Time(*d)
-	return &t
-}
 
 func nonNil(s []string) []string {
 	if s == nil {

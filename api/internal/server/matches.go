@@ -6,41 +6,32 @@ import (
 	"strings"
 
 	"github.com/colehanke/mavi-demo/api/internal/auth"
+	"github.com/colehanke/mavi-demo/api/internal/contract"
 	"github.com/colehanke/mavi-demo/api/internal/store"
 )
 
-var matchStatuses = []string{"proposed", "approved", "rejected", "swapped"}
-
-type matchBody struct {
-	RoleID      string          `json:"role_id"`
-	CandidateID string          `json:"candidate_id"`
-	Score       *float64        `json:"score"`
-	Explanation *string         `json:"explanation"`
-	Breakdown   json.RawMessage `json:"breakdown"`
-	Status      *string         `json:"status"`
-}
-
 func (s *Server) createMatch(w http.ResponseWriter, r *http.Request) {
-	var b matchBody
-	if _, ok := decodeBody(w, r, &b, false); !ok {
+	var b contract.MatchCreate
+	sent, ok := decodeBody(w, r, &b, false)
+	if !ok {
 		return
 	}
 	v := &validationError{}
-	in := store.MatchInput{RoleID: strings.TrimSpace(b.RoleID), CandidateID: strings.TrimSpace(b.CandidateID), Status: "proposed"}
+	in := store.MatchInput{
+		RoleID:      strings.TrimSpace(b.RoleID),
+		CandidateID: strings.TrimSpace(b.CandidateID),
+		Score:       b.Score,
+		Explanation: strOr(b.Explanation, ""),
+		Status:      enumOr(b.Status, string(contract.MatchStatusProposed)),
+	}
 	if !isUUID(in.RoleID) {
 		v.add("role_id", "must be a UUID")
 	}
 	if !isUUID(in.CandidateID) {
 		v.add("candidate_id", "must be a UUID")
 	}
-	if b.Score == nil {
+	if !sent.set("score") {
 		v.add("score", "required")
-	} else {
-		in.Score = *b.Score
-	}
-	in.Explanation = strOr(b.Explanation, "")
-	if b.Status != nil {
-		in.Status = *b.Status
 	}
 	in.Breakdown = jsonObject(v, "breakdown", b.Breakdown)
 	validateMatchFields(v, in.Score, in.Status)
@@ -60,7 +51,7 @@ func validateMatchFields(v *validationError, score float64, status string) {
 	if score < 0 || score > 1 {
 		v.add("score", "must be between 0 and 1")
 	}
-	oneOf(v, "status", status, matchStatuses...)
+	validEnum[contract.MatchStatus](v, "status", status)
 }
 
 // scopeMatches applies the role's visibility rule to a filter. Employers
@@ -95,7 +86,7 @@ func (s *Server) listMatches(w http.ResponseWriter, r *http.Request) {
 	v := &validationError{}
 	f := store.MatchFilter{RoleID: uuidParam(v, r, "role_id"), CandidateID: uuidParam(v, r, "candidate_id"), Status: r.URL.Query().Get("status")}
 	if f.Status != "" {
-		oneOf(v, "status", f.Status, matchStatuses...)
+		validEnum[contract.MatchStatus](v, "status", f.Status)
 	}
 	if err := v.err(); err != nil {
 		fail(w, err)
@@ -132,7 +123,14 @@ func (s *Server) getMatch(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) updateMatch(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	var b matchBody
+	// MatchUpdate has no role_id / candidate_id. They are accepted here only
+	// so the answer can say the pair is immutable instead of a generic
+	// unknown-field 400.
+	var b struct {
+		contract.MatchUpdate
+		RoleID      *string `json:"role_id"`
+		CandidateID *string `json:"candidate_id"`
+	}
 	sent, ok := decodeBody(w, r, &b, false)
 	if !ok {
 		return
@@ -147,7 +145,7 @@ func (s *Server) updateMatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v := &validationError{}
-	in := store.MatchUpdate{Score: cur.Score, Explanation: cur.Explanation, Breakdown: cur.Breakdown, Status: cur.Status}
+	in := store.MatchUpdate{Score: cur.Score, Explanation: cur.Explanation, Breakdown: cur.Breakdown, Status: string(cur.Status)}
 	if b.Score != nil {
 		in.Score = *b.Score
 	}
@@ -155,7 +153,7 @@ func (s *Server) updateMatch(w http.ResponseWriter, r *http.Request) {
 		in.Explanation = strOr(b.Explanation, "")
 	}
 	if b.Status != nil {
-		in.Status = *b.Status
+		in.Status = string(*b.Status)
 	}
 	if sent.has("breakdown") {
 		in.Breakdown = jsonObject(v, "breakdown", b.Breakdown)
@@ -176,14 +174,10 @@ func (s *Server) updateMatch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, m)
 }
 
-type releaseBody struct {
-	Reason string `json:"reason"`
-}
-
 // releaseMatch flips released_at and records the ops actor in review_events.
 func (s *Server) releaseMatch(release bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var b releaseBody
+		var b contract.ReleaseInput
 		if _, ok := decodeBody(w, r, &b, true); !ok {
 			return
 		}
@@ -191,7 +185,7 @@ func (s *Server) releaseMatch(release bool) http.HandlerFunc {
 		if actor == "" {
 			actor = "ops"
 		}
-		m, err := s.store.SetReleased(r.Context(), r.PathValue("id"), release, actor, b.Reason)
+		m, err := s.store.SetReleased(r.Context(), r.PathValue("id"), release, actor, strOr(b.Reason, ""))
 		if err != nil {
 			fail(w, err)
 			return
