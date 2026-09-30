@@ -139,7 +139,7 @@ def render_roles(data: dict[str, Any]) -> str:
         "",
         "INSERT INTO roles\n"
         "    (id, title, company, description, requirements, must_haves, nice_to_haves,\n"
-        "     required_certifications, required_software, timezone, starts_on, status)\n"
+        "     required_certifications, required_software, min_years_experience, timezone, starts_on, status)\n"
         "VALUES",
     ]
     rows: list[str] = []
@@ -161,6 +161,7 @@ def render_roles(data: dict[str, Any]) -> str:
                     jsonb(req.nice_to_haves),
                     text_array(req.required_certifications),
                     text_array(req.required_software),
+                    "NULL" if req.min_years_experience is None else str(req.min_years_experience),
                     quote(req.timezone),
                     relative_date(days),
                     quote(r.get("status", "open")),

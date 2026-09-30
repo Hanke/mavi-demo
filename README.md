@@ -109,7 +109,7 @@ four POST endpoints plus `/health`, every request and response a Pydantic model
 | Endpoint | Request | Response |
 | --- | --- | --- |
 | `POST /parse-resume` | `{text, as_of?}` — the resume as plain text; `as_of` is the date `years_experience` counts to (default today) | `{contact, profile, provider}` — `contact` is the header (`full_name`, `email`, `phone`, `location`, each null when the resume does not give it); `profile` is a `CandidateProfile`: `positions` (title, employer, start and end year), `years_experience`, `certifications`, `software`, `industries` (taxonomy ids, already canonical), `qualifications` (each one as written, with its issuing body, jurisdiction and whether it is fully held; see [Qualifications](#qualifications-across-jurisdictions)), `gaap_exposure` (the frameworks and standards the resume names), plus headline, skills, languages, availability and time zone |
-| `POST /parse-jd` | `{text}` | `{company, requirements, provider}` — `requirements` is a `RoleRequirements`; each entry of `required_qualifications` says whether an equivalent is acceptable (`accept_equivalents`) and whether the JD said so (`equivalents_stated`) |
+| `POST /parse-jd` | `{text}` | `{company, requirements, provider}` — `requirements` is a `RoleRequirements`, split into must-haves and nice-to-haves in fields that line up with the candidate profile (see [JD requirements](#jd-requirements)); each entry of `required_qualifications` says whether an equivalent is acceptable (`accept_equivalents`) and whether the JD said so (`equivalents_stated`) |
 | `POST /rerank` | `{role, candidates: [{id, text}]}` — the JD (or a rendering of the role) and up to 50 candidates, each an opaque id plus the text to judge | `{results: [{id, score, reasons}], provider}` — every id exactly once, best first, `score` in 0..1 |
 | `POST /embed` | `{text}` | `{embedding, dim, provider}` |
 
@@ -147,6 +147,47 @@ replaced by the line that does name it). Derived values
 model. Missing information therefore comes back as null or an empty list;
 `ai/tests/test_parse_resume.py` runs every sample resume through this with
 an answer padded with invented values and asserts none survive.
+
+### JD requirements
+
+`/parse-jd` returns the requirements in two tiers. The must-haves are the
+hard filters: each one is a field of `RoleRequirements`, a column on `roles`
+under the same name, and is compared with one column of `candidate_profiles`
+(`HARD_FILTER_COLUMNS` in [`ai/app/schemas.py`](ai/app/schemas.py)):
+
+| Must-have (`RoleRequirements` field and `roles` column) | Compared with (`candidate_profiles`) | How |
+| --- | --- | --- |
+| `required_certifications` (with `required_qualifications` for the detail) | `certifications` | overlap with the ids acceptable for each requirement |
+| `required_software` | `software` | containment |
+| `min_years_experience` | `years_experience` | `>=`; a profile with no figure does not pass |
+| `starts_on` | `available_from` | `<=` |
+| `timezone` | `timezone` | stored on both sides; the shortlist query does not filter on it yet |
+
+`min_years_experience` is the fewest total years the JD accepts: 5 for "5+
+years", 1 for "1-4 years", the overall 10 of "10 or more years with at least 5
+in manufacturing", and null when the JD gives no number ("a couple of years").
+A minimum of 0 is stored as null on both services, since no minimum must not
+exclude a profile that does not state its years.
+
+The nice-to-haves are `preferred_certifications` and `preferred_software`
+(taxonomy ids, with `other_preferred_*` for anything outside the taxonomy).
+They never exclude a candidate, so alternatives are simply all listed ("CPP
+or FPC" is both ids), and the validators drop anything that is already
+required. Everything a JD asks for that has no structured field stays as text
+in `must_haves` / `nice_to_haves`, verbatim, for the rerank.
+
+Whatever the model returns is validated as that schema before it leaves the
+service: names become taxonomy ids, a preferred "CPA" becomes the one for
+where the role is, and an unknown field or an impossible number of years is
+sent back to the model once and then refused. Then `ground_jd`
+([`ai/app/extract.py`](ai/app/extract.py)) checks the structured requirements
+against the JD text, as `ground_resume` does for a resume: a required or
+preferred certification or product the JD does not name, an `other_*` entry
+that is not there verbatim, or a minimum number of years the JD never writes
+is dropped and logged, so a filter the model invented cannot exclude anyone.
+[`ai/tests/test_parse_jd.py`](ai/tests/test_parse_jd.py) runs every sample JD
+through the parser with its expected must-haves written out, and checks each
+must-have field against the columns in `infra/db/migrations`.
 
 Tests run the endpoints over a `ScriptedProvider` that replays canned answers
 (`ai/tests/test_endpoints.py`, `ai/tests/test_llm.py`) and over the key-free
@@ -301,13 +342,14 @@ the API writes.
 | --- | --- |
 | `candidates` | The person as ingested: contact details, raw resume text, status |
 | `candidate_profiles` | One structured profile per candidate: `profile` JSONB, `embedding` (pgvector, HNSW index), and the hard-filter columns `certifications[]`, `software[]`, `availability`, `available_from`, `timezone` |
-| `roles` | Raw JD plus `must_haves` / `nice_to_haves` JSONB, promoted `required_certifications[]`, `required_software[]`, `timezone`, `starts_on`, and an embedding |
+| `roles` | Raw JD plus `must_haves` / `nice_to_haves` JSONB, promoted `required_certifications[]`, `required_software[]`, `min_years_experience`, `timezone`, `starts_on`, and an embedding |
 | `matches` | One row per (role, candidate): `score`, `explanation`, `breakdown`, `status` (proposed / approved / rejected / swapped), `released_at` (set when ops releases it to the employer) |
 | `review_events` | Append-only audit of ops approve / reject / swap / release / unrelease actions on a match |
 | `jobs` | Postgres-backed background queue: `kind`, `payload`, `status` (queued / running / succeeded / failed), `priority`, `run_at`, `attempts` / `max_attempts`, `last_error`, `locked_by` / `locked_at`; claimed with `FOR UPDATE SKIP LOCKED` on the partial `jobs_dequeue_idx` (see [Background jobs](#background-jobs)) |
 
 The hard-filter fields are real, indexed columns rather than JSON keys, so a
-shortlist query can be written directly in SQL. Software is containment. A
+shortlist query can be written directly in SQL (each must-have the JD parser
+returns has a column here, see [JD requirements](#jd-requirements)). Software is containment. A
 required qualification is an overlap with the ids the taxonomy accepts for it
 (`taxonomy.Acceptable(id, acceptEquivalents)` in Go, one array parameter per
 requirement; see [Qualifications](#qualifications-across-jurisdictions)):
@@ -318,6 +360,7 @@ FROM roles r
 JOIN candidate_profiles p
   ON p.certifications && $2   -- e.g. {cpa_us,cpa_canada,aca_icaew,ca_icas,acca,...} for "CPA or equivalent"
  AND p.software       @> r.required_software
+ AND (r.min_years_experience IS NULL OR p.years_experience >= r.min_years_experience)
  AND (r.starts_on IS NULL OR p.available_from <= r.starts_on)
 JOIN candidates c ON c.id = p.candidate_id
 WHERE r.id = $1 AND c.status = 'active'
@@ -399,7 +442,7 @@ the structured output the parser is expected to produce.
 | `resumes/<slug>.pdf` | The same text rendered to PDF by `make fixtures-render` (`python -m app.fixtures render`); deterministic, so the tests compare it byte for byte with a re-render |
 | `resumes/<slug>.expected.json` | `{"$comment", "contact", "profile"}`: the header details and a complete, canonical `CandidateProfile` |
 | `jds/<slug>.txt` | The job description; `vague_finance_generalist` has no hard requirements at all and `senior_accountant_strict` has seven, with a fixed start date |
-| `jds/<slug>.expected.json` | `{"$comment", "company", "requirements", "hard_filter_matches"}`: a complete `RoleRequirements` and the resume slugs whose expected profile passes its certification and software containment |
+| `jds/<slug>.expected.json` | `{"$comment", "company", "requirements", "hard_filter_matches"}`: a complete `RoleRequirements` and the resume slugs whose expected profile passes its certification, software and years-of-experience filters |
 
 Load them with `app.fixtures.load_resumes()` / `load_jds()`; a parser test
 feeds each `text` (or `pdf_path`) in and compares with `expected`. The
@@ -427,7 +470,12 @@ Conventions the expected outputs follow, so the parser and the eval agree:
   qualification and listing both would demand both, so the either/or stays in
   `must_haves` and `required_certifications` is empty. "CPA or equivalent
   (ACA, ACCA, CA)" is one requirement with `accept_equivalents` true, not
-  four. A certification listed under "nice to have" is not required either.
+  four. A certification listed under "nice to have" is not required either;
+  it goes in `preferred_certifications`, where "CPP or FPC" is both ids
+  because a preference never filters.
+- `min_years_experience` is the overall minimum a must-have states as a
+  number; a figure for part of it ("at least 5 in manufacturing") stays in the
+  must-have text, and a JD with no number gets null.
 - `years_experience` runs from the first professional role to
   `app.fixtures.AS_OF` (2026-09-30, the day these were written), so a parser
   test passes that date as "today"; overlapping part-time roles do not add.

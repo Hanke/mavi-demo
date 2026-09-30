@@ -420,9 +420,12 @@ type Role struct {
 	EmbeddingModel *string    `json:"embedding_model"`
 
 	// ID A UUID, as text.
-	ID          ID       `json:"id"`
-	MustHaves   []string `json:"must_haves"`
-	NiceToHaves []string `json:"nice_to_haves"`
+	ID ID `json:"id"`
+
+	// MinYearsExperience Fewest years of experience the role accepts; `null` when the JD gives no number (a `0` sent in is stored as `null`).
+	MinYearsExperience *int     `json:"min_years_experience"`
+	MustHaves          []string `json:"must_haves"`
+	NiceToHaves        []string `json:"nice_to_haves"`
 
 	// RequiredCertifications Canonical taxonomy ids.
 	RequiredCertifications []string `json:"required_certifications"`
@@ -447,6 +450,7 @@ type RoleInput struct {
 
 	// Description `null` clears it to an empty string.
 	Description            *string       `json:"description,omitempty"`
+	MinYearsExperience     *int          `json:"min_years_experience,omitempty"`
 	MustHaves              []string      `json:"must_haves,omitempty"`
 	NiceToHaves            []string      `json:"nice_to_haves,omitempty"`
 	RequiredCertifications []string      `json:"required_certifications,omitempty"`

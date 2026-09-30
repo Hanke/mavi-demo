@@ -10,6 +10,11 @@
     ],
     "required_software": ["anaplan", "excel"],
     "other_required_software": [],
+    "min_years_experience": 6,
+    "preferred_certifications": [],
+    "other_preferred_certifications": [],
+    "preferred_software": ["sql", "power_bi", "looker"],
+    "other_preferred_software": [],
     "industries": ["fintech"],
     "other_industries": [],
     "must_haves": [

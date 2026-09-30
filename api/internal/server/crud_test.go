@@ -288,14 +288,19 @@ func TestRoleCRUD(t *testing.T) {
 	r := a.want(a.do("POST", "/roles", "employer", "", map[string]any{
 		"title": "Senior Accountant", "company": "Northwind", "description": "Own month-end close.",
 		"must_haves": []string{"cpa", "netsuite"}, "required_certifications": []string{"CPA"},
-		"required_software": []string{"NetSuite", "QBO"}, "timezone": "America/Chicago", "starts_on": "2026-11-01",
+		"required_software": []string{"NetSuite", "QBO"}, "min_years_experience": 5,
+		"timezone": "America/Chicago", "starts_on": "2026-11-01",
 	}), 201, "create role")
 	id := r.str("id")
 	if got := fmt.Sprint(r.Body["required_software"]); got != "[netsuite quickbooks]" {
 		t.Fatalf("required_software = %s", got)
 	}
-	if r.str("status") != "open" || r.str("starts_on") != "2026-11-01" {
+	if r.str("status") != "open" || r.str("starts_on") != "2026-11-01" || r.Body["min_years_experience"] != float64(5) {
 		t.Fatalf("create: %s", r.Raw)
+	}
+	a.want(a.do("POST", "/roles", "employer", "", map[string]any{"title": "x", "min_years_experience": 99}), 422, "bad years")
+	if none := a.want(a.do("PUT", "/roles/"+id, "employer", "", map[string]any{"min_years_experience": 0}), 200, "no minimum"); none.Body["min_years_experience"] != nil {
+		t.Fatalf("a minimum of 0 should be stored as null: %s", none.Raw)
 	}
 
 	a.want(a.do("POST", "/roles", "employer", "", map[string]any{"company": "x"}), 422, "missing title")

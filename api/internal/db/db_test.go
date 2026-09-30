@@ -486,6 +486,7 @@ func TestSeedIsVariedAndQueuesEmbeddings(t *testing.T) {
 		LEFT JOIN candidate_profiles p
 		  ON p.certifications @> r.required_certifications
 		 AND p.software       @> r.required_software
+		 AND (r.min_years_experience IS NULL OR p.years_experience >= r.min_years_experience)
 		 AND (r.starts_on IS NULL OR p.available_from <= r.starts_on)
 		LEFT JOIN candidates c ON c.id = p.candidate_id AND c.status = 'active'
 		GROUP BY r.id, r.title`)

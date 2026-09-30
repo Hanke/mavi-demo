@@ -62,7 +62,7 @@ class JDFixture:
     company: str
     expected: RoleRequirements
     hard_filter_matches: list[str]
-    """Resume slugs whose expected profile satisfies this JD's certification and software requirements."""
+    """Resume slugs whose expected profile satisfies this JD's certification, software and experience requirements."""
     comment: str
     raw: dict[str, Any]
 
@@ -121,9 +121,10 @@ def load_jds(root: Path = ROOT) -> list[JDFixture]:
 
 
 def passes_hard_filters(profile: CandidateProfile, req: RoleRequirements) -> bool:
-    """The qualification and software clauses of the README's shortlist query:
-    every required qualification held (or an equivalent, where the role
-    accepts one) and every required product listed.
+    """The qualification, software and experience clauses of the README's
+    shortlist query: every required qualification held (or an equivalent,
+    where the role accepts one), every required product listed and at least
+    the minimum years of experience.
 
     The query's `available_from <= starts_on` clause depends on the
     availability date the pipeline derives, which a profile does not carry,

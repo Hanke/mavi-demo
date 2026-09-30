@@ -10,6 +10,11 @@
     ],
     "required_software": ["netsuite", "blackline", "excel"],
     "other_required_software": [],
+    "min_years_experience": 5,
+    "preferred_certifications": [],
+    "other_preferred_certifications": [],
+    "preferred_software": ["floqast"],
+    "other_preferred_software": [],
     "industries": ["saas", "healthcare"],
     "other_industries": [],
     "must_haves": [

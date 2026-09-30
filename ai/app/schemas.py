@@ -317,12 +317,33 @@ class CandidateProfile(TaxonomyModel):
         return self
 
 
+# Each must-have field of RoleRequirements (stored in the `roles` column of the
+# same name) and the `candidate_profiles` column the shortlist query compares
+# it with. Everything else a JD requires stays in `must_haves` as text for the
+# rerank.
+HARD_FILTER_COLUMNS: dict[str, str] = {
+    "required_certifications": "certifications",
+    "required_software": "software",
+    "min_years_experience": "years_experience",
+    "starts_on": "available_from",
+    "timezone": "timezone",
+}
+
+
 class RoleRequirements(TaxonomyModel):
-    """What the JD parser extracts. Maps onto roles."""
+    """What the JD parser extracts. Maps onto roles.
+
+    Requirements come in two tiers that mirror the candidate profile. The
+    must-haves (`required_*`, `min_years_experience`, `starts_on`, `timezone`)
+    are the hard filters, see HARD_FILTER_COLUMNS. The nice-to-haves
+    (`preferred_*`) never exclude anyone: holding any one of them counts in a
+    candidate's favour, so "CPP or FPC" is simply both ids."""
 
     taxonomy_fields: ClassVar[dict[str, tuple[Kind, str]]] = {
         "required_certifications": ("certifications", "other_required_certifications"),
         "required_software": ("software", "other_required_software"),
+        "preferred_certifications": ("certifications", "other_preferred_certifications"),
+        "preferred_software": ("software", "other_preferred_software"),
         "industries": ("industries", "other_industries"),
     }
 
@@ -341,6 +362,32 @@ class RoleRequirements(TaxonomyModel):
     other_required_software: list[str] = Field(
         default_factory=list, description="Required software not in the taxonomy, verbatim."
     )
+    min_years_experience: int | None = Field(
+        default=None,
+        ge=0,
+        le=70,
+        description="Fewest total years of professional experience the JD accepts; null if it gives no number.",
+    )
+
+    @field_validator("min_years_experience")
+    @classmethod
+    def _no_minimum_is_null(cls, years: int | None) -> int | None:
+        """ "No experience needed" is the absence of a minimum. Stored as 0 it
+        would still exclude every profile that does not state its years."""
+        return years or None
+
+    preferred_certifications: list[CertificationID] = _taxonomy_list(
+        "certifications", "Certifications the JD lists as preferred but not required, as taxonomy ids."
+    )
+    other_preferred_certifications: list[str] = Field(
+        default_factory=list, description="Preferred certifications not in the taxonomy, verbatim."
+    )
+    preferred_software: list[SoftwareID] = _taxonomy_list(
+        "software", "Software the JD lists as preferred but not required, as taxonomy ids."
+    )
+    other_preferred_software: list[str] = Field(
+        default_factory=list, description="Preferred software not in the taxonomy, verbatim."
+    )
     industries: list[IndustryID] = _taxonomy_list("industries", "Industry context of the role, as taxonomy ids.")
     other_industries: list[str] = Field(default_factory=list, description="Industries not in the taxonomy, verbatim.")
     must_haves: list[str] = Field(default_factory=list, description="Every hard requirement in the JD's own words.")
@@ -354,24 +401,40 @@ class RoleRequirements(TaxonomyModel):
     def _settle_qualifications(self) -> RoleRequirements:
         """As on the candidate side. Which "CPA" a JD means comes from its own
         words ("any US state") and otherwise from where the role is."""
-        if not self.required_qualifications:
-            return self
         tax = taxonomy.load()
-        records: list[RequiredQualification] = []
-        for r in self.required_qualifications:
-            stated = qualifications.guess_jurisdiction(tax, f"{r.name_as_written} {r.quote or ''}")
-            hint = stated or tax.jurisdiction_for_timezone(self.timezone)
-            canonical, _, _ = qualifications.settle(tax, r.name_as_written, r.canonical, None, None, hint=hint)
-            records.append(r.model_copy(update={"canonical": canonical}))
-        records = _unique(records)
-        ids, other = _sync_ids(
-            list(self.required_certifications),
-            list(self.other_required_certifications),
-            [(r.canonical, r.name_as_written, True) for r in records],
+        where = tax.jurisdiction_for_timezone(self.timezone)
+        if self.required_qualifications:
+            records: list[RequiredQualification] = []
+            for r in self.required_qualifications:
+                stated = qualifications.guess_jurisdiction(tax, f"{r.name_as_written} {r.quote or ''}")
+                canonical, _, _ = qualifications.settle(
+                    tax, r.name_as_written, r.canonical, None, None, hint=stated or where
+                )
+                records.append(r.model_copy(update={"canonical": canonical}))
+            records = _unique(records)
+            ids, other = _sync_ids(
+                list(self.required_certifications),
+                list(self.other_required_certifications),
+                [(r.canonical, r.name_as_written, True) for r in records],
+            )
+            self.required_qualifications, self.required_certifications, self.other_required_certifications = (
+                records,
+                ids,
+                other,
+            )
+        # A preferred "CPA" is the local one too, and nothing is both required and preferred.
+        local = [
+            qualifications.settle(tax, tax.term("certifications", c).label, c, None, None, hint=where)[0] or c
+            for c in self.preferred_certifications
+        ]
+        self.preferred_certifications = _without(list(dict.fromkeys(local)), self.required_certifications)
+        self.preferred_software = _without(self.preferred_software, self.required_software)
+        self.other_preferred_certifications = _without(
+            self.other_preferred_certifications, self.other_required_certifications
         )
-        self.required_qualifications, self.required_certifications, self.other_required_certifications = (
-            records,
-            ids,
-            other,
-        )
+        self.other_preferred_software = _without(self.other_preferred_software, self.other_required_software)
         return self
+
+
+def _without(preferred: list[str], required: list[str]) -> list[str]:
+    return [p for p in preferred if p not in required]

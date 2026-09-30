@@ -177,16 +177,26 @@ def test_jd_text_carries_the_expected_values(jd: JDFixture):
         assert q.quote, f"{jd.slug}: {q.name_as_written!r} needs its supporting quote"
         assert _in_text(q.quote, jd.text), f"{jd.slug}: {q.quote!r} is not verbatim from the JD"
         assert q.canonical in jd.expected.required_certifications, jd.slug
-    for other in jd.expected.other_required_software:
+    for other in jd.expected.other_required_software + jd.expected.other_preferred_software:
         assert _in_text(other, jd.text)
         assert tax.resolve("software", other) is None
+    # The structured nice-to-haves are read off the nice-to-have lines, and the
+    # minimum years off a must-have line.
+    preferred = [tax.term("certifications", c) for c in jd.expected.preferred_certifications]
+    preferred += [tax.term("software", s) for s in jd.expected.preferred_software]
+    nice = "\n".join(jd.expected.nice_to_haves)
+    assert not [t.id for t in preferred if not mentions(nice, t)], jd.slug
+    assert not set(jd.expected.preferred_certifications) & set(jd.expected.required_certifications)
+    assert not set(jd.expected.preferred_software) & set(jd.expected.required_software)
+    if (years := jd.expected.min_years_experience) is not None:
+        assert any(str(years) in line and "year" in line for line in jd.expected.must_haves), jd.slug
 
 
 def test_jd_hard_filter_matches_are_computed_from_the_resumes(jd: JDFixture, resumes: list[ResumeFixture]):
-    """Which fixture resumes pass this JD's certification and software
-    containment. Only those two clauses: the shortlist query's start-date
-    clause needs the availability date the pipeline derives, so a pipeline
-    test applies that on top."""
+    """Which fixture resumes pass this JD's certification, software and
+    years-of-experience filters. Only those clauses: the shortlist query's
+    start-date clause needs the availability date the pipeline derives, so a
+    pipeline test applies that on top."""
     passing = sorted(r.slug for r in resumes if fixtures.passes_hard_filters(r.expected, jd.expected))
     assert jd.hard_filter_matches == passing, jd.slug
     assert passing, f"{jd.slug}: no fixture resume passes its hard filters"
@@ -237,6 +247,10 @@ def test_jd_set_covers_the_brief(jds: list[JDFixture]):
     assert strict, "one JD with certification, software, several must-haves and a start date"
     assert any(j.expected.other_required_software for j in jds), "one JD requiring software outside the taxonomy"
     assert any(j.expected.starts_on for j in jds)
+    assert len({j.expected.min_years_experience for j in jds}) >= 4
+    assert vague[0].expected.min_years_experience is None
+    assert any(j.expected.preferred_certifications for j in jds), "one JD where a certification is only preferred"
+    assert sum(1 for j in jds if j.expected.preferred_software) >= 3
     assert len({j.expected.timezone for j in jds}) >= 3
     # Different JDs must land on different shortlists, and the vague one on everyone.
     assert len({tuple(j.hard_filter_matches) for j in jds}) == len(jds)

@@ -602,7 +602,7 @@
       },
       "RoleRequirements": {
         "additionalProperties": false,
-        "description": "What the JD parser extracts. Maps onto roles.",
+        "description": "What the JD parser extracts. Maps onto roles.\n\nRequirements come in two tiers that mirror the candidate profile. The\nmust-haves (`required_*`, `min_years_experience`, `starts_on`, `timezone`)\nare the hard filters, see HARD_FILTER_COLUMNS. The nice-to-haves\n(`preferred_*`) never exclude anyone: holding any one of them counts in a\ncandidate's favour, so \"CPP or FPC\" is simply both ids.",
         "properties": {
           "industries": {
             "description": "Industry context of the role, as taxonomy ids.",
@@ -613,6 +613,15 @@
             "title": "Industries",
             "type": "array",
             "x-go-type-skip-optional-pointer": true
+          },
+          "min_years_experience": {
+            "default": null,
+            "description": "Fewest total years of professional experience the JD accepts; null if it gives no number.",
+            "maximum": 70,
+            "minimum": 0,
+            "nullable": true,
+            "title": "Min Years Experience",
+            "type": "integer"
           },
           "must_haves": {
             "description": "Every hard requirement in the JD's own words.",
@@ -641,6 +650,24 @@
             "type": "array",
             "x-go-type-skip-optional-pointer": true
           },
+          "other_preferred_certifications": {
+            "description": "Preferred certifications not in the taxonomy, verbatim.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Other Preferred Certifications",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "other_preferred_software": {
+            "description": "Preferred software not in the taxonomy, verbatim.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Other Preferred Software",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
           "other_required_certifications": {
             "description": "Required certifications not in the taxonomy, verbatim.",
             "items": {
@@ -656,6 +683,26 @@
               "type": "string"
             },
             "title": "Other Required Software",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "preferred_certifications": {
+            "description": "Certifications the JD lists as preferred but not required, as taxonomy ids.",
+            "items": {
+              "description": "A canonical id from infra/taxonomy.json; validated at runtime.",
+              "type": "string"
+            },
+            "title": "Preferred Certifications",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "preferred_software": {
+            "description": "Software the JD lists as preferred but not required, as taxonomy ids.",
+            "items": {
+              "description": "A canonical id from infra/taxonomy.json; validated at runtime.",
+              "type": "string"
+            },
+            "title": "Preferred Software",
             "type": "array",
             "x-go-type-skip-optional-pointer": true
           },

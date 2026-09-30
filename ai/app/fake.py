@@ -30,7 +30,7 @@ from app.llm import ProviderError
 from app.taxonomy import Kind
 
 # Bump when the answers change, so cached answers from the old rules are not replayed.
-FAKE_MODEL = "fake-3"
+FAKE_MODEL = "fake-4"
 
 _RETRY_MARKER = "\n\nYour previous answer did not match the required schema."
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
@@ -42,9 +42,11 @@ _DASHES = r"\u2013\u2014\-"
 _NAME_END = re.compile(rf"\s{{2,}}|\s[{_DASHES}|]+\s|,|\|")
 _BULLET = re.compile(r"^\s*(?:[-*•>]|\d+[.)])\s+")
 _MUST_HEADING = re.compile(
-    r"^(requirements?|qualifications?|must[- ]haves?|required|what you(?:'ll)? (?:need|bring))\b", re.I
+    r"^(requirements?|qualifications?|(?:you )?must[- ]haves?|required|what you(?:'ll)? (?:need|bring))\b", re.I
 )
 _NICE_HEADING = re.compile(r"^(preferred|nice[- ]to[- ]haves?|bonus|plus(?:es)?|desirable|desired)\b", re.I)
+# "5+ years", "Minimum 5 years", "10 or more years", "1-4 years": the first figure is the floor.
+_MIN_YEARS = re.compile(r"(?<![\d-])(\d{1,2})(?:\s*\+|\s+or more|\s*[-\u2013]\s*\d{1,2})?\s+years?\b", re.I)
 _CANDIDATE = re.compile(r"^=== candidate id: (.+) ===$", re.M)
 _WORD = re.compile(r"[a-z][a-z0-9&+/-]{3,}")
 _AVAILABILITY = (
@@ -226,6 +228,10 @@ def _jd(prompt: str) -> dict[str, Any]:
             nice.append(item)
     # A term named only under "Preferred" is not a requirement.
     required_in = "\n".join(must) if must else text
+    preferred_in = "\n".join(nice)
+    # The overall figure leads its bullet ("10 or more years ..., at least 5 in ...");
+    # the first bullet with one decides.
+    years = next((int(m.group(1)) for item in must if (m := _MIN_YEARS.search(item))), None)
     title = re.split(rf"\s+[(|{_DASHES}]", _first_line(text), maxsplit=1)[0].strip()
     return {
         "company": None,
@@ -245,6 +251,11 @@ def _jd(prompt: str) -> dict[str, Any]:
             ],
             "required_software": _named("software", required_in),
             "other_required_software": [],
+            "min_years_experience": years,
+            "preferred_certifications": [q["canonical"] for q in _qualifications(preferred_in)],
+            "other_preferred_certifications": [],
+            "preferred_software": _named("software", preferred_in),
+            "other_preferred_software": [],
             "industries": _named("industries", text),
             "other_industries": [],
             "must_haves": must,

@@ -106,12 +106,11 @@ def test_aat_and_cima_do_not_pass_as_cpa_equivalents():
 
 def test_each_fixture_jd_passes_exactly_the_resumes_it_lists():
     passing = sorted(r.slug for r in fixtures.load_resumes() if _check(r.slug, OR_EQUIVALENT).passed)
-    assert passing == [
-        "financial_controller_aca_uk",
-        "fpa_manager_london",
-        "fractional_cfo",
-        "senior_accountant_cpa_netsuite",
-    ]
+    # The US CPA with NetSuite holds the right licence but has 7 of the 8 years asked for.
+    assert passing == ["financial_controller_aca_uk", "fpa_manager_london", "fractional_cfo"]
+    short = _check("senior_accountant_cpa_netsuite", OR_EQUIVALENT)
+    assert all(c.passed for c in short.qualifications)
+    assert short.experience_short == "Has 7 years of experience; this role asks for at least 8"
 
 
 # --- extraction: what is held is never turned into something else ---------------
@@ -279,7 +278,9 @@ def test_an_undetermined_cpa_is_not_assumed_to_be_an_equivalent():
 def test_equivalence_runs_both_ways_and_stays_inside_the_group():
     london_role = fixtures.load_jd("fpa_manager_london").expected  # ACCA, equivalents by default
     us_cpa = CandidateProfile(
-        qualifications=[Qualification(name_as_written="CPA", jurisdiction="US")], software=["anaplan", "excel"]
+        qualifications=[Qualification(name_as_written="CPA", jurisdiction="US")],
+        software=["anaplan", "excel"],
+        years_experience=8,
     )
     result = matching.check_hard_filters(us_cpa, london_role)
     assert result.passed

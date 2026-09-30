@@ -22,7 +22,13 @@ def test_shared_parser_models_are_exported_without_taxonomy_enums():
     schemas = openapi.build()["components"]["schemas"]
     for name, fields in {
         "CandidateProfile": ("certifications", "software", "industries"),
-        "RoleRequirements": ("required_certifications", "required_software", "industries"),
+        "RoleRequirements": (
+            "required_certifications",
+            "required_software",
+            "preferred_certifications",
+            "preferred_software",
+            "industries",
+        ),
     }.items():
         for field in fields:
             items = schemas[name]["properties"][field]["items"]

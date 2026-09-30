@@ -430,6 +430,8 @@ export interface components {
             required_certifications: string[];
             /** @description Canonical taxonomy ids. */
             required_software: string[];
+            /** @description Fewest years of experience the role accepts; `null` when the JD gives no number (a `0` sent in is stored as `null`). */
+            min_years_experience: number | null;
             timezone: string | null;
             starts_on: components["schemas"]["CalendarDate"] | null;
             status: components["schemas"]["RoleStatus"];
@@ -456,6 +458,7 @@ export interface components {
             nice_to_haves?: string[];
             required_certifications?: string[];
             required_software?: string[];
+            min_years_experience?: number | null;
             timezone?: string | null;
             starts_on?: components["schemas"]["CalendarDate"] | null;
             /** @description Defaults to `open` on create. */

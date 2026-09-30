@@ -27,6 +27,13 @@
           "netsuite"
         ],
         "other_required_software": [],
+        "min_years_experience": 5,
+        "preferred_certifications": [],
+        "other_preferred_certifications": [],
+        "preferred_software": [
+          "quickbooks"
+        ],
+        "other_preferred_software": [],
         "industries": [
           "consumer_packaged_goods",
           "food_and_beverage"
@@ -64,6 +71,14 @@
           "quickbooks"
         ],
         "other_required_software": [],
+        "min_years_experience": 1,
+        "preferred_certifications": [],
+        "other_preferred_certifications": [],
+        "preferred_software": [
+          "bill_com",
+          "expensify"
+        ],
+        "other_preferred_software": [],
         "industries": [
           "saas"
         ],
@@ -89,7 +104,7 @@
       "company": "Cascade Precision Manufacturing",
       "status": "open",
       "starts_in_days": 45,
-      "description": "Cascade Precision Manufacturing machines aerospace and medical components at two plants in Colorado and Utah ($85M revenue, 300 employees, private-equity owned). We are replacing a retiring Controller.\n\nThe role\n- Lead a team of six (AP, AR, payroll, two staff accountants, a cost accountant).\n- Own the monthly close and consolidated reporting for two operating entities and a holding company in Microsoft Dynamics 365 Business Central.\n- Own inventory and standard-cost accounting, including annual cost roll and physical inventory.\n- Run the annual audit with our Big 4 auditors and the quarterly lender reporting package.\n- Maintain the internal control framework the PE sponsor expects (SOX-style, not SEC-registered).\n- Partner with the CFO on the budget and on integrating acquisitions.\n\nMust have\n- CPA.\n- 10+ years of progressive accounting experience, at least 3 as a Controller or Assistant Controller in a manufacturing business.\n- Experience with Microsoft Dynamics 365 (Business Central or Finance).\n- Standard costing and inventory valuation under US GAAP.\n- Mountain time; on-site in Denver 3 days a week.\n\nPreferred\n- CMA.\n- Purchase accounting / acquisition integration experience.\n- Power BI for management reporting.",
+      "description": "Cascade Precision Manufacturing machines aerospace and medical components at two plants in Colorado and Utah ($85M revenue, 300 employees, private-equity owned). We are replacing a retiring Controller.\n\nThe role\n- Lead a team of six (AP, AR, payroll, two staff accountants, a cost accountant).\n- Own the monthly close and consolidated reporting for two operating entities and a holding company in Microsoft Dynamics 365 Business Central.\n- Own inventory and standard-cost accounting, including annual cost roll and physical inventory.\n- Run the annual audit with our Big 4 auditors and the quarterly lender reporting package.\n- Maintain the internal control framework the PE sponsor expects (SOX-style, not SEC-registered).\n- Partner with the CFO on the budget and on integrating acquisitions.\n\nMust have\n- CPA.\n- 5+ years of progressive accounting experience, at least 3 as a Controller or Assistant Controller in a manufacturing business.\n- Experience with Microsoft Dynamics 365 (Business Central or Finance).\n- Standard costing and inventory valuation under US GAAP.\n- Mountain time; on-site in Denver 3 days a week.\n\nPreferred\n- CMA.\n- Purchase accounting / acquisition integration experience.\n- Power BI for management reporting.",
       "requirements": {
         "title": "Controller",
         "required_certifications": [
@@ -109,13 +124,22 @@
           "microsoft_dynamics_365"
         ],
         "other_required_software": [],
+        "min_years_experience": 5,
+        "preferred_certifications": [
+          "cma"
+        ],
+        "other_preferred_certifications": [],
+        "preferred_software": [
+          "power_bi"
+        ],
+        "other_preferred_software": [],
         "industries": [
           "manufacturing"
         ],
         "other_industries": [],
         "must_haves": [
           "CPA",
-          "10+ years of progressive accounting experience, at least 3 as a Controller or Assistant Controller in a manufacturing business",
+          "5+ years of progressive accounting experience, at least 3 as a Controller or Assistant Controller in a manufacturing business",
           "Experience with Microsoft Dynamics 365 (Business Central or Finance)",
           "Standard costing and inventory valuation under US GAAP",
           "Mountain time; on-site in Denver 3 days a week"
@@ -145,6 +169,18 @@
           "excel"
         ],
         "other_required_software": [],
+        "min_years_experience": 5,
+        "preferred_certifications": [
+          "cfa",
+          "cpa_us"
+        ],
+        "other_preferred_certifications": [],
+        "preferred_software": [
+          "sql",
+          "looker",
+          "netsuite"
+        ],
+        "other_preferred_software": [],
         "industries": [
           "ecommerce",
           "retail"
@@ -191,6 +227,13 @@
           "quickbooks"
         ],
         "other_required_software": [],
+        "min_years_experience": 7,
+        "preferred_certifications": [],
+        "other_preferred_certifications": [],
+        "preferred_software": [],
+        "other_preferred_software": [
+          "CCH Axcess"
+        ],
         "industries": [
           "accounting_services",
           "real_estate"
@@ -237,6 +280,15 @@
           "adp"
         ],
         "other_required_software": [],
+        "min_years_experience": 6,
+        "preferred_certifications": [
+          "shrm_cp"
+        ],
+        "other_preferred_certifications": [],
+        "preferred_software": [
+          "excel"
+        ],
+        "other_preferred_software": [],
         "industries": [
           "healthcare"
         ],
@@ -273,6 +325,16 @@
           "bill_com"
         ],
         "other_required_software": [],
+        "min_years_experience": 3,
+        "preferred_certifications": [
+          "cpb",
+          "quickbooks_proadvisor"
+        ],
+        "other_preferred_certifications": [],
+        "preferred_software": [
+          "gusto"
+        ],
+        "other_preferred_software": [],
         "industries": [
           "nonprofit"
         ],
@@ -308,6 +370,15 @@
           "salesforce"
         ],
         "other_required_software": [],
+        "min_years_experience": 4,
+        "preferred_certifications": [
+          "cpa_us"
+        ],
+        "other_preferred_certifications": [],
+        "preferred_software": [
+          "stripe"
+        ],
+        "other_preferred_software": [],
         "industries": [
           "saas"
         ],
@@ -353,6 +424,14 @@
           "xero"
         ],
         "other_required_software": [],
+        "min_years_experience": 4,
+        "preferred_certifications": [],
+        "other_preferred_certifications": [],
+        "preferred_software": [
+          "netsuite",
+          "power_bi"
+        ],
+        "other_preferred_software": [],
         "industries": [
           "fintech"
         ],
@@ -388,6 +467,14 @@
           "sap"
         ],
         "other_required_software": [],
+        "min_years_experience": 2,
+        "preferred_certifications": [],
+        "other_preferred_certifications": [],
+        "preferred_software": [
+          "concur",
+          "excel"
+        ],
+        "other_preferred_software": [],
         "industries": [
           "logistics"
         ],
@@ -430,6 +517,17 @@
         ],
         "required_software": [],
         "other_required_software": [],
+        "min_years_experience": 3,
+        "preferred_certifications": [
+          "cisa",
+          "cfe"
+        ],
+        "other_preferred_certifications": [],
+        "preferred_software": [
+          "alteryx",
+          "sql"
+        ],
+        "other_preferred_software": [],
         "industries": [
           "banking"
         ],
@@ -474,6 +572,13 @@
           "netsuite"
         ],
         "other_required_software": [],
+        "min_years_experience": 15,
+        "preferred_certifications": [],
+        "other_preferred_certifications": [],
+        "preferred_software": [
+          "carta"
+        ],
+        "other_preferred_software": [],
         "industries": [
           "technology"
         ],

@@ -28,6 +28,7 @@ from typing import cast
 
 from app import extract, fixtures, llm
 from app.extract import RerankCandidate
+from app.grounding import normalize
 from app.llm import LLMError, Provider
 from app.schemas import CandidateProfile, Contact, RoleRequirements
 from app.settings import get_settings
@@ -53,7 +54,12 @@ JD_FIELDS = (
     "required_certifications",
     "required_qualifications",
     "required_software",
+    "min_years_experience",
+    "preferred_certifications",
+    "preferred_software",
     "industries",
+    "must_haves",
+    "nice_to_haves",
     "timezone",
     "starts_on",
 )
@@ -126,13 +132,17 @@ def _resume_values(contact: Contact, profile: CandidateProfile) -> dict[str, obj
 
 
 def _jd_values(company: str | None, req: RoleRequirements) -> dict[str, object]:
-    """As above for a JD: a required qualification is its id and whether equivalents will do."""
+    """As above for a JD: a required qualification is its id and whether
+    equivalents will do, a must-have or nice-to-have its normalised text."""
     return {
         "company": company,
         **req.model_dump(),
         "required_qualifications": [
             f"{q.canonical or q.name_as_written.lower()} {q.accept_equivalents}" for q in req.required_qualifications
         ],
+        # Verbatim fragments: the same line with different case or a trailing full stop is the same line.
+        "must_haves": [normalize(m).rstrip(".") for m in req.must_haves],
+        "nice_to_haves": [normalize(n).rstrip(".") for n in req.nice_to_haves],
     }
 
 

@@ -1,4 +1,5 @@
-"""The hard filter on qualifications and software, with the reason in words.
+"""The hard filter on qualifications, software and years of experience, with
+the reason in words.
 
 A role's required qualification is met by a candidate who holds it, or, when
 the role accepts equivalents, one in the same equivalence group
@@ -6,6 +7,8 @@ the role accepts equivalents, one in the same equivalence group
 are in `CandidateProfile.certifications`, so "part-qualified ACCA" fails
 without a special case. The shortlist query does the same thing in SQL with
 `p.certifications && <acceptable ids>` per requirement (see the README).
+A minimum number of years is a plain comparison with the profile's
+`years_experience`; a profile that does not say fails it, as it would in SQL.
 
 Passing here says the candidate has a qualification of the right level. It
 says nothing about experience: an ACA who has only ever reported under
@@ -39,12 +42,16 @@ class HardFilterResult:
     passed: bool
     qualifications: list[QualificationCheck] = field(default_factory=list[QualificationCheck])
     missing_software: list[str] = field(default_factory=list[str])
+    experience_short: str | None = None
+    """Why the candidate falls under the role's minimum years, if they do."""
 
     @property
     def explanations(self) -> list[str]:
         tax = taxonomy.load()
         lines = [c.explanation for c in self.qualifications]
         lines += [f"Does not list {tax.term('software', s).label}" for s in self.missing_software]
+        if self.experience_short:
+            lines.append(self.experience_short)
         return lines
 
 
@@ -127,12 +134,27 @@ def _nearest_miss(
     return None, None
 
 
+def check_experience(profile: CandidateProfile, req: RoleRequirements) -> str | None:
+    """None when the candidate has the years the role asks for, else why not."""
+    wanted, has = req.min_years_experience, profile.years_experience
+    if not wanted or (has is not None and has >= wanted):
+        return None
+    asks = f"this role asks for at least {wanted}"
+    if has is None:
+        return f"The resume does not show how many years of experience; {asks}"
+    return f"Has {has} {'year' if has == 1 else 'years'} of experience; {asks}"
+
+
 def check_hard_filters(profile: CandidateProfile, req: RoleRequirements) -> HardFilterResult:
-    """Qualifications and software only. The shortlist query's start-date
-    clause depends on the availability date the pipeline derives, which a
-    profile does not carry."""
+    """Qualifications, software and years of experience. The shortlist
+    query's start-date clause depends on the availability date the pipeline
+    derives, which a profile does not carry."""
     checks = [check_qualification(profile, r) for r in _requirements(req)]
     missing = [s for s in req.required_software if s not in profile.software]
+    short = check_experience(profile, req)
     return HardFilterResult(
-        passed=all(c.passed for c in checks) and not missing, qualifications=checks, missing_software=missing
+        passed=all(c.passed for c in checks) and not missing and short is None,
+        qualifications=checks,
+        missing_software=missing,
+        experience_short=short,
     )

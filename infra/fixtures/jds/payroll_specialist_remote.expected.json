@@ -1,5 +1,5 @@
 {
-  "$comment": "Certifications are only nice-to-have here (CPP or FPC), so required_certifications is empty even though two taxonomy certifications are named. ADP and Excel are required; Workday and UKG appear only in a nice-to-have. Remote with Eastern hours gives the time zone; a written start date gives starts_on. Assisted living is healthcare.",
+  "$comment": "Certifications are only nice-to-have here (CPP or FPC), so required_certifications is empty even though two taxonomy certifications are named; both go in preferred_certifications, where 'or' needs no special handling because a preference never filters. ADP and Excel are required; Workday and UKG appear only in a nice-to-have (UKG is not a taxonomy product, so it is in other_preferred_software), and the ADP named next to them is already required, so it is not preferred as well. Remote with Eastern hours gives the time zone; a written start date gives starts_on. Assisted living is healthcare.",
   "company": "Bluepeak Senior Living",
   "requirements": {
     "title": "Senior Payroll Specialist",
@@ -8,6 +8,11 @@
     "required_qualifications": [],
     "required_software": ["adp", "excel"],
     "other_required_software": [],
+    "min_years_experience": 3,
+    "preferred_certifications": ["cpp", "fpc"],
+    "other_preferred_certifications": [],
+    "preferred_software": ["workday"],
+    "other_preferred_software": ["UKG"],
     "industries": ["healthcare"],
     "other_industries": [],
     "must_haves": [

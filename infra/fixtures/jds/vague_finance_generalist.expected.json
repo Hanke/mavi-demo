@@ -1,5 +1,5 @@
 {
-  "$comment": "The vague JD: no certification, no named software, no industry, no location or time zone, no start date. The parser must leave the hard-filter lists empty rather than guess ('some accounting software' is not a requirement), keep the title as written, and still pull the three soft requirements out of the prose. Every resume passes its (empty) hard filters.",
+  "$comment": "The vague JD: no certification, no named software, no industry, no location or time zone, no start date. The parser must leave the hard-filter lists empty rather than guess ('some accounting software' is not a requirement, and 'a couple of years is probably enough' is not a number, so min_years_experience is null), keep the title as written, and still pull the three soft requirements out of the prose. Every resume passes its (empty) hard filters.",
   "company": "Pipewrench",
   "requirements": {
     "title": "Finance & Ops person",
@@ -8,6 +8,11 @@
     "required_qualifications": [],
     "required_software": [],
     "other_required_software": [],
+    "min_years_experience": null,
+    "preferred_certifications": [],
+    "other_preferred_certifications": [],
+    "preferred_software": [],
+    "other_preferred_software": [],
     "industries": [],
     "other_industries": [],
     "must_haves": [

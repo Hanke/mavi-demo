@@ -222,21 +222,23 @@ type RoleInput struct {
 	NiceToHaves            []string
 	RequiredCertifications []string // canonical taxonomy ids
 	RequiredSoftware       []string // canonical taxonomy ids
+	MinYearsExperience     *int
 	Timezone               *string
 	StartsOn               *contract.Date
 	Status                 string
 }
 
 const roleCols = `id::text, title, company, description, requirements, must_haves, nice_to_haves,
-	required_certifications, required_software, timezone, starts_on, status, embedding_model, embedded_at, created_at, updated_at`
+	required_certifications, required_software, min_years_experience, timezone, starts_on, status,
+	embedding_model, embedded_at, created_at, updated_at`
 
 func scanRole(row pgx.Row) (Role, error) {
 	var r Role
 	var starts *time.Time
 	var must, nice []byte
 	err := row.Scan(&r.ID, &r.Title, &r.Company, &r.Description, &r.Requirements, &must, &nice,
-		&r.RequiredCertifications, &r.RequiredSoftware, &r.Timezone, &starts, &r.Status, &r.EmbeddingModel, &r.EmbeddedAt,
-		&r.CreatedAt, &r.UpdatedAt)
+		&r.RequiredCertifications, &r.RequiredSoftware, &r.MinYearsExperience, &r.Timezone, &starts, &r.Status,
+		&r.EmbeddingModel, &r.EmbeddedAt, &r.CreatedAt, &r.UpdatedAt)
 	if err != nil {
 		return r, mapErr(err)
 	}
@@ -267,7 +269,8 @@ func roleArgs(in RoleInput) ([]any, error) {
 		return nil, err
 	}
 	return []any{in.Title, in.Company, in.Description, in.Requirements, must, nice,
-		nonNil(in.RequiredCertifications), nonNil(in.RequiredSoftware), in.Timezone, in.StartsOn.TimePtr(), in.Status}, nil
+		nonNil(in.RequiredCertifications), nonNil(in.RequiredSoftware), in.MinYearsExperience, in.Timezone,
+		in.StartsOn.TimePtr(), in.Status}, nil
 }
 
 func (s *Store) CreateRole(ctx context.Context, in RoleInput) (Role, error) {
@@ -277,8 +280,8 @@ func (s *Store) CreateRole(ctx context.Context, in RoleInput) (Role, error) {
 	}
 	return scanRole(s.pool.QueryRow(ctx, `
 		INSERT INTO roles (title, company, description, requirements, must_haves, nice_to_haves,
-			required_certifications, required_software, timezone, starts_on, status)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			required_certifications, required_software, min_years_experience, timezone, starts_on, status)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING `+roleCols, args...))
 }
 
@@ -310,7 +313,8 @@ func (s *Store) UpdateRole(ctx context.Context, id string, in RoleInput) (Role, 
 	return scanRole(s.pool.QueryRow(ctx, `
 		UPDATE roles SET
 			title = $2, company = $3, description = $4, requirements = $5, must_haves = $6, nice_to_haves = $7,
-			required_certifications = $8, required_software = $9, timezone = $10, starts_on = $11, status = $12,
+			required_certifications = $8, required_software = $9, min_years_experience = $10, timezone = $11,
+			starts_on = $12, status = $13,
 			embedding = CASE WHEN description IS DISTINCT FROM $4 THEN NULL ELSE embedding END,
 			embedding_model = CASE WHEN description IS DISTINCT FROM $4 THEN NULL ELSE embedding_model END,
 			embedded_at = CASE WHEN description IS DISTINCT FROM $4 THEN NULL ELSE embedded_at END

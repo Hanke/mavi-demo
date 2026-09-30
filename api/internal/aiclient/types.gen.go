@@ -154,6 +154,12 @@ type ParseJDResponse struct {
 	Provider string  `json:"provider"`
 
 	// Requirements What the JD parser extracts. Maps onto roles.
+	//
+	// Requirements come in two tiers that mirror the candidate profile. The
+	// must-haves (`required_*`, `min_years_experience`, `starts_on`, `timezone`)
+	// are the hard filters, see HARD_FILTER_COLUMNS. The nice-to-haves
+	// (`preferred_*`) never exclude anyone: holding any one of them counts in a
+	// candidate's favour, so "CPP or FPC" is simply both ids.
 	Requirements RoleRequirements `json:"requirements"`
 }
 
@@ -276,9 +282,18 @@ type RerankResult struct {
 }
 
 // RoleRequirements What the JD parser extracts. Maps onto roles.
+//
+// Requirements come in two tiers that mirror the candidate profile. The
+// must-haves (`required_*`, `min_years_experience`, `starts_on`, `timezone`)
+// are the hard filters, see HARD_FILTER_COLUMNS. The nice-to-haves
+// (`preferred_*`) never exclude anyone: holding any one of them counts in a
+// candidate's favour, so "CPP or FPC" is simply both ids.
 type RoleRequirements struct {
 	// Industries Industry context of the role, as taxonomy ids.
 	Industries []string `json:"industries,omitempty"`
+
+	// MinYearsExperience Fewest total years of professional experience the JD accepts; null if it gives no number.
+	MinYearsExperience *int `json:"min_years_experience,omitempty"`
 
 	// MustHaves Every hard requirement in the JD's own words.
 	MustHaves []string `json:"must_haves,omitempty"`
@@ -289,11 +304,23 @@ type RoleRequirements struct {
 	// OtherIndustries Industries not in the taxonomy, verbatim.
 	OtherIndustries []string `json:"other_industries,omitempty"`
 
+	// OtherPreferredCertifications Preferred certifications not in the taxonomy, verbatim.
+	OtherPreferredCertifications []string `json:"other_preferred_certifications,omitempty"`
+
+	// OtherPreferredSoftware Preferred software not in the taxonomy, verbatim.
+	OtherPreferredSoftware []string `json:"other_preferred_software,omitempty"`
+
 	// OtherRequiredCertifications Required certifications not in the taxonomy, verbatim.
 	OtherRequiredCertifications []string `json:"other_required_certifications,omitempty"`
 
 	// OtherRequiredSoftware Required software not in the taxonomy, verbatim.
 	OtherRequiredSoftware []string `json:"other_required_software,omitempty"`
+
+	// PreferredCertifications Certifications the JD lists as preferred but not required, as taxonomy ids.
+	PreferredCertifications []string `json:"preferred_certifications,omitempty"`
+
+	// PreferredSoftware Software the JD lists as preferred but not required, as taxonomy ids.
+	PreferredSoftware []string `json:"preferred_software,omitempty"`
 
 	// RequiredCertifications Certifications the role requires, as taxonomy ids.
 	RequiredCertifications []string `json:"required_certifications,omitempty"`

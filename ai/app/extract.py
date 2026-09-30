@@ -1,7 +1,8 @@
 """The prompts and output models behind /parse-resume, /parse-jd and /rerank.
 
-Each function takes a Provider and returns a validated model (the resume
-parser also strips anything the text does not carry, see `ground_resume`); the HTTP layer
+Each function takes a Provider and returns a validated model (the parsers
+also strip anything the text does not carry, see `ground_resume` and
+`ground_jd`); the HTTP layer
 in app/main.py only wraps them in request and response types and maps
 LLMError to a status code. Everything the model is asked for is described by
 a Pydantic model whose schema is sent along with the prompt, so the shapes
@@ -19,7 +20,14 @@ from pydantic import BaseModel, ConfigDict, Field
 from app import llm, taxonomy
 from app.grounding import in_text, line_with, mentions, year_in_text
 from app.llm import Provider
-from app.schemas import CandidateProfile, Contact, Position, Qualification, RoleRequirements
+from app.schemas import (
+    CandidateProfile,
+    Contact,
+    Position,
+    Qualification,
+    RequiredQualification,
+    RoleRequirements,
+)
 
 log = logging.getLogger(__name__)
 
@@ -47,6 +55,8 @@ Read the job description and fill in the schema. Rules:
 - requirements.title: the role title as written.
 - requirements.required_certifications / required_software: only ids from the enum lists in the schema, and only for things the JD requires (not "nice to have"). Anything required but not in the list goes in other_required_certifications / other_required_software in the JD's wording.
 - requirements.required_qualifications: one entry for each qualification in required_certifications or other_required_certifications. name_as_written as the JD names it; canonical the enum id, using the specific id for shared letters ("CPA" in a US role is cpa_us) only when the JD or its location settles which one is meant. accept_equivalents: true for "CPA or equivalent", "or international equivalent", "ACCA / ACA / CA"; false when the JD rules equivalents out, e.g. "active US CPA licence required" or a licence needed to sign US audits. equivalents_stated is true when the JD says either of those, false when it just names the qualification (accept_equivalents is then true). quote is the JD's own words, verbatim. A choice between qualifications of different kinds ("CPA or CMA") is not a single requirement: leave it in must_haves only.
+- requirements.min_years_experience: the fewest total years of professional experience the JD accepts, as a whole number: 5 for "5+ years" or "minimum 5 years", 1 for "1-4 years". When one requirement gives several figures ("10 years, at least 5 in manufacturing") use the overall one. null when the JD gives no number ("a couple of years", "experienced") or only asks for it under a preferred heading.
+- requirements.preferred_certifications / preferred_software: enum ids for certifications and products the JD names only as preferred, a bonus or "nice to have"; anything not in the list goes in other_preferred_certifications / other_preferred_software in the JD's wording. Alternatives are all listed ("CPP or FPC" is both). Never repeat something that is required.
 - requirements.industries: ids from the enum for the industry context of the role; other_industries for anything else.
 - requirements.must_haves: every hard requirement, each a verbatim fragment of the JD. nice_to_haves: preferred-but-optional items, also verbatim. An item is in one list or the other, never both.
 - requirements.timezone: the IANA zone the role operates in, from the location or stated hours; null if unstated.
@@ -231,7 +241,89 @@ def ground_resume(out: ResumeExtraction, text: str) -> ResumeExtraction:
 
 def parse_jd(provider: Provider, text: str) -> JDExtraction:
     user = f"Job description:\n\n{text}"
-    return llm.complete_json(provider, JD_SYSTEM, user, JDExtraction)
+    return ground_jd(llm.complete_json(provider, JD_SYSTEM, user, JDExtraction), text)
+
+
+# How a JD may write a minimum without digits: "five years", "a minimum of ten years".
+_NUMBER_WORDS = (
+    "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen "
+    "sixteen seventeen eighteen nineteen twenty"
+)
+
+
+def _years_in_text(years: int, text: str) -> bool:
+    if re.search(rf"(?<![\d.,]){years}(?![\d,]|\.\d)", text):
+        return True
+    words = _NUMBER_WORDS.split()
+    return 0 < years <= len(words) and in_text(words[years - 1], text)
+
+
+def ground_jd(out: JDExtraction, text: str) -> JDExtraction:
+    """Remove the structured requirements the JD text does not carry.
+
+    The must-haves are hard filters, so one the model invented would silently
+    exclude candidates. A required or preferred certification or product must
+    be named in the JD (by label or taxonomy alias), an `other_*` entry and a
+    qualification's name must be there verbatim, and a minimum number of years
+    must be a number the JD writes. What fails is dropped, or set to null,
+    and logged; a qualification's invented quote is replaced by the line that
+    names it. The values the model derives or copies out as prose (title,
+    industries, time zone, start date, must_haves, nice_to_haves) are left alone."""
+    tax = taxonomy.load()
+    dropped: list[str] = []
+
+    def keep(field: str, value: str, grounded: bool) -> bool:
+        if not grounded:
+            dropped.append(f"{field}={value!r}")
+        return grounded
+
+    req = out.requirements
+
+    def named(field: str, kind: taxonomy.Kind, ids: list[str]) -> list[str]:
+        return [i for i in ids if keep(field, i, mentions(text, tax.term(kind, i)))]
+
+    def verbatim(field: str, values: list[str]) -> list[str]:
+        return [v for v in values if keep(field, v, in_text(v, text))]
+
+    quals: list[RequiredQualification] = []
+    for q in req.required_qualifications:
+        if not keep("required_qualifications", q.name_as_written, in_text(q.name_as_written, text)):
+            continue
+        quote = q.quote if q.quote is not None and in_text(q.quote, text) else line_with(q.name_as_written, text)
+        quals.append(q.model_copy(update={"quote": quote}))
+    kept = {q.canonical for q in quals}
+    years = req.min_years_experience
+    if years is not None and not keep("min_years_experience", str(years), _years_in_text(years, text)):
+        years = None
+    requirements = RoleRequirements.model_validate(
+        req.model_dump()
+        | {
+            "required_qualifications": quals,
+            # An id that came from a qualification record stands or falls with the record.
+            "required_certifications": [
+                c
+                for c in named("required_certifications", "certifications", req.required_certifications)
+                if c in kept or not any(q.canonical == c for q in req.required_qualifications)
+            ],
+            "other_required_certifications": verbatim(
+                "other_required_certifications", req.other_required_certifications
+            ),
+            "required_software": named("required_software", "software", req.required_software),
+            "other_required_software": verbatim("other_required_software", req.other_required_software),
+            "min_years_experience": years,
+            "preferred_certifications": named(
+                "preferred_certifications", "certifications", req.preferred_certifications
+            ),
+            "other_preferred_certifications": verbatim(
+                "other_preferred_certifications", req.other_preferred_certifications
+            ),
+            "preferred_software": named("preferred_software", "software", req.preferred_software),
+            "other_preferred_software": verbatim("other_preferred_software", req.other_preferred_software),
+        }
+    )
+    if dropped:
+        log.warning("parse_jd: dropped values the job description does not carry: %s", ", ".join(dropped))
+    return JDExtraction(company=out.company, requirements=requirements)
 
 
 def rerank(provider: Provider, role: str, candidates: list[RerankCandidate]) -> list[RerankResult]:

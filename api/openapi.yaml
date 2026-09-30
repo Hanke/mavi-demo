@@ -809,7 +809,8 @@ components:
       type: object
       required:
         [id, title, company, description, requirements, must_haves, nice_to_haves, required_certifications,
-         required_software, timezone, starts_on, status, embedding_model, embedded_at, created_at, updated_at]
+         required_software, min_years_experience, timezone, starts_on, status, embedding_model, embedded_at,
+         created_at, updated_at]
       properties:
         id: { $ref: "#/components/schemas/Id" }
         title: { type: string }
@@ -834,6 +835,12 @@ components:
           type: array
           description: Canonical taxonomy ids.
           items: { type: string }
+        min_years_experience:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 70
+          description: Fewest years of experience the role accepts; `null` when the JD gives no number (a `0` sent in is stored as `null`).
         timezone: { type: string, nullable: true }
         starts_on:
           allOf: [{ $ref: "#/components/schemas/CalendarDate" }]
@@ -876,6 +883,7 @@ components:
           type: array
           items: { type: string }
           x-go-type-skip-optional-pointer: true
+        min_years_experience: { type: integer, nullable: true, minimum: 0, maximum: 70 }
         timezone: { type: string, nullable: true }
         starts_on:
           allOf: [{ $ref: "#/components/schemas/CalendarDate" }]

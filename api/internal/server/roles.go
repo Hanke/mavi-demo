@@ -40,6 +40,13 @@ func (s *Server) applyRole(b contract.RoleInput, base store.RoleInput, sent body
 	if sent.has("required_software") {
 		base.RequiredSoftware = s.resolveTerms(v, "required_software", taxonomy.Software, trimAll(b.RequiredSoftware))
 	}
+	if sent.has("min_years_experience") {
+		base.MinYearsExperience = b.MinYearsExperience
+		// No minimum is NULL: a stored 0 would still fail every profile with no years in the shortlist query.
+		if base.MinYearsExperience != nil && *base.MinYearsExperience == 0 {
+			base.MinYearsExperience = nil
+		}
+	}
 	if sent.has("timezone") {
 		base.Timezone = strPtr(b.Timezone)
 	}
@@ -55,6 +62,9 @@ func (s *Server) applyRole(b contract.RoleInput, base store.RoleInput, sent body
 		v.add("title", "required")
 	}
 	validEnum[contract.RoleStatus](v, "status", base.Status)
+	if base.MinYearsExperience != nil && (*base.MinYearsExperience < 0 || *base.MinYearsExperience > 70) {
+		v.add("min_years_experience", "must be between 0 and 70")
+	}
 	validTimezone(v, "timezone", base.Timezone)
 	return base, v.err()
 }
@@ -145,7 +155,8 @@ func (s *Server) updateRole(w http.ResponseWriter, r *http.Request) {
 		Title: cur.Title, Company: cur.Company, Description: cur.Description, Requirements: cur.Requirements,
 		MustHaves: cur.MustHaves, NiceToHaves: cur.NiceToHaves,
 		RequiredCertifications: cur.RequiredCertifications, RequiredSoftware: cur.RequiredSoftware,
-		Timezone: cur.Timezone, StartsOn: cur.StartsOn, Status: string(cur.Status),
+		MinYearsExperience: cur.MinYearsExperience,
+		Timezone:           cur.Timezone, StartsOn: cur.StartsOn, Status: string(cur.Status),
 	}, sent)
 	if err != nil {
 		fail(w, err)
