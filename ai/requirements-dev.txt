@@ -1,0 +1,6 @@
+# Test and lint tooling on top of the runtime requirements. The Docker image
+# installs only requirements.txt; the venv and CI install this file.
+-r requirements.txt
+pytest>=8
+ruff>=0.6
+pyright>=1.1

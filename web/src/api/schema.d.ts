@@ -240,6 +240,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List background jobs */
+        get: operations["listJobs"];
+        put?: never;
+        /**
+         * Enqueue a background job
+         * @description Adds a job to the Postgres-backed queue. `kind` must be one the worker
+         *     has a handler for (`embed_role`, `embed_profile`); anything else is a
+         *     422 naming the known kinds. If an identical job (same `kind` and
+         *     `payload`) is already queued, that job is returned with a 200 instead
+         *     of adding a duplicate. The worker picks the job up within its poll
+         *     interval; poll `GET /jobs/{id}` until `status` is `succeeded` or `failed`.
+         */
+        post: operations["createJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["JobId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get a background job
+         * @description What the UI polls. A job is finished when `status` is `succeeded` or `failed`; a failed job carries the last attempt's error in `last_error`.
+         */
+        get: operations["getJob"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -249,6 +297,12 @@ export interface components {
          * @example 11111111-0000-0000-0000-000000000001
          */
         Id: string;
+        /**
+         * Format: int64
+         * @description A job's id. Jobs are numbered from a sequence, not UUIDs.
+         * @example 42
+         */
+        JobId: number;
         /**
          * Format: date
          * @description A calendar day, `YYYY-MM-DD`.
@@ -265,6 +319,11 @@ export interface components {
         RoleStatus: "open" | "filled" | "closed";
         /** @enum {string} */
         MatchStatus: "proposed" | "approved" | "rejected" | "swapped";
+        /**
+         * @description `queued` → `running` → `succeeded`, or `running` → `queued` (retry) → … → `failed`.
+         * @enum {string}
+         */
+        JobStatus: "queued" | "running" | "succeeded" | "failed";
         /** @enum {string} */
         Availability: "immediate" | "two_weeks" | "one_month" | "unavailable" | "unknown";
         /** @enum {string} */
@@ -449,6 +508,66 @@ export interface components {
             /** @description Recorded on the review event. */
             reason?: string;
         };
+        /**
+         * @description One background job in the Postgres-backed queue (the `jobs` table). A
+         *     worker claims a `queued` job whose `run_at` has passed, runs the handler
+         *     for its `kind`, and marks it `succeeded`. A failing attempt puts it back
+         *     to `queued` with `run_at` pushed out by a backoff until `attempts`
+         *     reaches `max_attempts`, when it lands in `failed` with `last_error` set.
+         */
+        Job: {
+            id: components["schemas"]["JobId"];
+            /** @description Names the handler that runs it, e.g. `embed_role`. */
+            kind: string;
+            /** @description Handler-specific input, e.g. `{"role_id": "…"}`. */
+            payload: components["schemas"]["JSONObject"];
+            status: components["schemas"]["JobStatus"];
+            /** @description Higher runs first. */
+            priority: number;
+            /**
+             * Format: date-time
+             * @description Not before this time. Retry backoff pushes it into the future.
+             */
+            run_at: string;
+            /** @description Claims so far, including one in progress. */
+            attempts: number;
+            max_attempts: number;
+            /** @description The most recent failed attempt's error; kept on a `failed` job, cleared on success. */
+            last_error: string | null;
+            /** @description Id of the worker that last claimed it. */
+            worker: string | null;
+            /**
+             * Format: date-time
+             * @description When the current or most recent attempt was claimed.
+             */
+            started_at: string | null;
+            /**
+             * Format: date-time
+             * @description Set when the job reached `succeeded` or `failed`.
+             */
+            finished_at: string | null;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        JobCreate: {
+            /**
+             * @description Must be a kind the worker has a handler for; otherwise a 422 naming the known kinds.
+             * @example embed_role
+             */
+            kind: string;
+            payload?: components["schemas"]["JSONObject"];
+            /** @description Defaults to 0. Higher runs first. */
+            priority?: number;
+            /**
+             * Format: date-time
+             * @description Delay the job until this time. Defaults to now.
+             */
+            run_at?: string;
+            /** @description Defaults to 3. */
+            max_attempts?: number;
+        };
     };
     responses: {
         /** @description Malformed JSON or an unknown field. */
@@ -508,6 +627,7 @@ export interface components {
     };
     parameters: {
         Id: components["schemas"]["Id"];
+        JobId: components["schemas"]["JobId"];
         /** @description Page size; default 50, max 200. */
         Limit: number;
         Offset: number;
@@ -1105,6 +1225,97 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listJobs: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["JobStatus"];
+                kind?: string;
+                /** @description Page size; default 50, max 200. */
+                limit?: components["parameters"]["Limit"];
+                offset?: components["parameters"]["Offset"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Newest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    createJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobCreate"];
+            };
+        };
+        responses: {
+            /** @description An identical job was already queued; it is returned instead of a duplicate. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            /** @description Queued. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
+    getJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["JobId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The job. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];

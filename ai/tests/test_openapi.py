@@ -41,4 +41,6 @@ def test_only_non_nullable_arrays_skip_the_go_pointer():
 def test_endpoints_the_go_client_calls_are_present():
     paths = openapi.build()["paths"]
     assert set(paths) >= {"/health", "/embed"}
-    assert paths["/embed"]["post"]["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith("/EmbedRequest")
+    assert paths["/embed"]["post"]["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith(
+        "/EmbedRequest"
+    )

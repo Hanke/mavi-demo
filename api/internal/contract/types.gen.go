@@ -74,6 +74,30 @@ func (e HealthStatus) Valid() bool {
 	}
 }
 
+// Defines values for JobStatus.
+const (
+	JobStatusFailed    JobStatus = "failed"
+	JobStatusQueued    JobStatus = "queued"
+	JobStatusRunning   JobStatus = "running"
+	JobStatusSucceeded JobStatus = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the JobStatus enum.
+func (e JobStatus) Valid() bool {
+	switch e {
+	case JobStatusFailed:
+		return true
+	case JobStatusQueued:
+		return true
+	case JobStatusRunning:
+		return true
+	case JobStatusSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for MatchStatus.
 const (
 	MatchStatusApproved MatchStatus = "approved"
@@ -207,6 +231,71 @@ type ID = string
 
 // JSONObject A free-form JSON object stored as JSONB.
 type JSONObject = RawJSON
+
+// Job One background job in the Postgres-backed queue (the `jobs` table). A
+// worker claims a `queued` job whose `run_at` has passed, runs the handler
+// for its `kind`, and marks it `succeeded`. A failing attempt puts it back
+// to `queued` with `run_at` pushed out by a backoff until `attempts`
+// reaches `max_attempts`, when it lands in `failed` with `last_error` set.
+type Job struct {
+	// Attempts Claims so far, including one in progress.
+	Attempts  int       `json:"attempts"`
+	CreatedAt time.Time `json:"created_at"`
+
+	// FinishedAt Set when the job reached `succeeded` or `failed`.
+	FinishedAt *time.Time `json:"finished_at"`
+
+	// ID A job's id. Jobs are numbered from a sequence, not UUIDs.
+	ID JobID `json:"id"`
+
+	// Kind Names the handler that runs it, e.g. `embed_role`.
+	Kind string `json:"kind"`
+
+	// LastError The most recent failed attempt's error; kept on a `failed` job, cleared on success.
+	LastError   *string `json:"last_error"`
+	MaxAttempts int     `json:"max_attempts"`
+
+	// Payload Handler-specific input, e.g. `{"role_id": "…"}`.
+	Payload JSONObject `json:"payload"`
+
+	// Priority Higher runs first.
+	Priority int `json:"priority"`
+
+	// RunAt Not before this time. Retry backoff pushes it into the future.
+	RunAt time.Time `json:"run_at"`
+
+	// StartedAt When the current or most recent attempt was claimed.
+	StartedAt *time.Time `json:"started_at"`
+
+	// Status `queued` → `running` → `succeeded`, or `running` → `queued` (retry) → … → `failed`.
+	Status    JobStatus `json:"status"`
+	UpdatedAt time.Time `json:"updated_at"`
+
+	// Worker Id of the worker that last claimed it.
+	Worker *string `json:"worker"`
+}
+
+// JobCreate defines model for JobCreate.
+type JobCreate struct {
+	// Kind Must be a kind the worker has a handler for; otherwise a 422 naming the known kinds.
+	Kind string `json:"kind"`
+
+	// MaxAttempts Defaults to 3.
+	MaxAttempts *int       `json:"max_attempts,omitempty"`
+	Payload     JSONObject `json:"payload,omitempty"`
+
+	// Priority Defaults to 0. Higher runs first.
+	Priority *int `json:"priority,omitempty"`
+
+	// RunAt Delay the job until this time. Defaults to now.
+	RunAt *time.Time `json:"run_at,omitempty"`
+}
+
+// JobID A job's id. Jobs are numbered from a sequence, not UUIDs.
+type JobID = int64
+
+// JobStatus `queued` → `running` → `succeeded`, or `running` → `queued` (retry) → … → `failed`.
+type JobStatus string
 
 // Match defines model for Match.
 type Match struct {
@@ -413,6 +502,16 @@ type ListCandidatesParams struct {
 	Offset *Offset `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// ListJobsParams defines parameters for ListJobs.
+type ListJobsParams struct {
+	Status *JobStatus `form:"status,omitempty" json:"status,omitempty"`
+	Kind   *string    `form:"kind,omitempty" json:"kind,omitempty"`
+
+	// Limit Page size; default 50, max 200.
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *Offset `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // ListMatchesParams defines parameters for ListMatches.
 type ListMatchesParams struct {
 	RoleID      *ID          `form:"role_id,omitempty" json:"role_id,omitempty"`
@@ -444,6 +543,9 @@ type UpdateCandidateJSONRequestBody = CandidateInput
 
 // PutProfileJSONRequestBody defines body for PutProfile for application/json ContentType.
 type PutProfileJSONRequestBody = ProfileInput
+
+// CreateJobJSONRequestBody defines body for CreateJob for application/json ContentType.
+type CreateJobJSONRequestBody = JobCreate
 
 // CreateMatchJSONRequestBody defines body for CreateMatch for application/json ContentType.
 type CreateMatchJSONRequestBody = MatchCreate

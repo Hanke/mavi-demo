@@ -12,10 +12,10 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from collections.abc import Mapping
 from typing import Literal, cast, get_args
 
 Kind = Literal["certifications", "software", "industries"]
@@ -69,7 +69,7 @@ class Taxonomy:
         self._ids: dict[Kind, frozenset[str]] = {kind: frozenset(t.id for t in ts) for kind, ts in terms.items()}
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, object]) -> "Taxonomy":
+    def from_dict(cls, data: Mapping[str, object]) -> Taxonomy:
         terms: dict[Kind, list[Term]] = {}
         for kind in KINDS:
             raw_terms = data.get(kind)
@@ -98,7 +98,7 @@ class Taxonomy:
         return cls(terms)
 
     @classmethod
-    def from_path(cls, path: str | os.PathLike[str]) -> "Taxonomy":
+    def from_path(cls, path: str | os.PathLike[str]) -> Taxonomy:
         with open(path, encoding="utf-8") as f:
             return cls.from_dict(json.load(f))
 

@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import TypedDict
 
 import pytest
 from pydantic import ValidationError
@@ -8,8 +9,17 @@ from app import taxonomy
 from app.schemas import CandidateProfile, RoleRequirements
 from app.taxonomy import KINDS, Kind, Taxonomy, TaxonomyError, normalize_key
 
+
+class Case(TypedDict):
+    """One row of infra/taxonomy_cases.json, shared with the Go tests."""
+
+    kind: Kind
+    input: str
+    want: str | None
+
+
 INFRA = Path(__file__).resolve().parents[2] / "infra"
-CASES = json.loads((INFRA / "taxonomy_cases.json").read_text())["cases"]
+CASES: list[Case] = json.loads((INFRA / "taxonomy_cases.json").read_text())["cases"]
 
 
 @pytest.fixture(scope="module")
@@ -37,7 +47,7 @@ def test_every_kind_has_terms_with_valid_ids(tax: Taxonomy):
 
 
 @pytest.mark.parametrize("case", CASES, ids=[f"{c['kind']}:{c['input']!r}" for c in CASES])
-def test_shared_alias_cases(tax: Taxonomy, case: dict):
+def test_shared_alias_cases(tax: Taxonomy, case: Case):
     assert tax.resolve(case["kind"], case["input"]) == case["want"]
 
 
@@ -149,14 +159,15 @@ def test_json_schema_carries_taxonomy_enum():
     schema = CandidateProfile.model_json_schema()
     items = schema["properties"]["software"]["items"]
     assert items["type"] == "string"
-    assert "quickbooks" in items["enum"] and "netsuite" in items["enum"]
+    assert "quickbooks" in items["enum"]
+    assert "netsuite" in items["enum"]
     assert schema["properties"]["other_software"]["items"] == {"type": "string"}
     role = RoleRequirements.model_json_schema()
     assert "cpa" in role["properties"]["required_certifications"]["items"]["enum"]
 
 
 def test_taxonomy_path_setting_overrides_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    from app.settings import Settings, get_settings
+    from app.settings import Settings
 
     custom = tmp_path / "t.json"
     custom.write_text(

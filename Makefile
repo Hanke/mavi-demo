@@ -9,8 +9,8 @@ PYTHON ?= $(shell test -x $(CURDIR)/ai/.venv/bin/python && echo $(CURDIR)/ai/.ve
 # Every file a generator writes. `make check-contracts` fails when one is stale.
 GENERATED := ai/openapi.json api/internal/aiclient/types.gen.go api/internal/contract/types.gen.go web/src/api/schema.d.ts
 
-.PHONY: help up down logs ps migrate migrate-down migrate-status seed test test-api test-ai test-db test-web health \
-        generate generate-ai-spec generate-api generate-web check-contracts
+.PHONY: help up down logs ps migrate migrate-down migrate-status seed worker test test-api test-ai test-db test-web health \
+        lint lint-api lint-ai fmt-ai generate generate-ai-spec generate-api generate-web check-contracts
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -41,7 +41,22 @@ migrate-status: ## Show which migrations are applied
 seed: ## Load seed data from infra/db/seed
 	$(COMPOSE) run --build --rm --no-deps api seed
 
-test: check-contracts test-api test-ai test-web ## Contract freshness, then every test suite
+worker: ## Run an extra background job worker next to the one inside the API (Ctrl-C to stop)
+	$(COMPOSE) run --rm --no-deps -e WORKER_ID=worker-$$$$ api worker
+
+test: check-contracts lint test-api test-ai test-web ## Contract freshness, lint, then every test suite
+
+lint: lint-api lint-ai ## Lint every service
+
+lint-api: ## gofmt and go vet
+	@cd api && unformatted="$$(gofmt -l .)"; if [ -n "$$unformatted" ]; then echo "gofmt: run gofmt -w on:"; echo "$$unformatted"; exit 1; fi
+	cd api && go vet ./...
+
+lint-ai: ## ruff check, ruff format --check and pyright (strict) on the AI service
+	cd ai && $(PYTHON) -m ruff check . && $(PYTHON) -m ruff format --check . && $(PYTHON) -m pyright
+
+fmt-ai: ## Fix what ruff can and reformat the AI service
+	cd ai && $(PYTHON) -m ruff check --fix . && $(PYTHON) -m ruff format .
 
 test-api: ## Go API tests
 	cd api && go test ./...
@@ -49,10 +64,10 @@ test-api: ## Go API tests
 test-ai: ## Python AI service tests
 	cd ai && $(PYTHON) -m pytest -q
 
-test-db: ## Migration round-trip and API CRUD tests against the compose DB (each test gets a throwaway database)
+test-db: ## Migration round-trip, API CRUD and job queue tests against the compose DB (each test gets a throwaway database)
 	@url="$$(grep '^DATABASE_URL=' .env 2>/dev/null | cut -d= -f2-)"; \
 	if [ -z "$$url" ]; then echo "test-db: DATABASE_URL not set in .env (run make up first)"; exit 1; fi; \
-	cd api && TEST_DATABASE_URL="$$url" go test ./internal/db/ ./internal/server/ -v -count=1
+	cd api && TEST_DATABASE_URL="$$url" go test ./internal/db/ ./internal/server/ ./internal/jobs/ ./internal/tasks/ -v -count=1
 
 test-web: ## Web typecheck + tests
 	cd web && npm run typecheck && npm test

@@ -13,7 +13,46 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "httpx>=0.27"]
+# Mirrors requirements-dev.txt (what the Makefile and the venv install).
+dev = ["pytest>=8", "httpx>=0.27", "ruff>=0.6", "pyright>=1.1"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+# Lint and format: `make lint-ai` runs `ruff check`, `ruff format --check` and
+# pyright (strict; see pyrightconfig.json). `ruff check --fix && ruff format`
+# repairs most of what it reports.
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "N",        # pep8-naming
+    "UP",       # pyupgrade: 3.12 syntax
+    "B",        # bugbear: likely bugs
+    "C4",       # comprehensions
+    "SIM",      # simplify
+    "PT",       # pytest style
+    "PERF",     # perflint
+    "RUF",      # ruff's own rules
+    "PL",       # pylint
+]
+ignore = [
+    "B008",     # FastAPI's `Depends()` in a parameter default is the framework idiom
+    "PLC0415",  # imports inside functions are deliberate here (lazy settings import breaks a cycle)
+    "PLR0913",  # long parameter lists are a review matter, not a lint failure
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["PLR2004"]  # literal expected values in assertions are the point of a test
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.ruff.format]
+docstring-code-format = true

@@ -7,6 +7,7 @@ import (
 	"github.com/colehanke/mavi-demo/api/internal/auth"
 	"github.com/colehanke/mavi-demo/api/internal/contract"
 	"github.com/colehanke/mavi-demo/api/internal/store"
+	"github.com/colehanke/mavi-demo/api/internal/tasks"
 	"github.com/colehanke/mavi-demo/api/internal/taxonomy"
 )
 
@@ -74,6 +75,7 @@ func (s *Server) createRole(w http.ResponseWriter, r *http.Request) {
 		fail(w, err)
 		return
 	}
+	s.embedRole(r, role)
 	writeJSON(w, http.StatusCreated, role)
 }
 
@@ -154,6 +156,7 @@ func (s *Server) updateRole(w http.ResponseWriter, r *http.Request) {
 		fail(w, err)
 		return
 	}
+	s.embedRole(r, role)
 	writeJSON(w, http.StatusOK, role)
 }
 
@@ -163,4 +166,14 @@ func (s *Server) deleteRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// embedRole queues an embedding job when a write left the role without an
+// embedding and there is a description to embed. The store clears the
+// embedding only when the description changes, so an edit that leaves it in
+// place queues nothing.
+func (s *Server) embedRole(r *http.Request, role store.Role) {
+	if role.EmbeddedAt == nil && strings.TrimSpace(role.Description) != "" {
+		s.enqueueEmbedding(r, tasks.KindEmbedRole, "role_id", role.ID)
+	}
 }

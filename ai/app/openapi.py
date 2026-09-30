@@ -27,6 +27,10 @@ Three adjustments are made to what FastAPI serves at /openapi.json:
   fields keep their pointer so a JSON null still decodes.
 """
 
+# pyright: reportUnknownVariableType=false, reportUnknownMemberType=false, reportUnknownArgumentType=false
+# This module walks an untyped JSON document in place, so the strict-mode
+# "unknown type" rules would only be satisfied by casts at every step. The
+# other strict rules stay on.
 from __future__ import annotations
 
 import json
@@ -51,8 +55,7 @@ def build() -> dict[str, Any]:
         ref_template="#/components/schemas/{model}",
     )
     schemas: dict[str, Any] = spec.setdefault("components", {}).setdefault("schemas", {})
-    for name, schema in definitions.get("$defs", {}).items():
-        schemas[name] = schema
+    schemas.update(definitions.get("$defs", {}))
     for model in SHARED_MODELS:
         properties = schemas[model.__name__]["properties"]
         for field in model.taxonomy_fields:
@@ -73,7 +76,7 @@ def _plain_go_slices(node: Any) -> None:
         return
     if not isinstance(node, dict):
         return
-    for name, prop in node.get("properties", {}).items():
+    for prop in node.get("properties", {}).values():
         if isinstance(prop, dict) and prop.get("type") == "array" and not prop.get("nullable"):
             prop["x-go-type-skip-optional-pointer"] = True
     for value in node.values():

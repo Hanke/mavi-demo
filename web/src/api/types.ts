@@ -27,3 +27,7 @@ export type MatchCreate = Schemas["MatchCreate"];
 export type MatchUpdate = Schemas["MatchUpdate"];
 export type MatchStatus = Schemas["MatchStatus"];
 export type ReleaseInput = Schemas["ReleaseInput"];
+
+export type Job = Schemas["Job"];
+export type JobCreate = Schemas["JobCreate"];
+export type JobStatus = Schemas["JobStatus"];

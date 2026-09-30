@@ -120,15 +120,25 @@ func (c *Client) Health(ctx context.Context) error {
 
 // Embed asks the AI service for an embedding of text.
 func (c *Client) Embed(ctx context.Context, text string) ([]float32, error) {
-	var out EmbedResponse
-	err := c.do(ctx, "embed", http.MethodPost, "/embed", EmbedRequest{Text: text}, c.embedTimeout, &out)
+	out, err := c.Embedding(ctx, text)
 	if err != nil {
 		return nil, err
 	}
-	if len(out.Embedding) == 0 {
-		return nil, &Error{Op: "embed", StatusCode: http.StatusOK, cause: ErrBadResponse, Detail: "empty embedding"}
-	}
 	return out.Embedding, nil
+}
+
+// Embedding is Embed with the whole response, including which provider
+// produced the vector (recorded in the embedding_model columns).
+func (c *Client) Embedding(ctx context.Context, text string) (EmbedResponse, error) {
+	var out EmbedResponse
+	err := c.do(ctx, "embed", http.MethodPost, "/embed", EmbedRequest{Text: text}, c.embedTimeout, &out)
+	if err != nil {
+		return EmbedResponse{}, err
+	}
+	if len(out.Embedding) == 0 {
+		return EmbedResponse{}, &Error{Op: "embed", StatusCode: http.StatusOK, cause: ErrBadResponse, Detail: "empty embedding"}
+	}
+	return out, nil
 }
 
 // do performs one JSON round trip. body is marshalled when non-nil; the

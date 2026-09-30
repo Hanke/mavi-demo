@@ -2,6 +2,13 @@
   "venvPath": ".",
   "venv": ".venv",
   "pythonVersion": "3.12",
-  "include": ["app", "tests"],
-  "exclude": [".venv", "**/__pycache__"]
+  "include": [
+    "app",
+    "tests"
+  ],
+  "exclude": [
+    ".venv",
+    "**/__pycache__"
+  ],
+  "typeCheckingMode": "strict"
 }

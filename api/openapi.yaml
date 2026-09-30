@@ -43,6 +43,7 @@ tags:
   - name: profiles
   - name: roles
   - name: matches
+  - name: jobs
 
 paths:
   /health:
@@ -488,6 +489,84 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /jobs:
+    post:
+      tags: [jobs]
+      operationId: createJob
+      summary: Enqueue a background job
+      description: |
+        Adds a job to the Postgres-backed queue. `kind` must be one the worker
+        has a handler for (`embed_role`, `embed_profile`); anything else is a
+        422 naming the known kinds. If an identical job (same `kind` and
+        `payload`) is already queued, that job is returned with a 200 instead
+        of adding a duplicate. The worker picks the job up within its poll
+        interval; poll `GET /jobs/{id}` until `status` is `succeeded` or `failed`.
+      x-roles: [ops]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JobCreate" }
+      responses:
+        "201":
+          description: Queued.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+        "200":
+          description: An identical job was already queued; it is returned instead of a duplicate.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+    get:
+      tags: [jobs]
+      operationId: listJobs
+      summary: List background jobs
+      x-roles: [ops]
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: "#/components/schemas/JobStatus" }
+        - name: kind
+          in: query
+          schema: { type: string }
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Job" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+
+  /jobs/{id}:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    get:
+      tags: [jobs]
+      operationId: getJob
+      summary: Get a background job
+      description: What the UI polls. A job is finished when `status` is `succeeded` or `failed`; a failed job carries the last attempt's error in `last_error`.
+      x-roles: [ops]
+      responses:
+        "200":
+          description: The job.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
 components:
   securitySchemes:
     role:
@@ -507,6 +586,11 @@ components:
       in: path
       required: true
       schema: { $ref: "#/components/schemas/Id" }
+    JobId:
+      name: id
+      in: path
+      required: true
+      schema: { $ref: "#/components/schemas/JobId" }
     Limit:
       name: limit
       in: query
@@ -555,6 +639,11 @@ components:
       type: string
       description: A UUID, as text.
       example: 11111111-0000-0000-0000-000000000001
+    JobId:
+      type: integer
+      format: int64
+      description: A job's id. Jobs are numbered from a sequence, not UUIDs.
+      example: 42
     CalendarDate:
       type: string
       format: date
@@ -575,6 +664,10 @@ components:
     MatchStatus:
       type: string
       enum: [proposed, approved, rejected, swapped]
+    JobStatus:
+      type: string
+      description: "`queued` → `running` → `succeeded`, or `running` → `queued` (retry) → … → `failed`."
+      enum: [queued, running, succeeded, failed]
     Availability:
       type: string
       enum: [immediate, two_weeks, one_month, unavailable, unknown]
@@ -868,3 +961,84 @@ components:
         reason:
           type: string
           description: Recorded on the review event.
+
+    # -- jobs -----------------------------------------------------------------
+    Job:
+      type: object
+      description: |
+        One background job in the Postgres-backed queue (the `jobs` table). A
+        worker claims a `queued` job whose `run_at` has passed, runs the handler
+        for its `kind`, and marks it `succeeded`. A failing attempt puts it back
+        to `queued` with `run_at` pushed out by a backoff until `attempts`
+        reaches `max_attempts`, when it lands in `failed` with `last_error` set.
+      required:
+        [id, kind, payload, status, priority, run_at, attempts, max_attempts, last_error, worker, started_at,
+         finished_at, created_at, updated_at]
+      properties:
+        id: { $ref: "#/components/schemas/JobId" }
+        kind:
+          type: string
+          description: Names the handler that runs it, e.g. `embed_role`.
+        payload:
+          allOf: [{ $ref: "#/components/schemas/JSONObject" }]
+          description: 'Handler-specific input, e.g. `{"role_id": "…"}`.'
+        status: { $ref: "#/components/schemas/JobStatus" }
+        priority:
+          type: integer
+          description: Higher runs first.
+        run_at:
+          type: string
+          format: date-time
+          description: Not before this time. Retry backoff pushes it into the future.
+        attempts:
+          type: integer
+          description: Claims so far, including one in progress.
+        max_attempts:
+          type: integer
+          minimum: 1
+        last_error:
+          type: string
+          nullable: true
+          description: The most recent failed attempt's error; kept on a `failed` job, cleared on success.
+        worker:
+          type: string
+          nullable: true
+          description: Id of the worker that last claimed it.
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the current or most recent attempt was claimed.
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set when the job reached `succeeded` or `failed`.
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    JobCreate:
+      type: object
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          description: Must be a kind the worker has a handler for; otherwise a 422 naming the known kinds.
+          example: embed_role
+        payload:
+          allOf: [{ $ref: "#/components/schemas/JSONObject" }]
+          x-go-type-skip-optional-pointer: true
+        priority:
+          type: integer
+          minimum: -32768
+          maximum: 32767
+          description: Defaults to 0. Higher runs first.
+        run_at:
+          type: string
+          format: date-time
+          description: Delay the job until this time. Defaults to now.
+        max_attempts:
+          type: integer
+          minimum: 1
+          maximum: 20
+          description: Defaults to 3.

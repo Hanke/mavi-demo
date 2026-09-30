@@ -11,7 +11,7 @@ the id list as an enum so the model is nudged towards it up front.
 from __future__ import annotations
 
 from datetime import date
-from typing import Annotated, Any, ClassVar, Literal
+from typing import Annotated, Any, ClassVar, Literal, cast
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
@@ -39,7 +39,9 @@ def _taxonomy_list(kind: Kind, description: str) -> Any:
     return Field(
         default_factory=list,
         description=description,
-        json_schema_extra=lambda schema: schema.update(items={"type": "string", "enum": list(taxonomy.load().ids(kind))}),
+        json_schema_extra=lambda schema: schema.update(
+            items={"type": "string", "enum": list(taxonomy.load().ids(kind))}
+        ),
     )
 
 
@@ -57,17 +59,19 @@ class TaxonomyModel(BaseModel):
     def _resolve_taxonomy_fields(cls, data: Any) -> Any:
         if not isinstance(data, dict):
             return data
-        data = dict(data)
+        data = dict(cast(dict[str, Any], data))
         tax = taxonomy.load()
         for field, (kind, overflow) in cls.taxonomy_fields.items():
-            raw = data.get(field) or []
-            extra = data.get(overflow) or []
+            raw: object = data.get(field) or []
+            extra: object = data.get(overflow) or []
             if not isinstance(raw, list) or not isinstance(extra, list):
                 continue  # let the field validators report the type error
-            canonical, unknown = tax.resolve_many(kind, [v for v in raw if isinstance(v, str)])
+            raw_items = cast(list[object], raw)
+            extra_items = cast(list[object], extra)
+            canonical, unknown = tax.resolve_many(kind, [v for v in raw_items if isinstance(v, str)])
             # Anything already in the overflow field may itself be an alias the
             # model missed; give it the same chance to resolve.
-            more_canonical, still_unknown = tax.resolve_many(kind, [v for v in extra if isinstance(v, str)])
+            more_canonical, still_unknown = tax.resolve_many(kind, [v for v in extra_items if isinstance(v, str)])
             for cid in more_canonical:
                 if cid not in canonical:
                     canonical.append(cid)
@@ -91,13 +95,21 @@ class CandidateProfile(TaxonomyModel):
         "industries": ("industries", "other_industries"),
     }
 
-    headline: str | None = Field(default=None, description="One-line summary of the candidate, e.g. 'Senior Accountant'.")
+    headline: str | None = Field(
+        default=None, description="One-line summary of the candidate, e.g. 'Senior Accountant'."
+    )
     years_experience: int | None = Field(default=None, ge=0, le=70)
-    certifications: list[CertificationID] = _taxonomy_list("certifications", "Certifications the candidate holds, as taxonomy ids.")
-    other_certifications: list[str] = Field(default_factory=list, description="Certifications not in the taxonomy, verbatim.")
+    certifications: list[CertificationID] = _taxonomy_list(
+        "certifications", "Certifications the candidate holds, as taxonomy ids."
+    )
+    other_certifications: list[str] = Field(
+        default_factory=list, description="Certifications not in the taxonomy, verbatim."
+    )
     software: list[SoftwareID] = _taxonomy_list("software", "Software the candidate has used, as taxonomy ids.")
     other_software: list[str] = Field(default_factory=list, description="Software not in the taxonomy, verbatim.")
-    industries: list[IndustryID] = _taxonomy_list("industries", "Industries the candidate has worked in, as taxonomy ids.")
+    industries: list[IndustryID] = _taxonomy_list(
+        "industries", "Industries the candidate has worked in, as taxonomy ids."
+    )
     other_industries: list[str] = Field(default_factory=list, description="Industries not in the taxonomy, verbatim.")
     skills: list[str] = Field(default_factory=list, description="Free-text skills, e.g. 'month-end close'.")
     languages: list[str] = Field(default_factory=list, description="Spoken languages as ISO 639-1 codes.")
@@ -116,13 +128,21 @@ class RoleRequirements(TaxonomyModel):
     }
 
     title: str | None = None
-    required_certifications: list[CertificationID] = _taxonomy_list("certifications", "Certifications the role requires, as taxonomy ids.")
-    other_required_certifications: list[str] = Field(default_factory=list, description="Required certifications not in the taxonomy, verbatim.")
+    required_certifications: list[CertificationID] = _taxonomy_list(
+        "certifications", "Certifications the role requires, as taxonomy ids."
+    )
+    other_required_certifications: list[str] = Field(
+        default_factory=list, description="Required certifications not in the taxonomy, verbatim."
+    )
     required_software: list[SoftwareID] = _taxonomy_list("software", "Software the role requires, as taxonomy ids.")
-    other_required_software: list[str] = Field(default_factory=list, description="Required software not in the taxonomy, verbatim.")
+    other_required_software: list[str] = Field(
+        default_factory=list, description="Required software not in the taxonomy, verbatim."
+    )
     industries: list[IndustryID] = _taxonomy_list("industries", "Industry context of the role, as taxonomy ids.")
     other_industries: list[str] = Field(default_factory=list, description="Industries not in the taxonomy, verbatim.")
     must_haves: list[str] = Field(default_factory=list, description="Every hard requirement in the JD's own words.")
-    nice_to_haves: list[str] = Field(default_factory=list, description="Preferred but not required, in the JD's own words.")
+    nice_to_haves: list[str] = Field(
+        default_factory=list, description="Preferred but not required, in the JD's own words."
+    )
     timezone: str | None = Field(default=None, description="IANA name the role operates in.")
     starts_on: date | None = None

@@ -10,7 +10,9 @@ import (
 	"testing"
 
 	"github.com/colehanke/mavi-demo/api/internal/dbtest"
+	"github.com/colehanke/mavi-demo/api/internal/jobs"
 	"github.com/colehanke/mavi-demo/api/internal/store"
+	"github.com/colehanke/mavi-demo/api/internal/tasks"
 	"github.com/colehanke/mavi-demo/api/internal/taxonomy"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -29,7 +31,7 @@ func newAPI(t *testing.T) *api {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := New(Config{DB: pool, AI: stub{}, Store: store.New(pool), Taxonomy: tax, CORSOrigin: "*"})
+	h := New(Config{DB: pool, AI: stub{}, Store: store.New(pool), Taxonomy: tax, Jobs: jobs.NewQueue(pool), JobKinds: tasks.Registry(pool, nil).Kinds(), CORSOrigin: "*"})
 	return &api{t: t, h: h, pool: pool}
 }
 

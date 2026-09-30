@@ -1,6 +1,6 @@
 // Package server is the HTTP surface of the API: JSON handlers for
-// candidates, profiles, roles and matches, each gated by the demo role
-// switcher in internal/auth.
+// candidates, profiles, roles, matches and background jobs, each gated by
+// the demo role switcher in internal/auth.
 package server
 
 import (
@@ -19,6 +19,7 @@ import (
 	"github.com/colehanke/mavi-demo/api/internal/aiclient"
 	"github.com/colehanke/mavi-demo/api/internal/auth"
 	"github.com/colehanke/mavi-demo/api/internal/contract"
+	"github.com/colehanke/mavi-demo/api/internal/jobs"
 	"github.com/colehanke/mavi-demo/api/internal/store"
 	"github.com/colehanke/mavi-demo/api/internal/taxonomy"
 )
@@ -35,13 +36,15 @@ type AIHealth interface {
 
 var _ AIHealth = (*aiclient.Client)(nil)
 
-// Config wires the server's dependencies. Store and Taxonomy may be nil for
-// a health-only server (the CRUD routes then 503).
+// Config wires the server's dependencies. Store, Taxonomy and Jobs may be
+// nil for a health-only server (every other route then 503s).
 type Config struct {
 	DB         Pinger
 	AI         AIHealth
 	Store      *store.Store
 	Taxonomy   *taxonomy.Taxonomy
+	Jobs       *jobs.Queue
+	JobKinds   []string // kinds POST /jobs accepts: what the worker has handlers for
 	CORSOrigin string
 }
 
@@ -50,13 +53,15 @@ type Server struct {
 	ai         AIHealth
 	store      *store.Store
 	tax        *taxonomy.Taxonomy
+	jobs       *jobs.Queue
+	jobKinds   []string
 	corsOrigin string
 }
 
 const maxBody = 1 << 20
 
 func New(cfg Config) http.Handler {
-	s := &Server{db: cfg.DB, ai: cfg.AI, store: cfg.Store, tax: cfg.Taxonomy, corsOrigin: cfg.CORSOrigin}
+	s := &Server{db: cfg.DB, ai: cfg.AI, store: cfg.Store, tax: cfg.Taxonomy, jobs: cfg.Jobs, jobKinds: cfg.JobKinds, corsOrigin: cfg.CORSOrigin}
 	mux := http.NewServeMux()
 	mux.HandleFunc(healthRoute, s.handleHealth)
 	for _, rt := range s.routes() {
@@ -110,13 +115,19 @@ func (s *Server) routes() []routeDef {
 		r("POST /matches/{id}/release", s.releaseMatch(true), ops),
 		r("POST /matches/{id}/unrelease", s.releaseMatch(false), ops),
 		r("DELETE /matches/{id}", s.deleteMatch, ops),
+
+		// Jobs: the background queue. Ops enqueues by hand and polls status;
+		// the write paths above enqueue embedding jobs on their own.
+		r("POST /jobs", s.createJob, ops),
+		r("GET /jobs", s.listJobs, ops),
+		r("GET /jobs/{id}", s.getJob, ops),
 	}
 }
 
 // ready refuses CRUD requests on a server built without a store.
 func (s *Server) ready(next http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if s.store == nil || s.tax == nil {
+		if s.store == nil || s.tax == nil || s.jobs == nil {
 			writeError(w, http.StatusServiceUnavailable, "database not configured")
 			return
 		}
@@ -230,6 +241,9 @@ func fail(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusInternalServerError, "internal error")
 	}
 }
+
+// logf is the server's log line; a variable so tests can silence or capture it.
+var logf = log.Printf
 
 // constraint names the violated constraint, for error messages.
 func constraint(err error) string {

@@ -8,6 +8,7 @@ import (
 	"github.com/colehanke/mavi-demo/api/internal/auth"
 	"github.com/colehanke/mavi-demo/api/internal/contract"
 	"github.com/colehanke/mavi-demo/api/internal/store"
+	"github.com/colehanke/mavi-demo/api/internal/tasks"
 	"github.com/colehanke/mavi-demo/api/internal/taxonomy"
 )
 
@@ -220,6 +221,9 @@ func (s *Server) putProfile(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fail(w, err)
 		return
+	}
+	if p.EmbeddedAt == nil {
+		s.enqueueEmbedding(r, tasks.KindEmbedProfile, "candidate_id", p.CandidateID)
 	}
 	code := http.StatusOK
 	if inserted {

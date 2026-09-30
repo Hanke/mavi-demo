@@ -53,6 +53,7 @@ not use is a `403`.
 | `POST` / `PUT` / `DELETE /matches…` | | | yes |
 | `POST /matches/{id}/release`, `…/unrelease` | | | yes |
 | `GET /matches`, `GET /matches/{id}` | own, **released only** | **released only** | all |
+| `POST /jobs`, `GET /jobs`, `GET /jobs/{id}` | | | yes |
 
 Rules worth knowing:
 
@@ -95,6 +96,73 @@ or returned something unparseable (`errors.Is(err, aiclient.ErrTimeout)` etc.),
 with the service's `detail` message attached. Its request and response types
 are generated from the AI service's own OpenAPI document (see
 [Contracts](#contracts)).
+
+## Background jobs
+
+Slow work is not done inside a request. The API writes a row to the `jobs`
+table and a worker picks it up; there is no broker to run. Today the kinds
+are `embed_role` and `embed_profile`: creating or editing a role with a
+description, or saving a profile, leaves the row's embedding `NULL` and
+queues the job that fills it through the AI service's `/embed`. (Profile
+extraction and matching runs will be further kinds.)
+
+How it works (`api/internal/jobs`, handlers in `api/internal/tasks`):
+
+- **Claim.** A worker runs one `UPDATE … WHERE id = (SELECT … WHERE status =
+  'queued' AND run_at <= now() ORDER BY priority DESC, run_at, id FOR UPDATE
+  SKIP LOCKED LIMIT 1)`. The row lock means two workers can never take the
+  same job, and `SKIP LOCKED` means they never wait on each other. The claim
+  sets `running`, `locked_by` (the worker id) and counts the attempt in one
+  statement.
+- **Finish.** A handler returning `nil` marks the job `succeeded`. Any other
+  error puts it back to `queued` with `run_at` pushed out by a backoff (5s,
+  20s, 80s, … capped at 10m) until `attempts` reaches `max_attempts` (default
+  3), when it lands in `failed`. Either way `last_error` holds the message. A
+  handler can return `jobs.Permanent(err)` to fail at once; a panic counts as
+  a failure. Finishing statements match on `locked_by` and the attempt
+  number, so a slow attempt whose lock expired cannot overwrite the result of
+  the claim that took over, even in the same worker.
+- **Dedupe.** One queued job per `(kind, payload)` (a partial unique index).
+  Saving a role five times while its embedding is still waiting queues one
+  job; `POST /jobs` answers 200 with the waiting job instead of a 201. Once
+  the job is running or finished, the same payload can be queued again.
+- **Shutdown.** On SIGTERM the worker stops claiming, gives in-flight handlers
+  a grace period (5s), then cancels them; a job interrupted this way goes back
+  to `queued` without spending an attempt.
+- **Crashes.** A job left `running` longer than `WORKER_LOCK_TIMEOUT` (default
+  5m) is reclaimed by any worker's sweeper: back to `queued`, or `failed` if
+  its attempts are spent. Keep the timeout above the slowest handler, or a
+  live job runs twice. Handlers are written to be re-runnable.
+- **Where it runs.** The API container runs `WORKER_CONCURRENCY` (default 2)
+  workers in-process, so `make up` is enough. `make worker` starts another
+  worker container against the same table (or run `api worker` anywhere with
+  `DATABASE_URL` and `AI_SERVICE_URL`); set `WORKER_CONCURRENCY=0` to make the
+  API process HTTP-only. Each process names itself `<hostname>-<pid>` in
+  `locked_by` unless `WORKER_ID` says otherwise, so scaled replicas stay
+  distinct.
+- **Enqueue from a write.** The role and profile handlers enqueue after the
+  row is committed, on a context detached from the request, so a client that
+  disconnects at that moment does not lose the job.
+
+The queue is visible to ops over the API for the UI to poll:
+
+```sh
+# a role with a description queues its embedding; poll until succeeded / failed
+curl -s -X POST localhost:8080/roles -H 'X-Role: employer' -H 'Content-Type: application/json' \
+  -d '{"title":"Controller","description":"Owns the monthly close."}'
+curl -s 'localhost:8080/jobs?kind=embed_role' -H 'X-Role: ops'        # newest first
+curl -s localhost:8080/jobs/1 -H 'X-Role: ops'                       # {"status":"succeeded","attempts":1,...}
+
+# enqueue by hand (kind must be one the worker has a handler for; otherwise 422)
+curl -s -X POST localhost:8080/jobs -H 'X-Role: ops' -H 'Content-Type: application/json' \
+  -d '{"kind":"embed_role","payload":{"role_id":"<role id>"},"priority":5,"max_attempts":5}'
+curl -s 'localhost:8080/jobs?status=failed' -H 'X-Role: ops'          # last_error says why
+```
+
+`make test-db` runs the queue's tests against the compose database: a job is
+enqueued, claimed and completed; a failing job retries and lands in `failed`
+with its error; sixty jobs shared by two concurrent workers each run exactly
+once; a worker shut down mid-job hands it back; stale locks are reclaimed.
 
 ## Contracts
 
@@ -152,9 +220,11 @@ Run `make` to list them. The main ones:
 
 - `make up` / `make down` / `make logs` / `make ps`
 - `make migrate` / `make migrate-down` / `make migrate-status` / `make seed` — run inside the `api` image against the compose DB. `make migrate-down STEPS=2` or `STEPS=all` rolls back further.
-- `make test-db` — migration up/down round-trip plus the API CRUD / role tests against the compose DB (each test creates and drops a throwaway database)
+- `make worker` — an extra background job worker container next to the one inside the API (see [Background jobs](#background-jobs))
+- `make test-db` — migration up/down round-trip, the API CRUD / role tests and the job queue tests against the compose DB (each test creates and drops a throwaway database)
 - `make generate` / `make check-contracts` — regenerate the shared types from the OpenAPI documents, or fail if regenerating changes anything (see [Contracts](#contracts))
-- `make test` — contract check, then the Go, Python and web test suites (host toolchains: Go 1.24, Python 3.12+, Node 22)
+- `make lint` — `gofmt` + `go vet` for the API; `ruff check`, `ruff format --check` and strict `pyright` for the AI service (`make fmt-ai` fixes what ruff can)
+- `make test` — contract check, lint, then the Go, Python and web test suites (host toolchains: Go 1.24, Python 3.12+, Node 22)
 - `make health` — curl every health endpoint
 
 ## Database
@@ -173,7 +243,7 @@ the API writes.
 | `roles` | Raw JD plus `must_haves` / `nice_to_haves` JSONB, promoted `required_certifications[]`, `required_software[]`, `timezone`, `starts_on`, and an embedding |
 | `matches` | One row per (role, candidate): `score`, `explanation`, `breakdown`, `status` (proposed / approved / rejected / swapped), `released_at` (set when ops releases it to the employer) |
 | `review_events` | Append-only audit of ops approve / reject / swap / release / unrelease actions on a match |
-| `jobs` | Postgres-backed background queue (`FOR UPDATE SKIP LOCKED` dequeue on the partial `jobs_dequeue_idx`) |
+| `jobs` | Postgres-backed background queue: `kind`, `payload`, `status` (queued / running / succeeded / failed), `priority`, `run_at`, `attempts` / `max_attempts`, `last_error`, `locked_by` / `locked_at`; claimed with `FOR UPDATE SKIP LOCKED` on the partial `jobs_dequeue_idx` (see [Background jobs](#background-jobs)) |
 
 The hard-filter fields are real, indexed columns rather than JSON keys, so a
 shortlist query can be written directly in SQL:
@@ -224,15 +294,24 @@ runtime via `TAXONOMY_PATH`, so edits do not need a rebuild.
 
 ## Local dev without Docker
 
-Each service runs standalone against `DATABASE_URL` / `AI_SERVICE_URL` from `.env`:
+Each service runs standalone against `DATABASE_URL` / `AI_SERVICE_URL` from `.env`.
+The AI service's `requirements-dev.txt` adds pytest, ruff and pyright on top of
+the runtime `requirements.txt` the Docker image installs; the lint rules live
+in `ai/pyproject.toml` and `ai/pyrightconfig.json`.
 
 ```sh
 (cd api && go run ./cmd/api)
-(cd ai && python -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/uvicorn app.main:app --reload)
+(cd ai && python3.12 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && .venv/bin/uvicorn app.main:app --reload)
 (cd web && npm install && npm run dev)
 ```
 
 ## Provider configuration
+
+`WORKER_CONCURRENCY` (default 2) is how many background jobs the API process
+runs at once; `0` disables its worker. `WORKER_ID` names the process in
+`jobs.locked_by`; `WORKER_LOCK_TIMEOUT` (default `5m`) is how long a running
+job may go unfinished before another worker reclaims it.
+
 
 `EMBEDDING_PROVIDER=local` (the default) uses a deterministic hash-based stub so
 the stack runs with no API keys. Set it to `openai` with `OPENAI_API_KEY` for real
