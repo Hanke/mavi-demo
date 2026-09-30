@@ -7,7 +7,7 @@ Monorepo for the Mavi demo stack.
 | [`web/`](web/) | React + TypeScript (Vite dev server) | 5173 |
 | [`api/`](api/) | Go HTTP API | 8080 |
 | [`ai/`](ai/) | Python FastAPI service (embeddings / LLM) | 8000 |
-| [`infra/`](infra/) | Postgres init scripts, SQL migrations, seed data | 5433 (host) → 5432 |
+| [`infra/`](infra/) | Postgres init scripts, SQL migrations, seed data, shared taxonomy | 5433 (host) → 5432 |
 
 ## Quick start
 
@@ -73,6 +73,37 @@ WHERE r.id = $1 AND c.status = 'active'
 ORDER BY p.embedding <=> r.embedding
 LIMIT 20;
 ```
+
+## Taxonomy
+
+The hard filters compare a role's `required_certifications` / `required_software`
+with a profile's `certifications` / `software` using array containment, which only
+works if both sides hold the same canonical values. [`infra/taxonomy.json`](infra/taxonomy.json)
+is the single source of those values: three lists (`certifications`, `software`,
+`industries`), each entry an `id` (snake_case, never renamed), a `label` and
+`aliases`. "QuickBooks Online", "QBO" and "Quickbooks" all resolve to `quickbooks`;
+"CPA" and "Certified Public Accountant" resolve to `cpa`.
+
+Who reads it:
+
+- **Parsers** (`ai/app/schemas.py`): `CandidateProfile` (resume) and `RoleRequirements`
+  (JD) resolve every taxonomy list to ids before validation. Values that do not
+  resolve move to the matching `other_*` free-text field rather than being dropped,
+  and the JSON schema handed to the model carries the id list as an enum.
+- **Seed** (`api seed`): the seed files and a check of the four hard-filter
+  columns run in one transaction. A value that is not a canonical id rolls the
+  whole seed back, naming the offending value and the id it should have been.
+- **Filters / API write path** (`api/internal/taxonomy`): `Resolve` / `ResolveAll`
+  give the Go side the same mapping, so anything the API writes to those columns
+  goes through the taxonomy first.
+
+Both implementations share the key rules (lower-case, `&` → `and`, drop
+free-standing parentheticals, drop credential words like "certified" / "license"
+for certifications only, drop every non-alphanumeric character) and both test suites run
+[`infra/taxonomy_cases.json`](infra/taxonomy_cases.json), so they cannot drift apart.
+To add a term, add an entry with aliases; to accept a new spelling, add an alias.
+The file is mounted into the `ai` and `api` containers at `/app/infra` and read at
+runtime via `TAXONOMY_PATH`, so edits do not need a rebuild.
 
 ## Local dev without Docker
 

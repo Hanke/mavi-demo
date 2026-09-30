@@ -18,6 +18,10 @@ class Settings(BaseSettings):
 
     database_url: str = ""
 
+    # Shared canonical vocabulary (infra/taxonomy.json). Empty means the repo default
+    # next to this checkout; the compose file points it at the mounted /app/infra copy.
+    taxonomy_path: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

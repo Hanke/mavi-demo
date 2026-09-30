@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/colehanke/mavi-demo/api/internal/taxonomy"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -232,13 +233,30 @@ func Discover(dir string) ([]Migration, error) {
 	return out, nil
 }
 
-// Seed runs every *.sql file in dir. Seed files are expected to be idempotent.
-func Seed(ctx context.Context, pool *pgxpool.Pool, dir string) error {
+// Querier is the subset of *pgxpool.Pool and pgx.Tx that read-only checks
+// need, so a check can run inside the seed transaction or against a pool.
+type Querier interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+}
+
+// SeedCheck inspects the seeded state and returns an error to reject it.
+type SeedCheck func(ctx context.Context, q Querier) error
+
+// Seed runs every *.sql file in dir, then every check, all inside one
+// transaction: a file that fails or a check that rejects the data rolls the
+// whole seed back, so a bad seed never lands. Seed files are expected to be
+// idempotent.
+func Seed(ctx context.Context, pool *pgxpool.Pool, dir string, checks ...SeedCheck) error {
 	files, err := filepath.Glob(filepath.Join(dir, "*.sql"))
 	if err != nil {
 		return err
 	}
 	sort.Strings(files)
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
 	for _, f := range files {
 		sql, err := readSQL(f)
 		if err != nil {
@@ -247,12 +265,17 @@ func Seed(ctx context.Context, pool *pgxpool.Pool, dir string) error {
 		if sql == "" {
 			continue
 		}
-		if _, err := pool.Exec(ctx, sql); err != nil {
+		if _, err := tx.Exec(ctx, sql); err != nil {
 			return fmt.Errorf("seed %s: %w", filepath.Base(f), err)
 		}
 		log.Printf("seeded %s", filepath.Base(f))
 	}
-	return nil
+	for _, check := range checks {
+		if err := check(ctx, tx); err != nil {
+			return fmt.Errorf("seed rolled back: %w", err)
+		}
+	}
+	return tx.Commit(ctx)
 }
 
 // runner holds a single connection so the advisory lock and every migration
@@ -395,4 +418,88 @@ func readSQL(path string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(b)), nil
+}
+
+// Offender is a hard-filter value that is not a canonical taxonomy id, found
+// by NonCanonicalTerms. Suggestion is the id the value would resolve to, or
+// "" when the taxonomy does not know it at all.
+type Offender struct {
+	Table      string
+	Column     string
+	Value      string
+	Suggestion string
+}
+
+func (o Offender) String() string {
+	s := fmt.Sprintf("%s.%s has %q", o.Table, o.Column, o.Value)
+	if o.Suggestion != "" {
+		return s + fmt.Sprintf(" (did you mean %q?)", o.Suggestion)
+	}
+	return s + " (not in the taxonomy; add it or keep it in the profile's free-text field)"
+}
+
+// hardFilterColumns are the array columns the shortlist query compares with
+// `@>`. Their values must be canonical ids from the shared taxonomy or the
+// containment check silently fails to match.
+var hardFilterColumns = []struct {
+	table, column string
+	kind          taxonomy.Kind
+}{
+	{"candidate_profiles", "certifications", taxonomy.Certifications},
+	{"candidate_profiles", "software", taxonomy.Software},
+	{"roles", "required_certifications", taxonomy.Certifications},
+	{"roles", "required_software", taxonomy.Software},
+}
+
+// NonCanonicalTerms scans every hard-filter array column and returns the
+// distinct values that are not canonical taxonomy ids. `api seed` runs it as
+// a SeedCheck inside the seed transaction, so a seed that drifts from
+// infra/taxonomy.json is rolled back instead of producing a role that never
+// matches anyone.
+func NonCanonicalTerms(ctx context.Context, q Querier, tax *taxonomy.Taxonomy) ([]Offender, error) {
+	var out []Offender
+	for _, c := range hardFilterColumns {
+		// Identifiers come from the fixed table above, never from input.
+		rows, err := q.Query(ctx, fmt.Sprintf(
+			`SELECT DISTINCT v FROM %s, unnest(%s) AS v ORDER BY v`, c.table, c.column))
+		if err != nil {
+			return nil, fmt.Errorf("scan %s.%s: %w", c.table, c.column, err)
+		}
+		for rows.Next() {
+			var v string
+			if err := rows.Scan(&v); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			if tax.IsCanonical(c.kind, v) {
+				continue
+			}
+			suggestion, _ := tax.Resolve(c.kind, v)
+			out = append(out, Offender{Table: c.table, Column: c.column, Value: v, Suggestion: suggestion})
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+// TaxonomyCheck is the SeedCheck form of NonCanonicalTerms: it logs every
+// offender and rejects the seed if there are any.
+func TaxonomyCheck(tax *taxonomy.Taxonomy) SeedCheck {
+	return func(ctx context.Context, q Querier) error {
+		offenders, err := NonCanonicalTerms(ctx, q, tax)
+		if err != nil {
+			return fmt.Errorf("taxonomy check: %w", err)
+		}
+		if len(offenders) == 0 {
+			log.Printf("taxonomy check: every hard-filter value is canonical")
+			return nil
+		}
+		for _, o := range offenders {
+			log.Printf("taxonomy check: %s", o)
+		}
+		return fmt.Errorf("%d hard-filter value(s) are not canonical taxonomy ids (see log above)", len(offenders))
+	}
 }

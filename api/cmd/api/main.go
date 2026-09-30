@@ -14,6 +14,7 @@ import (
 	"github.com/colehanke/mavi-demo/api/internal/aiclient"
 	"github.com/colehanke/mavi-demo/api/internal/db"
 	"github.com/colehanke/mavi-demo/api/internal/server"
+	"github.com/colehanke/mavi-demo/api/internal/taxonomy"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -37,13 +38,14 @@ func run() error {
 	//   api migrate [up]          apply pending migrations
 	//   api migrate down [N|all]  roll back the last N (default 1) or all
 	//   api migrate status        list migrations and whether they are applied
-	//   api seed                  load seed data
+	//   api seed                  load seed data, then check the hard-filter
+	//                             columns against the shared taxonomy
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "migrate":
 			return runMigrate(ctx, pool, os.Args[2:])
 		case "seed":
-			return db.Seed(ctx, pool, envOr("SEED_DIR", "/app/infra/db/seed"))
+			return runSeed(ctx, pool)
 		default:
 			return fmt.Errorf("unknown command %q", os.Args[1])
 		}
@@ -68,6 +70,18 @@ func run() error {
 		return err
 	}
 	return nil
+}
+
+// runSeed loads the seed files and rolls them back if any hard-filter column
+// would hold a value that is not a canonical id in infra/taxonomy.json. The
+// shortlist query compares those columns with `@>`, so a stray "QBO" in a seed
+// would silently never match a profile that says "quickbooks".
+func runSeed(ctx context.Context, pool *pgxpool.Pool) error {
+	tax, err := taxonomy.Load(envOr("TAXONOMY_PATH", "/app/infra/taxonomy.json"))
+	if err != nil {
+		return err
+	}
+	return db.Seed(ctx, pool, envOr("SEED_DIR", "/app/infra/db/seed"), db.TaxonomyCheck(tax))
 }
 
 func runMigrate(ctx context.Context, pool *pgxpool.Pool, args []string) error {

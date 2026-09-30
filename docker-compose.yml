@@ -19,8 +19,12 @@ services:
       retries: 10
 
   ai:
-    build: ./ai
+    build:
+      context: ./ai
+      additional_contexts:
+        infra: ./infra
     environment:
+      TAXONOMY_PATH: /app/infra/taxonomy.json
       LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -31,6 +35,7 @@ services:
       - "${AI_PORT:-8000}:8000"
     volumes:
       - ./ai/app:/app/app
+      - ./infra:/app/infra:ro
     depends_on:
       db:
         condition: service_healthy
@@ -50,6 +55,7 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-mavi}:${POSTGRES_PASSWORD:-mavi}@db:5432/${POSTGRES_DB:-mavi}?sslmode=disable
       AI_SERVICE_URL: http://ai:8000
       CORS_ORIGIN: http://localhost:${WEB_PORT:-5173}
+      TAXONOMY_PATH: /app/infra/taxonomy.json
     ports:
       - "${API_PORT:-8080}:8080"
     volumes:

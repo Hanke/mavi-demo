@@ -7,10 +7,12 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/colehanke/mavi-demo/api/internal/taxonomy"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -342,4 +344,86 @@ func appliedVersions(t *testing.T, pool *pgxpool.Pool) []string {
 		out = append(out, n)
 	}
 	return out
+}
+
+// TestSeedValuesAreCanonical loads the real seed files into a migrated
+// throwaway database and checks every hard-filter column against the shared
+// taxonomy, which is exactly what `api seed` does after seeding.
+func TestSeedValuesAreCanonical(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	infra := filepath.Join("..", "..", "..", "infra")
+	if err := Migrate(ctx, pool, filepath.Join(infra, "db", "migrations")); err != nil {
+		t.Fatal(err)
+	}
+	if err := Seed(ctx, pool, filepath.Join(infra, "db", "seed")); err != nil {
+		t.Fatal(err)
+	}
+	tax, err := taxonomy.Load(filepath.Join(infra, "taxonomy.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	offenders, err := NonCanonicalTerms(ctx, pool, tax)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range offenders {
+		t.Errorf("seed data: %s", o)
+	}
+
+	// A role written with an alias instead of the id is caught, with the
+	// canonical id suggested; a value the taxonomy does not know is reported
+	// without a suggestion.
+	exec(t, pool, `INSERT INTO roles (title, required_certifications, required_software)
+		VALUES ('bad', '{"Certified Public Accountant"}', '{QBO,"Zoho Books"}')`)
+	offenders, err = NonCanonicalTerms(ctx, pool, tax)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, o := range offenders {
+		got[o.Table+"."+o.Column+":"+o.Value] = o.Suggestion
+	}
+	want := map[string]string{
+		"roles.required_certifications:Certified Public Accountant": "cpa",
+		"roles.required_software:QBO":                               "quickbooks",
+		"roles.required_software:Zoho Books":                        "",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("offenders = %v, want %v", got, want)
+	}
+}
+
+// TestSeedRollsBackWhenCheckFails: a seed whose data fails a check must leave
+// no rows behind, and the real taxonomy check is such a check.
+func TestSeedRollsBackWhenCheckFails(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	infra := filepath.Join("..", "..", "..", "infra")
+	if err := Migrate(ctx, pool, filepath.Join(infra, "db", "migrations")); err != nil {
+		t.Fatal(err)
+	}
+	tax, err := taxonomy.Load(filepath.Join(infra, "taxonomy.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	write(t, dir, "001_bad.sql", `INSERT INTO roles (title, required_software) VALUES ('bad', '{QBO}')`)
+
+	err = Seed(ctx, pool, dir, TaxonomyCheck(tax))
+	if err == nil || !strings.Contains(err.Error(), "rolled back") || !strings.Contains(err.Error(), "not canonical") {
+		t.Fatalf("expected the taxonomy check to reject the seed, got %v", err)
+	}
+	if queryBool(t, pool, `SELECT EXISTS (SELECT 1 FROM roles)`) {
+		t.Error("rejected seed left rows in roles")
+	}
+
+	// The same file with the canonical id passes the check and commits.
+	write(t, dir, "001_bad.sql", `INSERT INTO roles (title, required_software) VALUES ('good', '{quickbooks}')`)
+	if err := Seed(ctx, pool, dir, TaxonomyCheck(tax)); err != nil {
+		t.Fatalf("canonical seed should pass: %v", err)
+	}
+	if !queryBool(t, pool, `SELECT EXISTS (SELECT 1 FROM roles WHERE title = 'good')`) {
+		t.Error("accepted seed did not commit")
+	}
 }
