@@ -1,0 +1,7 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/ai/.venv/bin/python",
+  "python.analysis.extraPaths": ["${workspaceFolder}/ai"],
+  "python.testing.pytestEnabled": true,
+  "python.testing.cwd": "${workspaceFolder}/ai",
+  "python.testing.pytestArgs": ["tests"]
+}
