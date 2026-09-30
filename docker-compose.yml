@@ -31,12 +31,15 @@ services:
       LLM_MODEL: ${LLM_MODEL:-}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-openai}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      AI_CACHE: ${AI_CACHE:-on}
       DATABASE_URL: postgresql://${POSTGRES_USER:-mavi}:${POSTGRES_PASSWORD:-mavi}@db:5432/${POSTGRES_DB:-mavi}
     ports:
       - "${AI_PORT:-8000}:8000"
     volumes:
       - ./ai/app:/app/app
       - ./infra:/app/infra:ro
+      # Cached LLM and embedding responses survive a rebuild.
+      - ai_cache:/app/.cache
     depends_on:
       db:
         condition: service_healthy
@@ -97,4 +100,5 @@ services:
 
 volumes:
   pgdata:
+  ai_cache:
   web_node_modules:

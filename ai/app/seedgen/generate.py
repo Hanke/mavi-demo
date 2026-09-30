@@ -5,6 +5,11 @@ resume the parser can extract the same structured profile from, with
 sentences specific enough to quote as evidence. Every certification and
 software id in the spec must appear in the resume by its display name or a
 known alias, and a batch that misses one is retried for those slots only.
+
+Each request's answer is kept in the response cache (app/cache.py) under the
+model, the brief and the specs, so re-running a generation that already ran
+(or one that died half way) only pays for the batches it has not seen. The
+specs carry today's date, so that holds within a day.
 """
 
 from __future__ import annotations
@@ -23,7 +28,9 @@ from typing import Any, cast
 import anthropic
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from app import cache as cachemod
 from app import taxonomy
+from app.cache import Cache
 from app.schemas import CandidateProfile
 from app.seedgen.plan import PLAN_SEED, Slot
 
@@ -290,12 +297,23 @@ def merge_into_file(path: Path, generated: list[Generated], model: str) -> int:
 
 
 class Generator:
-    def __init__(self, client: anthropic.Anthropic | None = None, today: date | None = None, model: str = MODEL):
+    def __init__(
+        self,
+        client: anthropic.Anthropic | None = None,
+        today: date | None = None,
+        model: str = MODEL,
+        cache: Cache | None = None,
+    ):
         # Zero-arg client: ANTHROPIC_API_KEY from the environment (the Makefile
         # sources .env), or an `ant auth login` profile.
         self.client = client or anthropic.Anthropic(timeout=600.0, max_retries=3)
         self.today = today or date.today()
         self.model = model
+        if cache is None:
+            from app.settings import get_settings
+
+            cache = cachemod.from_settings(get_settings())
+        self.cache = cache
         self.tax = taxonomy.load()
         self.usage_in = 0
         self.usage_out = 0
@@ -303,6 +321,17 @@ class Generator:
     def _call(self, slots: list[Slot], feedback: dict[int, str]) -> dict[int, GeneratedCandidate]:
         specs = [_spec(s, self.tax, self.today, feedback.get(s.index)) for s in slots]
         user = "Write resumes for these candidates:\n\n" + json.dumps(specs, indent=2, ensure_ascii=False)
+        key = cachemod.key(
+            "llm", provider="anthropic", model=self.model, system=SYSTEM_PROMPT, user=user, schema=OUTPUT_SCHEMA
+        )
+        text = self.cache.get_or_call(
+            key, lambda: self._request(user, slots), kind="llm", provider="anthropic", model=self.model
+        )
+        batch = GeneratedBatch.model_validate_json(text)
+        return {c.slot: c for c in batch.candidates}
+
+    def _request(self, user: str, slots: list[Slot]) -> str:
+        """One uncached API call; returns the response text."""
         response = self.client.beta.messages.create(
             model=self.model,
             max_tokens=16000,
@@ -320,9 +349,7 @@ class Generator:
             raise RuntimeError(f"batch {[s.index for s in slots]}: request refused ({response.stop_details})")
         if response.stop_reason == "max_tokens":
             raise RuntimeError(f"batch {[s.index for s in slots]}: output truncated; lower BATCH_SIZE")
-        text = next(b.text for b in response.content if b.type == "text")
-        batch = GeneratedBatch.model_validate_json(text)
-        return {c.slot: c for c in batch.candidates}
+        return next(b.text for b in response.content if b.type == "text")
 
     def batch(self, slots: list[Slot]) -> list[Generated]:
         """Generate one batch, retrying the slots whose resume fails a check."""

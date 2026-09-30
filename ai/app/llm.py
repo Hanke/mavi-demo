@@ -7,8 +7,12 @@ Pydantic, and a response that fails validation is sent back to the model once
 with the validation errors so it can correct itself. A second failure raises
 `InvalidOutputError`; nothing that did not validate ever leaves this module.
 
-`Provider` is the seam for tests: `FakeProvider` replays canned texts with no
-network, and the app swaps it in through `get_provider` dependency overrides.
+`Provider` is the seam. `LLM_PROVIDER` picks the implementation: `anthropic`
+or `openai` for a real model, `fake` for the deterministic key-free stand-in
+in app/fake.py. Whichever it is, `build_provider` wraps it in a
+`CachingProvider`, so a completion already on disk (app/cache.py) is replayed
+instead of requested again. Unit tests script exact answers with a
+`ScriptedProvider`, swapped in through `get_provider` dependency overrides.
 """
 
 from __future__ import annotations
@@ -19,6 +23,8 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from pydantic import BaseModel, ValidationError
 
+from app import cache as cachemod
+from app.cache import Cache
 from app.settings import Settings
 
 if TYPE_CHECKING:
@@ -59,6 +65,8 @@ class Provider(Protocol):
     """A chat model that answers with JSON text for a schema."""
 
     name: str
+    # Part of the cache key: the same prompt to a different model is a different answer.
+    model: str
 
     def complete(self, system: str, user: str, schema: dict[str, Any]) -> str:
         """Return the raw text of one completion. Raises ProviderError."""
@@ -73,13 +81,13 @@ class AnthropicProvider:
 
         # Empty key: let the SDK fall back to the environment or an `ant auth login` profile.
         self._client = anthropic.Anthropic(api_key=api_key or None, timeout=120.0, max_retries=2)
-        self._model = model
+        self.model = model
         self._errors = anthropic
 
     def complete(self, system: str, user: str, schema: dict[str, Any]) -> str:
         try:
             response = self._client.beta.messages.create(
-                model=self._model,
+                model=self.model,
                 max_tokens=MAX_OUTPUT_TOKENS,
                 system=system,
                 messages=[{"role": "user", "content": user}],
@@ -116,7 +124,7 @@ class OpenAIProvider:
         import openai
 
         self._api_key = api_key
-        self._model = model
+        self.model = model
         self._errors = openai
         self._client: openai.OpenAI | None = None
 
@@ -133,7 +141,7 @@ class OpenAIProvider:
     def complete(self, system: str, user: str, schema: dict[str, Any]) -> str:
         try:
             response = self._connect().chat.completions.create(
-                model=self._model,
+                model=self.model,
                 messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
                 response_format={
                     "type": "json_schema",
@@ -156,10 +164,11 @@ class OpenAIProvider:
         return choice.message.content
 
 
-class FakeProvider:
-    """Replays canned responses in order, recording every prompt it was given."""
+class ScriptedProvider:
+    """Test double: replays canned responses in order, recording every prompt it was given."""
 
-    name = "fake"
+    name = "scripted"
+    model = "scripted"
 
     def __init__(self, responses: list[str | Exception]):
         self.responses = list(responses)
@@ -171,18 +180,46 @@ class FakeProvider:
     def complete(self, system: str, user: str, schema: dict[str, Any]) -> str:
         self.calls.append((system, user, schema))
         if not self.responses:
-            raise AssertionError("FakeProvider ran out of responses")
+            raise AssertionError("ScriptedProvider ran out of responses")
         nxt = self.responses.pop(0)
         if isinstance(nxt, Exception):
             raise nxt
         return nxt
 
 
-def build_provider(settings: Settings) -> Provider:
-    """The provider the settings select. Constructing one never touches the network."""
-    if settings.llm_provider == "openai":
-        return OpenAIProvider(settings.openai_api_key, settings.llm_model or OPENAI_MODEL)
-    return AnthropicProvider(settings.anthropic_api_key, settings.llm_model or ANTHROPIC_MODEL)
+class CachingProvider:
+    """A provider with the disk cache in front of it.
+
+    The key is the provider, its model, both prompts and the schema, so the
+    correction retry (a different user prompt) is its own entry and a replayed
+    run takes the same path as the original. A ProviderError is not stored."""
+
+    def __init__(self, inner: Provider, cache: Cache):
+        self.inner = inner
+        self.cache = cache
+        self.name = inner.name
+        self.model = inner.model
+
+    def complete(self, system: str, user: str, schema: dict[str, Any]) -> str:
+        key = cachemod.key("llm", provider=self.name, model=self.model, system=system, user=user, schema=schema)
+        return self.cache.get_or_call(
+            key, lambda: self.inner.complete(system, user, schema), kind="llm", provider=self.name, model=self.model
+        )
+
+
+def build_provider(settings: Settings) -> CachingProvider:
+    """The provider the settings select, behind the cache in the mode the
+    settings select. Constructing one touches neither the network nor the disk."""
+    inner: Provider
+    if settings.llm_provider == "fake":
+        from app.fake import FakeProvider
+
+        inner = FakeProvider()
+    elif settings.llm_provider == "openai":
+        inner = OpenAIProvider(settings.openai_api_key, settings.llm_model or OPENAI_MODEL)
+    else:
+        inner = AnthropicProvider(settings.anthropic_api_key, settings.llm_model or ANTHROPIC_MODEL)
+    return CachingProvider(inner, cachemod.from_settings(settings))
 
 
 # Keywords the providers' constrained-decoding modes reject or ignore. They

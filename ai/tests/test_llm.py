@@ -6,7 +6,7 @@ import pytest
 from pydantic import BaseModel, ConfigDict, Field
 
 from app import llm
-from app.llm import FakeProvider, InvalidOutputError, ProviderError
+from app.llm import InvalidOutputError, ProviderError, ScriptedProvider
 
 
 class Answer(BaseModel):
@@ -18,7 +18,7 @@ class Answer(BaseModel):
 
 
 def test_valid_output_is_returned_on_the_first_call():
-    provider = FakeProvider(['{"name": "a", "count": 1, "note": null}'])
+    provider = ScriptedProvider(['{"name": "a", "count": 1, "note": null}'])
     out = llm.complete_json(provider, "sys", "user", Answer)
     assert out == Answer(name="a", count=1)
     assert len(provider.calls) == 1
@@ -29,7 +29,7 @@ def test_valid_output_is_returned_on_the_first_call():
 
 
 def test_invalid_output_is_retried_with_the_errors_quoted_back():
-    provider = FakeProvider(['{"name": "a", "count": 99}', '{"name": "a", "count": 3, "note": null}'])
+    provider = ScriptedProvider(['{"name": "a", "count": 99}', '{"name": "a", "count": 3, "note": null}'])
     out = llm.complete_json(provider, "sys", "user", Answer)
     assert out.count == 3
     assert len(provider.calls) == 2
@@ -50,7 +50,7 @@ def test_invalid_output_is_retried_with_the_errors_quoted_back():
     ],
 )
 def test_output_that_never_validates_is_an_error_not_a_passthrough(bad: str):
-    provider = FakeProvider([bad, bad])
+    provider = ScriptedProvider([bad, bad])
     with pytest.raises(InvalidOutputError) as info:
         llm.complete_json(provider, "sys", "user", Answer)
     assert len(provider.calls) == llm.MAX_ATTEMPTS
@@ -60,7 +60,7 @@ def test_output_that_never_validates_is_an_error_not_a_passthrough(bad: str):
 
 
 def test_check_failures_count_as_invalid_output():
-    provider = FakeProvider(['{"name": "x", "count": 1, "note": null}', '{"name": "y", "count": 1, "note": null}'])
+    provider = ScriptedProvider(['{"name": "x", "count": 1, "note": null}', '{"name": "y", "count": 1, "note": null}'])
 
     def must_be_y(a: Answer) -> str | None:
         return None if a.name == "y" else f"name must be y, got {a.name}"
@@ -71,7 +71,7 @@ def test_check_failures_count_as_invalid_output():
 
 
 def test_provider_errors_are_not_retried():
-    provider = FakeProvider([ProviderError("rate limited"), '{"name": "a", "count": 1, "note": null}'])
+    provider = ScriptedProvider([ProviderError("rate limited"), '{"name": "a", "count": 1, "note": null}'])
     with pytest.raises(ProviderError):
         llm.complete_json(provider, "sys", "user", Answer)
     assert len(provider.calls) == 1
@@ -83,7 +83,7 @@ def test_provider_schema_drops_constraints_the_model_cannot_decode():
     assert "maximum" not in schema["properties"]["count"]
     assert "default" not in schema["properties"]["note"]
     # ...but the constraint is still enforced on the way back.
-    provider = FakeProvider(['{"name": "a", "count": 11, "note": null}'] * 2)
+    provider = ScriptedProvider(['{"name": "a", "count": 11, "note": null}'] * 2)
     with pytest.raises(InvalidOutputError):
         llm.complete_json(provider, "sys", "user", Answer)
 

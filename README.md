@@ -134,9 +134,11 @@ curl -s -X POST localhost:8000/rerank -H 'Content-Type: application/json' \
   -d '{"role":"Senior Accountant, CPA required, NetSuite","candidates":[{"id":"c1","text":"CPA, 6 years NetSuite close"},{"id":"c2","text":"Bookkeeper, QuickBooks"}]}'
 ```
 
-Tests run the endpoints over a `FakeProvider` that replays canned answers
-(`ai/tests/test_endpoints.py`, `ai/tests/test_llm.py`), so nothing in
-`make test` or CI calls a model.
+Tests run the endpoints over a `ScriptedProvider` that replays canned answers
+(`ai/tests/test_endpoints.py`, `ai/tests/test_llm.py`) and over the key-free
+`fake` provider (`ai/tests/test_fake.py`; see
+[Provider configuration](#provider-configuration)), so nothing in `make test`
+or CI calls a model.
 
 ## Background jobs
 
@@ -267,8 +269,9 @@ Run `make` to list them. The main ones:
 - `make test-db` — migration up/down round-trip, the API CRUD / role tests and the job queue tests against the compose DB (each test creates and drops a throwaway database)
 - `make generate` / `make check-contracts` — regenerate the shared types from the OpenAPI documents, or fail if regenerating changes anything (see [Contracts](#contracts))
 - `make lint` — `gofmt` + `go vet` for the API; `ruff check`, `ruff format --check` and strict `pyright` for the AI service; `eslint` for the web app (`make fmt-ai` fixes what ruff can)
+- `make eval` — score the parsers and the reranker on the fixtures (`PROVIDER=fake` for no key, `NO_CACHE=1` to bypass the response cache; see [Eval](#eval)); `make cache-clear` deletes the cached responses
 - `make test` — contract check, lint, then the Go, Python and web test suites (host toolchains: Go 1.24, Python 3.12+, Node 22)
-- CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main` and every pull request: `go vet` + `go test`, `ruff` + `pytest`, and the web typecheck, lint, tests and build, one job per service. It sets `EMBEDDING_PROVIDER=local` and no provider keys, so nothing in CI calls an LLM.
+- CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main` and every pull request: `go vet` + `go test`, `ruff` + `pytest`, and the web typecheck, lint, tests and build, one job per service. It sets `LLM_PROVIDER=fake`, `EMBEDDING_PROVIDER=local` and no provider keys, so nothing in CI calls a model.
 - `make health` — curl every health endpoint
 
 ## Database
@@ -345,7 +348,10 @@ candidates come from `ai/app/seedgen`, in two halves:
   (by label or a taxonomy alias), and the structured profile is validated as a
   `CandidateProfile`, so the parser and the evidence quotes have real text to
   work on. `make seed-generate` does this over the API (`ANTHROPIC_API_KEY` in
-  `.env`; `SLOTS=3,17` or `SLOTS=1-20` regenerates a subset). Without a key,
+  `.env`; `SLOTS=3,17` or `SLOTS=1-20` regenerates a subset). Each batch's
+  answer is kept in the [response cache](#response-cache), so running it again
+  the same day (the specs carry today's date) only calls the model for batches
+  it has not seen; `NO_CACHE=1` forces fresh prose. Without a key,
   `python -m app.seedgen specs --slots 1-20` prints the same brief and specs
   for a model session to write, and `python -m app.seedgen ingest <file>`
   applies the same checks and merges the result. The committed file records
@@ -460,3 +466,59 @@ behind `/parse-resume`, `/parse-jd` and `/rerank`; the matching key must be set,
 or those endpoints answer `502 llm provider error: ... no credentials configured`
 while everything else keeps working. `LLM_MODEL` overrides the provider's default
 chat model (`claude-opus-5-5` for Anthropic).
+
+`LLM_PROVIDER=fake` needs no key and no network. It is the same `Provider`
+interface with [`ai/app/fake.py`](ai/app/fake.py) behind it: regexes and
+taxonomy lookups that answer all three endpoints with schema-valid output, the
+same way every time. It finds what can be found mechanically (the email, the
+taxonomy terms a text names, the bullets under a "Requirements" heading; the
+rerank score is the share of the role's certifications and software a
+candidate names, plus word overlap) and leaves the rest null. Use it for
+offline development and for wiring; it is not a parser, and a term that is
+also an ordinary word (the "Monday" in a start date) will fool it.
+
+### Response cache
+
+Every LLM completion and every provider embedding is stored on disk under a
+SHA-256 of the provider, the model, the prompt (system and user) and the
+output schema, or the model and the input text for an embedding
+([`ai/app/cache.py`](ai/app/cache.py)). Re-running the seed generation, the
+eval or a demo reads those answers back instead of paying for them again, and
+gets the same results. Entries live in `ai/.cache` (git-ignored; the
+`ai_cache` volume under compose), one JSON file each; `AI_CACHE_DIR` moves it.
+
+| `AI_CACHE` | Behaviour |
+| --- | --- |
+| `on` (default) | Read a stored answer when there is one, store new ones |
+| `off` | Bypass: always call the provider, store nothing |
+| `refresh` | Always call the provider and overwrite the stored answer |
+
+`make eval NO_CACHE=1` and `make seed-generate NO_CACHE=1` bypass it for one
+run, and `make cache-clear` deletes the local entries. Things to know:
+
+- Provider errors are never stored. A completion that came back but failed
+  validation is: the correction retry is a different prompt with its own
+  entry, so a replay takes the same path as the original run, and an input
+  that failed twice keeps failing until `AI_CACHE=refresh`.
+- `/parse-resume` puts today's date (or `as_of`) in the prompt, so the same
+  resume is a new entry each day unless the caller pins `as_of`.
+- Changing a prompt, a schema (including the taxonomy ids in it) or the model
+  changes the key; nothing needs clearing by hand.
+- The `local` embedding stub is already a pure function and is not cached.
+
+## Eval
+
+`make eval` (`python -m app.eval`) runs the parsers and the reranker over the
+[parser fixtures](#parser-fixtures) with the configured provider and prints a
+score per field: exact match for scalars, F1 for the taxonomy lists, and for
+each JD with hard-filter matches the share of the top k ranked resumes that
+are among its k matches. `make eval PROVIDER=fake` runs it with no key. The
+last line counts the calls that reached the provider, and a second run reports
+none:
+
+```
+$ make eval PROVIDER=fake | tail -1
+provider calls: 22   cache hits: 0
+$ make eval PROVIDER=fake | tail -1
+provider calls: 0   cache hits: 22
+```

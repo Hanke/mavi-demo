@@ -4,6 +4,8 @@ dist/
 .venv/
 __pycache__/
 .pytest_cache/
+# cached LLM and embedding responses (ai/app/cache.py)
+ai/.cache/
 *.pyc
 .DS_Store
 # ingest lock for the seed JSON (ai/app/seedgen)

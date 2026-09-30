@@ -13,8 +13,10 @@ concurrency:
   cancel-in-progress: true
 
 # No provider credentials in CI: the AI service runs its key-free local
-# embedding stub and the test suites never call an LLM.
+# embedding stub and its fake LLM provider, and the test suites never call a
+# real model.
 env:
+  LLM_PROVIDER: fake
   EMBEDDING_PROVIDER: local
   ANTHROPIC_API_KEY: ""
   OPENAI_API_KEY: ""

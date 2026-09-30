@@ -19,20 +19,31 @@ MAX_ERROR_DETAIL_CHARS = 2000  # the Go client reads at most 4KB of an error bod
 
 
 @lru_cache
-def _provider(llm_provider: str, llm_model: str, anthropic_api_key: str, openai_api_key: str) -> Provider:
+def _provider(
+    *, llm_provider: str, llm_model: str, anthropic_api_key: str, openai_api_key: str, ai_cache: str, ai_cache_dir: str
+) -> Provider:
     return llm.build_provider(
         Settings(
             llm_provider=llm_provider,  # pyright: ignore[reportArgumentType]
             llm_model=llm_model,
             anthropic_api_key=anthropic_api_key,
             openai_api_key=openai_api_key,
+            ai_cache=ai_cache,  # pyright: ignore[reportArgumentType]
+            ai_cache_dir=ai_cache_dir,
         )
     )
 
 
 def get_provider(settings: Settings = Depends(get_settings)) -> Provider:
-    """One SDK client per settings combination, shared across requests. Tests override this with a FakeProvider."""
-    return _provider(settings.llm_provider, settings.llm_model, settings.anthropic_api_key, settings.openai_api_key)
+    """One SDK client per settings combination, shared across requests. Tests override this with a ScriptedProvider."""
+    return _provider(
+        llm_provider=settings.llm_provider,
+        llm_model=settings.llm_model,
+        anthropic_api_key=settings.anthropic_api_key,
+        openai_api_key=settings.openai_api_key,
+        ai_cache=settings.ai_cache,
+        ai_cache_dir=settings.ai_cache_dir,
+    )
 
 
 class HealthResponse(BaseModel):

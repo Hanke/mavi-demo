@@ -1,12 +1,25 @@
 import hashlib
 import math
 
+from app import cache as cachemod
+from app.cache import Cache
 from app.settings import Settings
 
 
-def embed(text: str, settings: Settings) -> list[float]:
+def embed(text: str, settings: Settings, cache: Cache | None = None) -> list[float]:
+    """The vector for `text`. A provider's answer is cached on disk under the
+    model and the text (app/cache.py); the local stub is already a pure
+    function of its input and is not."""
     if settings.embedding_provider == "openai":
-        return _embed_openai(text, settings)
+        cache = cache or cachemod.from_settings(settings)
+        key = cachemod.key("embedding", provider="openai", model=settings.embedding_model, input=text)
+        return cache.get_or_call(
+            key,
+            lambda: _embed_openai(text, settings),
+            kind="embedding",
+            provider="openai",
+            model=settings.embedding_model,
+        )
     return _embed_local(text, settings.embedding_dim)
 
 

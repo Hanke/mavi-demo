@@ -9,7 +9,7 @@ PYTHON ?= $(shell test -x $(CURDIR)/ai/.venv/bin/python && echo $(CURDIR)/ai/.ve
 # Every file a generator writes. `make check-contracts` fails when one is stale.
 GENERATED := ai/openapi.json api/internal/aiclient/types.gen.go api/internal/contract/types.gen.go web/src/api/schema.d.ts
 
-.PHONY: help up down logs ps migrate migrate-down migrate-status seed seed-render seed-generate fixtures-render worker test test-api test-ai test-db test-web health \
+.PHONY: help up down logs ps migrate migrate-down migrate-status seed seed-render seed-generate fixtures-render eval cache-clear worker test test-api test-ai test-db test-web health \
         lint lint-api lint-ai lint-web fmt-ai generate generate-ai-spec generate-api generate-web check-contracts
 
 help: ## Show this help
@@ -44,9 +44,16 @@ seed: ## Load seed data from infra/db/seed (~200 candidates, sample roles; queue
 seed-render: ## Rewrite infra/db/seed/*.sql from infra/db/seed/data/*.json (no API key)
 	cd ai && $(PYTHON) -m app.seedgen render
 
-seed-generate: ## Rewrite the synthetic candidates with the model (needs ANTHROPIC_API_KEY in .env), then render; SLOTS=3,17 or 1-20 for a subset
+seed-generate: ## Rewrite the synthetic candidates with the model (needs ANTHROPIC_API_KEY in .env), then render; SLOTS=3,17 or 1-20 for a subset, NO_CACHE=1 to bypass the response cache
 	@set -a; [ -f .env ] && . ./.env; set +a; \
-	cd ai && $(PYTHON) -m app.seedgen generate $(if $(SLOTS),--only $(SLOTS)) && $(PYTHON) -m app.seedgen render
+	cd ai && $(PYTHON) -m app.seedgen generate $(if $(SLOTS),--only $(SLOTS)) $(if $(NO_CACHE),--no-cache) && $(PYTHON) -m app.seedgen render
+
+eval: ## Score the parsers and the reranker on infra/fixtures with the configured provider; PROVIDER=fake for no key, NO_CACHE=1 to bypass the response cache
+	@set -a; [ -f .env ] && . ./.env; set +a; \
+	cd ai && $(PYTHON) -m app.eval $(if $(PROVIDER),--provider $(PROVIDER)) $(if $(NO_CACHE),--no-cache)
+
+cache-clear: ## Delete the cached LLM and embedding responses in ai/.cache
+	rm -rf ai/.cache
 
 fixtures-render: ## Rewrite infra/fixtures/resumes/*.pdf from the .txt files (no API key)
 	cd ai && $(PYTHON) -m app.fixtures render

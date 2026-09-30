@@ -4,6 +4,7 @@ plan      print the deterministic distribution (no network)
 generate  write infra/db/seed/data/candidates.json with the model (needs ANTHROPIC_API_KEY)
           --count N        how many candidates (default 200)
           --only 3,17,42   regenerate just these slots and merge into the existing file
+          --no-cache       call the model even for batches already in the response cache
 render    write infra/db/seed/*.sql from the JSON files (no network)
 """
 
@@ -16,6 +17,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
+from app.cache import Cache
 from app.seedgen import generate, plan, render
 
 
@@ -46,11 +48,12 @@ def cmd_generate(args: argparse.Namespace) -> int:
         wanted = _parse_slots(only)
         slots = [s for s in slots if s.index in wanted]
     print(f"generating {len(slots)} candidates with {generate.MODEL} ...", file=sys.stderr)
-    gen = generate.Generator()
+    gen = generate.Generator(cache=Cache(mode="off") if cast(bool, args.no_cache) else None)
     results = gen.run(slots)
     total = generate.merge_into_file(render.CANDIDATES_JSON, results, generate.MODEL)
     print(
-        f"wrote {render.CANDIDATES_JSON} ({total} candidates; {gen.usage_in} input / {gen.usage_out} output tokens)",
+        f"wrote {render.CANDIDATES_JSON} ({total} candidates; {gen.cache.calls} API calls, "
+        f"{gen.cache.hits} from cache; {gen.usage_in} input / {gen.usage_out} output tokens)",
         file=sys.stderr,
     )
     return 0
@@ -104,6 +107,7 @@ def main(argv: list[str] | None = None) -> int:
     g = sub.add_parser("generate")
     g.add_argument("--count", type=int, default=plan.DEFAULT_COUNT)
     g.add_argument("--only", default=None, help="comma-separated slot numbers to regenerate")
+    g.add_argument("--no-cache", action="store_true", help="bypass the response cache")
     g.set_defaults(func=cmd_generate)
     sp = sub.add_parser("specs")
     sp.add_argument("--count", type=int, default=plan.DEFAULT_COUNT)
