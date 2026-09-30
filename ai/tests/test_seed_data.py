@@ -17,7 +17,7 @@ from typing import Any, cast
 
 import pytest
 
-from app import fixtures, grounding, taxonomy
+from app import fixtures, grounding, matching, taxonomy
 from app.schemas import CandidateProfile, RoleRequirements
 from app.seedgen import generate, plan, render
 
@@ -87,6 +87,13 @@ def test_candidates_are_well_formed(candidates: list[dict[str, Any]], profiles: 
         # Both are read off the resume text, so they cannot drift from it.
         assert c["profile"]["positions"] == generate.positions_from(c["resume_text"]), c["id"]
         assert p.gaap_exposure == grounding.standards_named(c["resume_text"]), c["id"]
+        # Every certification has its record, quoted from the resume.
+        assert [q.canonical for q in p.qualifications] == p.certifications, c["id"]
+        for q in p.qualifications:
+            assert q.status == "qualified", c["id"]
+            assert q.quote, c["id"]
+            assert q.quote in c["resume_text"], c["id"]
+            assert grounding.in_text(q.name_as_written, q.quote), c["id"]
 
 
 def test_resumes_mention_every_hard_filter_value(candidates: list[dict[str, Any]], profiles: list[CandidateProfile]):
@@ -107,7 +114,7 @@ def test_distribution_is_varied(profiles: list[CandidateProfile]):
         return sum(1 for p in profiles if pred(p)) / n
 
     # Certifications: enough CPAs to matter, not so many the filter is moot.
-    assert 0.2 <= share(lambda p: "cpa" in p.certifications) <= 0.5
+    assert 0.2 <= share(lambda p: "cpa_us" in p.certifications) <= 0.5
     assert share(lambda p: not p.certifications) >= 0.3
     assert len({c for p in profiles for c in p.certifications}) >= 8
     # Software: the two named in the brief are common; plenty of others.
@@ -131,6 +138,52 @@ def test_distribution_is_varied(profiles: list[CandidateProfile]):
         return any(m in s.lower() for s in p.skills for m in markers)
 
     assert share(has_gaap_skill) >= 0.4
+
+
+def test_qualifications_follow_the_candidate_s_country(
+    candidates: list[dict[str, Any]], profiles: list[CandidateProfile]
+):
+    """Nobody in London holds a US CPA: the seed has fully qualified accountants
+    from the UK, Ireland, Canada and Australia, each stored as what they hold."""
+    tax = taxonomy.load()
+    cpa_level = set(tax.acceptable("cpa_us", accept_equivalents=True))
+    where: dict[str, set[str]] = {}
+    for c, p in zip(candidates, profiles, strict=True):
+        for q in p.qualifications:
+            if q.canonical in cpa_level:
+                where.setdefault(q.jurisdiction or "", set()).add(q.canonical)
+            # No ambiguous "CPA" or "CA" is left in the seed.
+            assert q.canonical is None or not tax.variants(q.canonical), c["id"]
+        if tax.jurisdiction_for_timezone(p.timezone) != "US":
+            assert "cpa_us" not in p.certifications, c["id"]
+    assert where["UK"] >= {"aca_icaew", "ca_icas", "acca"}
+    assert where["Ireland"] == {"ca_ireland"}
+    assert where["Canada"] == {"cpa_canada"}
+    assert "ca_anz" in where["Australia / New Zealand"]
+
+
+def test_equivalents_widen_a_cpa_role_and_a_us_licence_does_not(
+    candidates: list[dict[str, Any]], profiles: list[CandidateProfile], roles: list[dict[str, Any]]
+):
+    by_title = {r["title"]: RoleRequirements.model_validate(r["requirements"]) for r in roles}
+
+    def holders(req: RoleRequirements) -> set[str]:
+        """What the candidates who meet the role's qualification requirement hold for it."""
+        [wanted] = req.required_qualifications
+        return {
+            check.held
+            for p in profiles
+            if (check := matching.check_qualification(p, wanted)).passed and check.held is not None
+        }
+
+    open_role, us_only = by_title["Controller"], by_title["Tax Manager"]
+    assert open_role.required_qualifications[0].accept_equivalents
+    assert not open_role.required_qualifications[0].equivalents_stated
+    assert holders(open_role) >= {"cpa_us", "cpa_canada", "aca_icaew", "ca_ireland", "ca_anz", "acca"}
+    assert not us_only.required_qualifications[0].accept_equivalents
+    assert holders(us_only) == {"cpa_us"}
+    assert "cpa_us" in holders(by_title["Financial Accountant (IFRS)"])  # and the other way round
+    assert len(candidates) == len(profiles)
 
 
 def test_roles_are_well_formed(roles: list[dict[str, Any]]):

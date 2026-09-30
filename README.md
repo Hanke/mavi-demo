@@ -108,8 +108,8 @@ four POST endpoints plus `/health`, every request and response a Pydantic model
 
 | Endpoint | Request | Response |
 | --- | --- | --- |
-| `POST /parse-resume` | `{text, as_of?}` — the resume as plain text; `as_of` is the date `years_experience` counts to (default today) | `{contact, profile, provider}` — `contact` is the header (`full_name`, `email`, `phone`, `location`, each null when the resume does not give it); `profile` is a `CandidateProfile`: `positions` (title, employer, start and end year), `years_experience`, `certifications`, `software`, `industries` (taxonomy ids, already canonical), `gaap_exposure` (the frameworks and standards the resume names), plus headline, skills, languages, availability and time zone |
-| `POST /parse-jd` | `{text}` | `{company, requirements, provider}` — `requirements` is a `RoleRequirements` |
+| `POST /parse-resume` | `{text, as_of?}` — the resume as plain text; `as_of` is the date `years_experience` counts to (default today) | `{contact, profile, provider}` — `contact` is the header (`full_name`, `email`, `phone`, `location`, each null when the resume does not give it); `profile` is a `CandidateProfile`: `positions` (title, employer, start and end year), `years_experience`, `certifications`, `software`, `industries` (taxonomy ids, already canonical), `qualifications` (each one as written, with its issuing body, jurisdiction and whether it is fully held; see [Qualifications](#qualifications-across-jurisdictions)), `gaap_exposure` (the frameworks and standards the resume names), plus headline, skills, languages, availability and time zone |
+| `POST /parse-jd` | `{text}` | `{company, requirements, provider}` — `requirements` is a `RoleRequirements`; each entry of `required_qualifications` says whether an equivalent is acceptable (`accept_equivalents`) and whether the JD said so (`equivalents_stated`) |
 | `POST /rerank` | `{role, candidates: [{id, text}]}` — the JD (or a rendering of the role) and up to 50 candidates, each an opaque id plus the text to judge | `{results: [{id, score, reasons}], provider}` — every id exactly once, best first, `score` in 0..1 |
 | `POST /embed` | `{text}` | `{embedding, dim, provider}` |
 
@@ -139,8 +139,10 @@ After validation, `ground_resume` ([`ai/app/extract.py`](ai/app/extract.py))
 checks every value that is read off the page against the text: a
 certification or software id the resume does not name (by label or taxonomy
 alias), an `other_*` entry, standard, job title or employer that is not in
-the text verbatim, a year the text never writes, or an email, phone number or
-name that is not there is dropped or set to null, and logged. Derived values
+the text verbatim, a qualification whose name is not on the page, a year the
+text never writes, or an email, phone number or name that is not there is
+dropped or set to null, and logged (a qualification's invented quote is
+replaced by the line that does name it). Derived values
 (headline, skills, industries, availability, time zone) are left to the
 model. Missing information therefore comes back as null or an empty list;
 `ai/tests/test_parse_resume.py` runs every sample resume through this with
@@ -305,13 +307,16 @@ the API writes.
 | `jobs` | Postgres-backed background queue: `kind`, `payload`, `status` (queued / running / succeeded / failed), `priority`, `run_at`, `attempts` / `max_attempts`, `last_error`, `locked_by` / `locked_at`; claimed with `FOR UPDATE SKIP LOCKED` on the partial `jobs_dequeue_idx` (see [Background jobs](#background-jobs)) |
 
 The hard-filter fields are real, indexed columns rather than JSON keys, so a
-shortlist query can be written directly in SQL:
+shortlist query can be written directly in SQL. Software is containment. A
+required qualification is an overlap with the ids the taxonomy accepts for it
+(`taxonomy.Acceptable(id, acceptEquivalents)` in Go, one array parameter per
+requirement; see [Qualifications](#qualifications-across-jurisdictions)):
 
 ```sql
 SELECT c.full_name, p.certifications, p.software, p.timezone
 FROM roles r
 JOIN candidate_profiles p
-  ON p.certifications @> r.required_certifications
+  ON p.certifications && $2   -- e.g. {cpa_us,cpa_canada,aca_icaew,ca_icas,acca,...} for "CPA or equivalent"
  AND p.software       @> r.required_software
  AND (r.starts_on IS NULL OR p.available_from <= r.starts_on)
 JOIN candidates c ON c.id = p.candidate_id
@@ -345,8 +350,11 @@ candidates come from `ai/app/seedgen`, in two halves:
   a role family (bookkeeper, AP/AR, payroll, staff and senior accountant,
   controller, FP&A, tax, audit, revenue, cost, treasury, international,
   fractional CFO, nonprofit), years of experience, certifications (about a
-  third hold a CPA; CMA, CIA, EA, CPP, ACCA, CA and others appear in smaller
-  numbers; roughly half hold none), software (QuickBooks and NetSuite most
+  third hold a CPA; CMA, CIA, EA, CPP, ACCA and others appear in smaller
+  numbers; roughly half hold none; a candidate outside the US holds their own
+  country's qualification, so the seed has ACA, ICAS, Chartered Accountants
+  Ireland, Canadian CPA, CA ANZ and ICAI members and nobody in London with a
+  US licence), software (QuickBooks and NetSuite most
   common, then SAP, Dynamics, Oracle, Sage Intacct, Xero, the FP&A and close
   tools, payroll systems), GAAP exposure, industries, availability
   (`immediate` through `unknown`, with a relative `available_in_days`),
@@ -361,7 +369,11 @@ candidates come from `ai/app/seedgen`, in two halves:
   `CandidateProfile`, so the parser and the evidence quotes have real text to
   work on. The profile's `positions` and `gaap_exposure` are read off that
   text (the EXPERIENCE heading lines and the standards it names), not taken
-  from the model. `make seed-generate` does this over the API (`ANTHROPIC_API_KEY` in
+  from the model, and so is each `qualifications` record (the line of the
+  resume that states it). After a change to the plan or the schema,
+  `python -m app.seedgen reassemble` re-derives every stored profile from the
+  stored text and lists the slots whose resume no longer carries the plan's
+  facts, so only those need new prose. `make seed-generate` does this over the API (`ANTHROPIC_API_KEY` in
   `.env`; `SLOTS=3,17` or `SLOTS=1-20` regenerates a subset). Each batch's
   answer is kept in the [response cache](#response-cache), so running it again
   the same day (the specs carry today's date) only calls the model for batches
@@ -377,8 +389,8 @@ are invented, and emails use `example.com`.
 ## Parser fixtures
 
 [`infra/fixtures`](infra/fixtures) is a small hand-written set the resume
-and JD parser tests, the pipeline tests and the eval all share: ten resumes
-(plain text plus a PDF of the same text) and six job descriptions, each with
+and JD parser tests, the pipeline tests and the eval all share: thirteen resumes
+(plain text plus a PDF of the same text) and seven job descriptions, each with
 the structured output the parser is expected to produce.
 
 | Path | What |
@@ -395,19 +407,27 @@ feeds each `text` (or `pdf_path`) in and compares with `expected`. The
 `tests/test_fixtures.py` keeps the set honest: every expected output is
 exactly what the validators produce (ids already canonical, every field
 present), every certification and software id it claims is named in the
-text, every must-have is a verbatim fragment of the JD, `hard_filter_matches`
-equals what the containment rule computes, and the PDFs are not stale.
+text, every qualification's quote is verbatim, every must-have is a verbatim
+fragment of the JD, `hard_filter_matches` equals what the hard filter
+computes, and the PDFs are not stale.
 
 Conventions the expected outputs follow, so the parser and the eval agree:
 
-- Only credentials the candidate holds count; exam progress or "studying for"
-  is nothing, not an `other_certifications` entry.
+- Only credentials the candidate holds count in `certifications`; exam
+  progress or "studying for" is not an `other_certifications` entry either.
+  It is still recorded, in `qualifications`, with status `part_qualified` or
+  `in_progress`.
+- A qualification is stored as what it is: `ACA` is `aca_icaew`, never `cpa`.
+  "CPA" on its own is the US, Canadian or Australian one according to the
+  issuing body or, failing that, where the candidate is.
 - Products and credentials outside the taxonomy go to the `other_*` field
   verbatim (`Dext`, `CCH Axcess`, `AuditBoard`); anything the taxonomy knows
   must be the id, never free text.
-- A JD's "CPA or CMA" is not a hard filter: containment would demand both, so
-  the either/or stays in `must_haves` and `required_certifications` is empty.
-  A certification listed under "nice to have" is not required either.
+- A JD's "CPA or CMA" is not a hard filter: the two are different kinds of
+  qualification and listing both would demand both, so the either/or stays in
+  `must_haves` and `required_certifications` is empty. "CPA or equivalent
+  (ACA, ACCA, CA)" is one requirement with `accept_equivalents` true, not
+  four. A certification listed under "nice to have" is not required either.
 - `years_experience` runs from the first professional role to
   `app.fixtures.AS_OF` (2026-09-30, the day these were written), so a parser
   test passes that date as "today"; overlapping part-time roles do not add.
@@ -432,7 +452,7 @@ Every person, employer and contact detail is invented; emails use `example.com`.
 ## Taxonomy
 
 The hard filters compare a role's `required_certifications` / `required_software`
-with a profile's `certifications` / `software` using array containment, which only
+with a profile's `certifications` / `software` as arrays of ids, which only
 works if both sides hold the same canonical values. [`infra/taxonomy.json`](infra/taxonomy.json)
 is the single source of those values: three lists (`certifications`, `software`,
 `industries`), each entry an `id` (snake_case, never renamed), a `label` and
@@ -460,6 +480,82 @@ for certifications only, drop every non-alphanumeric character) and both test su
 To add a term, add an entry with aliases; to accept a new spelling, add an alias.
 The file is mounted into the `ai` and `api` containers at `/app/infra` and read at
 runtime via `TAXONOMY_PATH`, so edits do not need a rebuild.
+
+## Qualifications across jurisdictions
+
+A US job description asks for a "CPA". A UK candidate will never have one:
+their equivalent is an ACA, an ACCA or a CA. Comparing ids exactly would
+throw every one of them out, so qualifications are handled in two steps.
+
+**Extraction records what is held, never what it is equivalent to.** Each
+entry of `CandidateProfile.qualifications` has `name_as_written` ("ACA"),
+`canonical` (`aca_icaew`), `issuing_body`, `jurisdiction`, `status`
+(`qualified`, `part_qualified` or `in_progress`), `year_obtained` and the
+supporting `quote`. The model proposes; the validators in
+[`ai/app/schemas.py`](ai/app/schemas.py) and
+[`ai/app/qualifications.py`](ai/app/qualifications.py) decide:
+
+- The written name fixes the family. A model that answers `cpa` for an "ACA"
+  is overruled.
+- Letters that several bodies share resolve to an ambiguous id (`cpa`, `ca`,
+  `aca`) and move to a specific one (`cpa_us`, `cpa_canada`, `cpa_australia`,
+  `aca_icaew`, `ca_icas`, `ca_ireland`, `ca_anz`, `ca_icai`) only when the
+  issuing body named next to it, a stated country, or failing those the
+  candidate's time zone settles it. Otherwise the id stays ambiguous and
+  `jurisdiction` stays empty.
+- "Part-qualified ACCA", "ACCA finalist" and "CPA candidate" are downgraded
+  from `qualified` whatever the model said, and only fully held
+  qualifications are in `certifications`, the hard-filter column.
+
+**Matching decides equivalence from a hand-maintained table.** Certification
+terms in [`infra/taxonomy.json`](infra/taxonomy.json) carry a `group`:
+
+| Group | Members |
+| --- | --- |
+| `qualified_accountant` (CPA level) | US CPA; Canadian CPA; CPA Australia; ACA (ICAEW); CA (ICAS); ACA / CA (Chartered Accountants Ireland); CA (CA ANZ); CA (ICAI); ACCA |
+| `management_accountant` | CIMA, CGMA, CMA (US) |
+| `accounting_technician` | AAT |
+
+A required qualification (`RoleRequirements.required_qualifications`) is met
+by the same qualification, or, when `accept_equivalents` is true, by any
+body-specific member of its group. `accept_equivalents` is false only when
+the JD rules equivalents out ("active US CPA licence required"); when the JD
+does not say, it defaults to true with `equivalents_stated: false`, which is
+the cue for the intake screen to show the employer the default so they can
+change it (the role's `requirements` JSON is theirs to `PUT`). A candidate
+whose "CPA" could not be placed is not assumed to be an equivalent.
+
+[`ai/app/matching.py`](ai/app/matching.py) applies this and says why in
+words, for the match explanation:
+
+```
+Holds ACA (ICAEW, UK), equivalent to the US CPA this role asks for
+Holds ACA (ICAEW, UK), the same level as a US CPA, but this role requires the US CPA itself
+Part-qualified ACCA (UK): not yet qualified, so it does not meet the US CPA requirement
+```
+
+The Go side has the same rule as `taxonomy.Acceptable`, for the shortlist
+query's `&&`; both run the `acceptable` cases in
+[`infra/taxonomy_cases.json`](infra/taxonomy_cases.json).
+
+An equivalent qualification is not equivalent experience. The filter only
+says the candidate is a qualified accountant; whether someone who has
+reported under FRS 102 all their career can run a US GAAP close is scored
+separately by the rerank, from `gaap_exposure` and the resume text (the
+rerank prompt says so explicitly).
+
+Two things this does not do:
+
+- **The equivalence table has not been reviewed** against the professional
+  bodies' own recognition pages (`qualification_groups.reviewed` is `false`
+  in the taxonomy file). It groups by level; it is not a statement about
+  mutual recognition agreements or the right to practise. Review it before
+  relying on it outside the demo.
+- **Nothing is verified against a registry.** No ICAEW member directory or US
+  state board lookup is made: the candidates are synthetic, so there is
+  nobody to look up. [`ai/app/verification.py`](ai/app/verification.py) is
+  the stub interface (`QualificationVerifier`; the only implementation
+  answers `unverified`).
 
 ## Local dev without Docker
 
@@ -494,7 +590,8 @@ chat model (`claude-opus-5-5` for Anthropic).
 interface with [`ai/app/fake.py`](ai/app/fake.py) behind it: regexes and
 taxonomy lookups that answer all three endpoints with schema-valid output, the
 same way every time. It finds what can be found mechanically (the email, the
-taxonomy terms a text names, the bullets under a "Requirements" heading; the
+taxonomy terms a text names, the qualifications and whether the line says
+"part-qualified" or "or equivalent", the bullets under a "Requirements" heading; the
 rerank score is the share of the role's certifications and software a
 candidate names, plus word overlap) and leaves the rest null. Use it for
 offline development and for wiring; it is not a parser, and a term that is

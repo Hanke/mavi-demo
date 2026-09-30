@@ -45,13 +45,22 @@ _CASE_SENSITIVE_UP_TO = 4  # "CA", "EA", "SQL": short enough to be an ordinary w
 def mentions(text: str, term: taxonomy.Term) -> bool:
     """True when the text names the term by label or alias. Short aliases
     ("CA", "EA", "SQL") are matched case-sensitively so "California" does not
-    count as a Chartered Accountant."""
-    for name in (term.label, *term.aliases):
+    count as a Chartered Accountant. A body-specific qualification is also
+    named by the letters it shares: "CPA" names a US CPA."""
+    for name in (term.label, *term.aliases, *term.inherited):
         pattern = _WORD.format(re.escape(name))
         flags = 0 if len(name) <= _CASE_SENSITIVE_UP_TO else re.IGNORECASE
         if re.search(pattern, text, flags):
             return True
     return False
+
+
+def line_with(fragment: str, text: str) -> str | None:
+    """The first line of the text that carries the fragment, trimmed of bullets; None if no line does."""
+    for line in text.splitlines():
+        if in_text(fragment, line):
+            return line.strip().lstrip("-*\u2022> \t") or None
+    return None
 
 
 def year_in_text(year: int, text: str) -> bool:

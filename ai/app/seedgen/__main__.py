@@ -1,10 +1,14 @@
-"""CLI: python -m app.seedgen {plan | generate | render}
+"""CLI: python -m app.seedgen {plan | generate | specs | ingest | reassemble | render}
 
 plan      print the deterministic distribution (no network)
 generate  write infra/db/seed/data/candidates.json with the model (needs ANTHROPIC_API_KEY)
           --count N        how many candidates (default 200)
           --only 3,17,42   regenerate just these slots and merge into the existing file
           --no-cache       call the model even for batches already in the response cache
+specs     print the brief and the per-slot specs, for writing resumes outside the API
+ingest    validate a file of resumes written that way and merge it into candidates.json
+reassemble  re-derive every stored profile from the plan and the stored resume text
+          (after a plan or schema change); lists the slots that need new prose
 render    write infra/db/seed/*.sql from the JSON files (no network)
 """
 
@@ -90,6 +94,17 @@ def cmd_ingest(args: argparse.Namespace) -> int:
     return 1 if bad else 0
 
 
+def cmd_reassemble(args: argparse.Namespace) -> int:
+    slots = plan.build_plan(count=cast(int, args.count))
+    kept, bad = generate.reassemble(render.CANDIDATES_JSON, slots)
+    print(f"reassembled {kept} candidates in {render.CANDIDATES_JSON}", file=sys.stderr)
+    for index, problems in sorted(bad.items()):
+        print(f"  slot {index}: {'; '.join(problems)}", file=sys.stderr)
+    if bad:
+        print(f"regenerate: --slots {','.join(str(i) for i in sorted(bad))}", file=sys.stderr)
+    return 1 if bad else 0
+
+
 def cmd_render(_: argparse.Namespace) -> int:
     for path in render.write_all():
         print(f"wrote {path}", file=sys.stderr)
@@ -118,6 +133,9 @@ def main(argv: list[str] | None = None) -> int:
     ing.add_argument("--count", type=int, default=plan.DEFAULT_COUNT)
     ing.add_argument("--model", default=generate.MODEL, help="recorded in the file's generator metadata")
     ing.set_defaults(func=cmd_ingest)
+    ra = sub.add_parser("reassemble")
+    ra.add_argument("--count", type=int, default=plan.DEFAULT_COUNT)
+    ra.set_defaults(func=cmd_reassemble)
     r = sub.add_parser("render")
     r.set_defaults(func=cmd_render)
     args = parser.parse_args(argv)

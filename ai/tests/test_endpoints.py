@@ -66,7 +66,9 @@ def test_parse_resume_resolves_aliases_the_model_used(provider: ScriptedProvider
     provider.queue(json.dumps(answer))
     resp = client.post("/parse-resume", json={"text": fixture.text})
     assert resp.status_code == 200, resp.text
-    assert resp.json()["profile"]["certifications"] == ["cpa"]
+    # The alias resolves to the ambiguous "cpa"; the qualification record (a
+    # California licence) settles it as the US one.
+    assert resp.json()["profile"]["certifications"] == ["cpa_us"]
     assert "netsuite" in resp.json()["profile"]["software"]
 
 

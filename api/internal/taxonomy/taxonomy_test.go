@@ -72,6 +72,37 @@ func TestSharedAliasCases(t *testing.T) {
 	}
 }
 
+// TestSharedAcceptableCases runs the equivalence cases ai/tests/test_taxonomy.py
+// also runs: which held qualifications satisfy a requirement.
+func TestSharedAcceptableCases(t *testing.T) {
+	tax := loadShared(t)
+	b, err := os.ReadFile(filepath.Join(infraDir, "taxonomy_cases.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		Acceptable []struct {
+			Required          string   `json:"required"`
+			AcceptEquivalents bool     `json:"accept_equivalents"`
+			Want              []string `json:"want"`
+		} `json:"acceptable"`
+	}
+	if err := json.Unmarshal(b, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if len(fixture.Acceptable) == 0 {
+		t.Fatal("no cases")
+	}
+	for _, c := range fixture.Acceptable {
+		if got := tax.Acceptable(c.Required, c.AcceptEquivalents); !reflect.DeepEqual(got, c.Want) {
+			t.Errorf("Acceptable(%q, %v) = %v, want %v", c.Required, c.AcceptEquivalents, got, c.Want)
+		}
+	}
+	if got := tax.Acceptable("not_an_id", true); got != nil {
+		t.Errorf("Acceptable of an unknown id = %v, want nil", got)
+	}
+}
+
 func TestKey(t *testing.T) {
 	cases := []struct {
 		kind      Kind
@@ -118,11 +149,13 @@ func TestResolveAllSplitsAndDedupes(t *testing.T) {
 func TestParseRejectsConflicts(t *testing.T) {
 	base := `"software": [{"id": "s", "label": "S"}], "industries": [{"id": "i", "label": "I"}]`
 	cases := map[string]string{
-		"maps to both": `{"certifications": [{"id": "a", "label": "A", "aliases": ["x"]}, {"id": "b", "label": "B", "aliases": ["X"]}], ` + base + `}`,
-		"snake_case":   `{"certifications": [{"id": "Bad-Id", "label": "A"}], ` + base + `}`,
-		"duplicate id": `{"certifications": [{"id": "a", "label": "A"}, {"id": "a", "label": "B"}], ` + base + `}`,
-		"missing":      `{"certifications": [{"id": "a", "label": "A"}], "software": [{"id": "s", "label": "S"}]}`,
-		"non-empty":    `{"certifications": [], ` + base + `}`,
+		"maps to both":   `{"certifications": [{"id": "a", "label": "A", "aliases": ["x"]}, {"id": "b", "label": "B", "aliases": ["X"]}], ` + base + `}`,
+		"snake_case":     `{"certifications": [{"id": "Bad-Id", "label": "A"}], ` + base + `}`,
+		"duplicate id":   `{"certifications": [{"id": "a", "label": "A"}, {"id": "a", "label": "B"}], ` + base + `}`,
+		"missing":        `{"certifications": [{"id": "a", "label": "A"}], "software": [{"id": "s", "label": "S"}]}`,
+		"non-empty":      `{"certifications": [], ` + base + `}`,
+		"unknown group":  `{"certifications": [{"id": "a", "label": "A", "group": "g"}], ` + base + `}`,
+		"not another id": `{"certifications": [{"id": "a", "label": "A", "variant_of": ["zzz"]}], ` + base + `}`,
 	}
 	for want, doc := range cases {
 		_, err := Parse(strings.NewReader(doc))

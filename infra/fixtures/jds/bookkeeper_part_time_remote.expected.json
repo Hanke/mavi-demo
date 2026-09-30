@@ -5,6 +5,9 @@
     "title": "Part-Time Bookkeeper",
     "required_certifications": ["quickbooks_proadvisor"],
     "other_required_certifications": [],
+    "required_qualifications": [
+      {"name_as_written": "QuickBooks Online ProAdvisor", "canonical": "quickbooks_proadvisor", "accept_equivalents": true, "equivalents_stated": false, "quote": "QuickBooks Online ProAdvisor certification"}
+    ],
     "required_software": ["quickbooks", "gusto"],
     "other_required_software": ["Dext"],
     "industries": ["hospitality"],

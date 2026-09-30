@@ -37,6 +37,27 @@ func (e CandidateProfileAvailability) Valid() bool {
 	}
 }
 
+// Defines values for QualificationStatus.
+const (
+	QualificationStatusInProgress    QualificationStatus = "in_progress"
+	QualificationStatusPartQualified QualificationStatus = "part_qualified"
+	QualificationStatusQualified     QualificationStatus = "qualified"
+)
+
+// Valid indicates whether the value is a known member of the QualificationStatus enum.
+func (e QualificationStatus) Valid() bool {
+	switch e {
+	case QualificationStatusInProgress:
+		return true
+	case QualificationStatusPartQualified:
+		return true
+	case QualificationStatusQualified:
+		return true
+	default:
+		return false
+	}
+}
+
 // CandidateProfile What the resume parser extracts. Maps onto candidate_profiles.
 type CandidateProfile struct {
 	Availability  *CandidateProfileAvailability `json:"availability,omitempty"`
@@ -68,6 +89,9 @@ type CandidateProfile struct {
 
 	// Positions Jobs held, in the order the resume lists them.
 	Positions []Position `json:"positions,omitempty"`
+
+	// Qualifications Every professional qualification the resume mentions, held or not, as written.
+	Qualifications []Qualification `json:"qualifications,omitempty"`
 
 	// Skills Free-text skills, e.g. 'month-end close'.
 	Skills []string `json:"skills,omitempty"`
@@ -173,6 +197,52 @@ type Position struct {
 	Title string `json:"title"`
 }
 
+// Qualification One professional qualification exactly as the resume gives it.
+//
+// `canonical` is the qualification the candidate holds, never the one a
+// role might want instead: an ACA is `aca_icaew`, not `cpa`.
+type Qualification struct {
+	// Canonical Taxonomy id of this qualification itself, e.g. 'aca_icaew'; null if it is not in the taxonomy.
+	Canonical *string `json:"canonical,omitempty"`
+
+	// IssuingBody e.g. 'ICAEW', 'ACCA', 'CPA Ontario'; null if unstated.
+	IssuingBody *string `json:"issuing_body,omitempty"`
+
+	// Jurisdiction Where it was awarded, e.g. 'UK', 'US', 'Australia'; null if it cannot be determined.
+	Jurisdiction *string `json:"jurisdiction,omitempty"`
+
+	// NameAsWritten Exactly what the resume says, e.g. 'ACA', 'CPA, CA'.
+	NameAsWritten string `json:"name_as_written"`
+
+	// Quote The resume's own words that show it, verbatim.
+	Quote *string `json:"quote,omitempty"`
+
+	// Status qualified only when fully held; 'ACCA finalist' is part_qualified, 'studying for' in_progress.
+	Status       *QualificationStatus `json:"status,omitempty"`
+	YearObtained *int                 `json:"year_obtained,omitempty"`
+}
+
+// QualificationStatus qualified only when fully held; 'ACCA finalist' is part_qualified, 'studying for' in_progress.
+type QualificationStatus string
+
+// RequiredQualification One qualification a role requires, and whether an equivalent will do.
+type RequiredQualification struct {
+	// AcceptEquivalents False only when the JD rules equivalents out, e.g. 'active US CPA licence required'.
+	AcceptEquivalents *bool `json:"accept_equivalents,omitempty"`
+
+	// Canonical Taxonomy id of the qualification asked for; null if not in the taxonomy.
+	Canonical *string `json:"canonical,omitempty"`
+
+	// EquivalentsStated True when the JD says either way ('CPA or equivalent', 'US licence required'); false means accept_equivalents is the default and the employer should confirm it at intake.
+	EquivalentsStated *bool `json:"equivalents_stated,omitempty"`
+
+	// NameAsWritten The qualification as the JD names it, e.g. 'CPA'.
+	NameAsWritten string `json:"name_as_written"`
+
+	// Quote The JD's own words, verbatim.
+	Quote *string `json:"quote,omitempty"`
+}
+
 // RerankCandidate defines model for RerankCandidate.
 type RerankCandidate struct {
 	// ID Opaque id echoed back in the result.
@@ -227,6 +297,9 @@ type RoleRequirements struct {
 
 	// RequiredCertifications Certifications the role requires, as taxonomy ids.
 	RequiredCertifications []string `json:"required_certifications,omitempty"`
+
+	// RequiredQualifications Each required qualification with whether an equivalent is acceptable.
+	RequiredQualifications []RequiredQualification `json:"required_qualifications,omitempty"`
 
 	// RequiredSoftware Software the role requires, as taxonomy ids.
 	RequiredSoftware []string            `json:"required_software,omitempty"`

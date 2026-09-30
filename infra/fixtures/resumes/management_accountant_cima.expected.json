@@ -1,0 +1,42 @@
+{
+  "$comment": "A fully qualified management accountant in Ireland. CIMA (letters ACMA) and the CGMA designation that comes with it are both held, and both are in the management accounting group: real qualifications, but not CPA equivalents, so a 'CPA or equivalent' role does not pass her. 'CIMA' and 'ACMA' are one qualification.",
+  "contact": {
+    "full_name": "Aoife Brennan",
+    "email": "aoife.brennan@example.com",
+    "phone": "+353 85 555 0142",
+    "location": "Dublin, Ireland"
+  },
+  "profile": {
+    "headline": "Senior Management Accountant, CIMA - product costing and margin reporting in food manufacturing",
+    "years_experience": 7,
+    "positions": [
+      {"title": "Senior Management Accountant", "employer": "Kilbride Foods", "start_year": 2023, "end_year": null, "current": true},
+      {"title": "Management Accountant", "employer": "Kilbride Foods", "start_year": 2019, "end_year": 2023, "current": false}
+    ],
+    "certifications": ["cima", "cgma"],
+    "other_certifications": [],
+    "qualifications": [
+      {"name_as_written": "CIMA", "canonical": "cima", "issuing_body": "CIMA", "jurisdiction": "UK", "status": "qualified", "year_obtained": 2022, "quote": "CIMA (ACMA, CGMA), qualified 2022"},
+      {"name_as_written": "CGMA", "canonical": "cgma", "issuing_body": "AICPA & CIMA", "jurisdiction": null, "status": "qualified", "year_obtained": 2022, "quote": "CIMA (ACMA, CGMA), qualified 2022"}
+    ],
+    "software": ["sap", "power_bi", "excel"],
+    "other_software": [],
+    "industries": ["food_and_beverage", "consumer_packaged_goods", "manufacturing"],
+    "other_industries": [],
+    "gaap_exposure": ["IFRS"],
+    "skills": [
+      "product costing",
+      "margin reporting",
+      "standard-cost variance analysis",
+      "budgeting and forecasting",
+      "management accounts",
+      "inventory valuation",
+      "business partnering",
+      "overhead absorption"
+    ],
+    "languages": ["en"],
+    "availability": "two_weeks",
+    "available_from": null,
+    "timezone": "Europe/Dublin"
+  }
+}

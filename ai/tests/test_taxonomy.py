@@ -19,7 +19,19 @@ class Case(TypedDict):
 
 
 INFRA = Path(__file__).resolve().parents[2] / "infra"
-CASES: list[Case] = json.loads((INFRA / "taxonomy_cases.json").read_text())["cases"]
+
+
+class AcceptableCase(TypedDict):
+    """One row of the fixture's `acceptable` list, also shared with the Go tests."""
+
+    required: str
+    accept_equivalents: bool
+    want: list[str]
+
+
+_FIXTURE = json.loads((INFRA / "taxonomy_cases.json").read_text())
+CASES: list[Case] = _FIXTURE["cases"]
+ACCEPTABLE: list[AcceptableCase] = _FIXTURE["acceptable"]
 
 
 @pytest.fixture(scope="module")
@@ -49,6 +61,19 @@ def test_every_kind_has_terms_with_valid_ids(tax: Taxonomy):
 @pytest.mark.parametrize("case", CASES, ids=[f"{c['kind']}:{c['input']!r}" for c in CASES])
 def test_shared_alias_cases(tax: Taxonomy, case: Case):
     assert tax.resolve(case["kind"], case["input"]) == case["want"]
+
+
+@pytest.mark.parametrize("case", ACCEPTABLE, ids=[f"{c['required']}:{c['accept_equivalents']}" for c in ACCEPTABLE])
+def test_shared_acceptable_cases(tax: Taxonomy, case: AcceptableCase):
+    assert list(tax.acceptable(case["required"], case["accept_equivalents"])) == case["want"]
+
+
+def test_qualification_references_are_checked():
+    base = {"software": [{"id": "s", "label": "S"}], "industries": [{"id": "i", "label": "I"}]}
+    with pytest.raises(TaxonomyError, match="unknown group"):
+        Taxonomy.from_dict({**base, "certifications": [{"id": "a", "label": "A", "group": "g"}]})
+    with pytest.raises(TaxonomyError, match="not another id"):
+        Taxonomy.from_dict({**base, "certifications": [{"id": "a", "label": "A", "variant_of": ["zzz"]}]})
 
 
 @pytest.mark.parametrize(

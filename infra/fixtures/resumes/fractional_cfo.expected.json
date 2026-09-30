@@ -14,8 +14,12 @@
       {"title": "CFO", "employer": "Vantage Signal Software", "start_year": 2011, "end_year": 2019, "current": false},
       {"title": "Audit Senior Manager", "employer": "Corbett Haynes LLP", "start_year": 2004, "end_year": 2011, "current": false}
     ],
-    "certifications": ["cpa", "cgma"],
+    "certifications": ["cpa_us", "cgma"],
     "other_certifications": [],
+    "qualifications": [
+      {"name_as_written": "Certified Public Accountant", "canonical": "cpa_us", "issuing_body": "US state boards / AICPA", "jurisdiction": "US", "status": "qualified", "year_obtained": null, "quote": "Certified Public Accountant, Massachusetts (active)"},
+      {"name_as_written": "Chartered Global Management Accountant", "canonical": "cgma", "issuing_body": "AICPA & CIMA", "jurisdiction": null, "status": "qualified", "year_obtained": null, "quote": "Chartered Global Management Accountant (CGMA)"}
+    ],
     "software": ["netsuite", "quickbooks", "carta", "sage_intacct", "google_sheets", "adaptive_planning", "excel"],
     "other_software": [],
     "industries": ["technology", "saas", "education", "professional_services", "accounting_services"],

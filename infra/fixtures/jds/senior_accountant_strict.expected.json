@@ -1,10 +1,13 @@
 {
-  "$comment": "The strict JD: every requirement is a hard must-have, three of them resolve to taxonomy ids, and there is a fixed latest start date. Only the SaaS CPA resume passes its hard filters. The 'Senior Accountant or equivalent role at a software or SaaS company' line gives the industry.",
+  "$comment": "'Active CPA license (any US state)' is a US CPA with equivalents ruled out, so the UK ACA, who meets every software requirement, fails it. The strict JD: every requirement is a hard must-have, three of them resolve to taxonomy ids, and there is a fixed latest start date. Only the SaaS CPA resume passes its hard filters. The 'Senior Accountant or equivalent role at a software or SaaS company' line gives the industry.",
   "company": "Vantara Health Software",
   "requirements": {
     "title": "Senior Accountant",
-    "required_certifications": ["cpa"],
+    "required_certifications": ["cpa_us"],
     "other_required_certifications": [],
+    "required_qualifications": [
+      {"name_as_written": "CPA", "canonical": "cpa_us", "accept_equivalents": false, "equivalents_stated": true, "quote": "Active CPA license (any US state)"}
+    ],
     "required_software": ["netsuite", "blackline", "excel"],
     "other_required_software": [],
     "industries": ["saas", "healthcare"],

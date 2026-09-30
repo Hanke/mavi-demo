@@ -16,6 +16,9 @@
     ],
     "certifications": ["acca"],
     "other_certifications": [],
+    "qualifications": [
+      {"name_as_written": "ACCA", "canonical": "acca", "issuing_body": "ACCA", "jurisdiction": "UK", "status": "qualified", "year_obtained": 2020, "quote": "ACCA member, qualified 2020"}
+    ],
     "software": ["anaplan", "excel", "power_bi", "netsuite", "sql", "snowflake", "adaptive_planning"],
     "other_software": [],
     "industries": ["fintech", "ecommerce"],

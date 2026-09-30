@@ -53,8 +53,8 @@ def _in_text(fragment: str, text: str) -> bool:
 
 
 def test_fixture_set_size():
-    assert 8 <= len(RESUME_IDS) <= 10
-    assert 4 <= len(JD_IDS) <= 6
+    assert 8 <= len(RESUME_IDS) <= 13
+    assert 4 <= len(JD_IDS) <= 7
 
 
 def test_every_file_belongs_to_a_fixture():
@@ -98,6 +98,12 @@ def test_resume_text_carries_the_expected_values(resume: ResumeFixture):
         assert _in_text(other, text), f"{resume.slug}: {other!r} not in the resume"
         for kind in ("software", "certifications"):
             assert tax.resolve(kind, other) is None, f"{resume.slug}: {other!r} is in the taxonomy; use its id"
+    for q in resume.expected.qualifications:
+        assert _in_text(q.name_as_written, text), f"{resume.slug}: {q.name_as_written!r} is not in the resume"
+        assert q.quote, f"{resume.slug}: {q.name_as_written!r} needs its supporting quote"
+        assert _in_text(q.quote, text), f"{resume.slug}: {q.quote!r} is not verbatim from the resume"
+    held = [q.canonical for q in resume.expected.qualifications if q.status == "qualified" and q.canonical]
+    assert held == resume.expected.certifications, f"{resume.slug}: every certification has its qualification record"
     if resume.expected.available_from is not None:
         assert resume.expected.availability != "unknown"
     assert resume.expected.positions, resume.slug
@@ -166,6 +172,11 @@ def test_jd_text_carries_the_expected_values(jd: JDFixture):
     for line in jd.expected.must_haves + jd.expected.nice_to_haves:
         assert _in_text(line, jd.text), f"{jd.slug}: {line!r} is not verbatim from the JD"
     assert not set(jd.expected.must_haves) & set(jd.expected.nice_to_haves)
+    for q in jd.expected.required_qualifications:
+        assert _in_text(q.name_as_written, jd.text), f"{jd.slug}: {q.name_as_written!r} is not in the JD"
+        assert q.quote, f"{jd.slug}: {q.name_as_written!r} needs its supporting quote"
+        assert _in_text(q.quote, jd.text), f"{jd.slug}: {q.quote!r} is not verbatim from the JD"
+        assert q.canonical in jd.expected.required_certifications, jd.slug
     for other in jd.expected.other_required_software:
         assert _in_text(other, jd.text)
         assert tax.resolve("software", other) is None

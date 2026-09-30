@@ -1,0 +1,26 @@
+Aoife Brennan ACMA CGMA
+Dublin, Ireland | aoife.brennan@example.com | +353 85 555 0142
+
+PROFILE
+CIMA-qualified management accountant with seven years in food manufacturing and FMCG. I own product costing, margin reporting and the budget for a €210m dairy processor, and I work closely with the commercial and operations teams. Two weeks' notice.
+
+EXPERIENCE
+
+Kilbride Foods (dairy processor), Dublin
+Senior Management Accountant, Mar 2023 - present
+- Own product costing and margin reporting for 600 SKUs in SAP S/4HANA, with monthly standard-cost variance analysis.
+- Lead the annual budget and quarterly forecasts with the commercial team; built the Power BI margin dashboards the sales directors use.
+- Deliver management accounts by working day 5 and present them to the site leadership team.
+- Support the IFRS statutory accounts and the external audit with inventory valuation workings.
+
+Kilbride Foods, Dublin
+Management Accountant, Aug 2019 - Feb 2023
+- Monthly management accounts for two production sites, overhead absorption and yield reporting.
+- Stock-take coordination and inventory reconciliations.
+
+QUALIFICATIONS
+CIMA (ACMA, CGMA), qualified 2022
+BComm, an Irish university, 2019
+
+SYSTEMS
+SAP S/4HANA, Power BI, Microsoft Excel

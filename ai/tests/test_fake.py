@@ -53,7 +53,7 @@ def _complete(provider: FakeProvider, text: str) -> str:
 def test_parse_resume_finds_the_taxonomy_terms_the_text_names(client: TestClient):
     fixture = fixtures.load_resume("senior_accountant_cpa_netsuite")
     profile = client.post("/parse-resume", json={"text": fixture.text}).json()["profile"]
-    assert "cpa" in profile["certifications"]
+    assert "cpa_us" in profile["certifications"]  # "CPA" on a resume from Oakland, CA
     assert "netsuite" in profile["software"]
 
 
@@ -68,7 +68,8 @@ def test_parse_jd_with_the_fake_is_valid(client: TestClient, slug: str):
 def test_parse_jd_keeps_preferred_items_out_of_the_requirements(client: TestClient):
     fixture = fixtures.load_jd("senior_accountant_strict")
     req = client.post("/parse-jd", json={"text": fixture.text}).json()["requirements"]
-    assert req["required_certifications"] == ["cpa"]
+    assert req["required_certifications"] == ["cpa_us"]
+    assert [(q["canonical"], q["accept_equivalents"]) for q in req["required_qualifications"]] == [("cpa_us", False)]
     assert {"netsuite", "blackline", "excel"} <= set(req["required_software"])
     assert "floqast" not in req["required_software"]  # named under "Preferred" only
     assert req["must_haves"] == fixture.expected.must_haves

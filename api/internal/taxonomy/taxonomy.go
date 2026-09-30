@@ -6,6 +6,13 @@
 // writes or seeds land on the same id and `p.software @> r.required_software`
 // compares exactly. Change the key rules in both places together and keep
 // infra/taxonomy_cases.json green on both sides.
+//
+// Accounting qualifications are not compared exactly. A role that asks for a
+// CPA "or equivalent" is met by an ACA or an ACCA, so the shortlist query
+// tests `p.certifications && $n` against the ids Acceptable returns for each
+// required qualification. The groups live in the same file and the rule is
+// the one in ai/app/taxonomy.py (Taxonomy.acceptable); the "acceptable" cases
+// in infra/taxonomy_cases.json run on both sides.
 package taxonomy
 
 import (
@@ -34,13 +41,23 @@ type Term struct {
 	ID      string   `json:"id"`
 	Label   string   `json:"label"`
 	Aliases []string `json:"aliases"`
+
+	// Set on accounting qualifications only. Group is the equivalence group
+	// ("qualified_accountant"); VariantOf names the ambiguous ids whose
+	// letters this body-specific qualification shares ("cpa" for "cpa_us").
+	Group         string   `json:"group,omitempty"`
+	IssuingBody   string   `json:"issuing_body,omitempty"`
+	Jurisdictions []string `json:"jurisdictions,omitempty"`
+	VariantOf     []string `json:"variant_of,omitempty"`
 }
 
 // Taxonomy is an immutable, loaded vocabulary.
 type Taxonomy struct {
-	terms map[Kind][]Term
-	index map[Kind]map[string]string // normalised key -> id
-	ids   map[Kind]map[string]bool
+	terms    map[Kind][]Term
+	index    map[Kind]map[string]string // normalised key -> id
+	ids      map[Kind]map[string]bool
+	variants map[string][]string // ambiguous certification id -> its variants, in file order
+	groups   map[string]bool
 }
 
 // credentialWords describe holding a credential rather than the credential
@@ -145,7 +162,90 @@ func Parse(r io.Reader) (*Taxonomy, error) {
 		t.index[kind] = index
 		t.ids[kind] = ids
 	}
+	if err := t.linkQualifications(raw["qualification_groups"]); err != nil {
+		return nil, err
+	}
 	return t, nil
+}
+
+// linkQualifications checks the group and variant_of references between
+// certification terms and indexes the variants of each ambiguous id.
+func (t *Taxonomy) linkQualifications(groups json.RawMessage) error {
+	t.variants = map[string][]string{}
+	t.groups = map[string]bool{}
+	if len(groups) > 0 {
+		var doc struct {
+			Groups []struct {
+				ID string `json:"id"`
+			} `json:"groups"`
+		}
+		if err := json.Unmarshal(groups, &doc); err != nil {
+			return fmt.Errorf("qualification_groups: %w", err)
+		}
+		for _, g := range doc.Groups {
+			t.groups[g.ID] = true
+		}
+	}
+	byID := map[string]Term{}
+	for _, term := range t.terms[Certifications] {
+		byID[term.ID] = term
+	}
+	for _, term := range t.terms[Certifications] {
+		if term.Group != "" && !t.groups[term.Group] {
+			return fmt.Errorf("%s/%s: unknown group %q", Certifications, term.ID, term.Group)
+		}
+		for _, parent := range term.VariantOf {
+			p, ok := byID[parent]
+			switch {
+			case !ok || parent == term.ID:
+				return fmt.Errorf("%s/%s: variant_of %q is not another id", Certifications, term.ID, parent)
+			case len(p.VariantOf) > 0:
+				return fmt.Errorf("%s/%s: variant_of %q is itself a variant", Certifications, term.ID, parent)
+			case p.Group != term.Group:
+				return fmt.Errorf("%s/%s: group differs from %q", Certifications, term.ID, parent)
+			}
+			t.variants[parent] = append(t.variants[parent], term.ID)
+		}
+	}
+	return nil
+}
+
+// Acceptable returns the certification ids that satisfy one required
+// qualification: the id itself and its variants (a role asking for "a CPA"
+// takes any CPA) and, when the role accepts equivalents, every body-specific
+// member of the same group. An ambiguous id is never added as a group
+// member: a "CPA" from nobody knows where is not evidence of a US CPA
+// equivalent. The result is nil when required is not a certification id.
+//
+// A candidate passes the requirement when their certifications overlap the
+// result (`p.certifications && $n`).
+func (t *Taxonomy) Acceptable(required string, acceptEquivalents bool) []string {
+	if !t.ids[Certifications][required] {
+		return nil
+	}
+	out := append([]string{required}, t.variants[required]...)
+	if !acceptEquivalents {
+		return out
+	}
+	group := ""
+	for _, term := range t.terms[Certifications] {
+		if term.ID == required {
+			group = term.Group
+		}
+	}
+	if group == "" {
+		return out
+	}
+	seen := map[string]bool{}
+	for _, id := range out {
+		seen[id] = true
+	}
+	for _, term := range t.terms[Certifications] {
+		if term.Group == group && !seen[term.ID] && len(t.variants[term.ID]) == 0 {
+			out = append(out, term.ID)
+		}
+	}
+	return out
 }
 
 // Terms returns the canonical entries of a kind in file order.

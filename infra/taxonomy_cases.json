@@ -1,5 +1,5 @@
 {
-  "$comment": "Shared alias fixture. ai/tests/test_taxonomy.py and api/internal/taxonomy/taxonomy_test.go both run every case, so the Python parsers and the Go API are guaranteed to resolve the same input to the same id. `want: null` means the input must stay unknown (it goes to the schema's other_* field).",
+  "$comment": "Shared alias fixture. ai/tests/test_taxonomy.py and api/internal/taxonomy/taxonomy_test.go both run every case, so the Python parsers and the Go API are guaranteed to resolve the same input to the same id. `want: null` means the input must stay unknown (it goes to the schema's other_* field). `acceptable` is the equivalence rule, also run on both sides: the certification ids that satisfy one required qualification, with and without equivalents accepted, in taxonomy order.",
   "cases": [
     { "kind": "software", "input": "QuickBooks Online", "want": "quickbooks" },
     { "kind": "software", "input": "QBO", "want": "quickbooks" },
@@ -54,6 +54,20 @@
     { "kind": "certifications", "input": "Enrolled Agent", "want": "ea" },
     { "kind": "certifications", "input": "CFA Charterholder", "want": "cfa" },
     { "kind": "certifications", "input": "Series 7", "want": null },
+    { "kind": "certifications", "input": "US CPA", "want": "cpa_us" },
+    { "kind": "certifications", "input": "CPA, CA", "want": "cpa_canada" },
+    { "kind": "certifications", "input": "CPA Australia", "want": "cpa_australia" },
+    { "kind": "certifications", "input": "ACA", "want": "aca" },
+    { "kind": "certifications", "input": "ACA (ICAEW)", "want": "aca" },
+    { "kind": "certifications", "input": "ICAEW ACA", "want": "aca_icaew" },
+    { "kind": "certifications", "input": "Chartered Accountant", "want": "ca" },
+    { "kind": "certifications", "input": "CA(SA)", "want": "ca" },
+    { "kind": "certifications", "input": "CA ANZ", "want": "ca_anz" },
+    { "kind": "certifications", "input": "Chartered Accountants Ireland", "want": "ca_ireland" },
+    { "kind": "certifications", "input": "ACCA member", "want": "acca" },
+    { "kind": "certifications", "input": "Part-qualified ACCA", "want": null },
+    { "kind": "certifications", "input": "ACMA", "want": "cima" },
+    { "kind": "certifications", "input": "AAT Level 4", "want": "aat" },
 
     { "kind": "industries", "input": "CPG", "want": "consumer_packaged_goods" },
     { "kind": "industries", "input": "Consumer Packaged Goods", "want": "consumer_packaged_goods" },
@@ -76,5 +90,18 @@
     { "kind": "certifications", "input": "(CPA) Certified Public Accountant", "want": "cpa" },
     { "kind": "certifications", "input": "NetSuite", "want": null },
     { "kind": "software", "input": "CPA", "want": null }
+  ],
+  "acceptable": [
+    { "required": "cpa_us", "accept_equivalents": true, "want": ["cpa_us", "cpa_canada", "cpa_australia", "aca_icaew", "ca_icas", "ca_ireland", "ca_anz", "ca_icai", "acca"] },
+    { "required": "cpa_us", "accept_equivalents": false, "want": ["cpa_us"] },
+    { "required": "cpa", "accept_equivalents": false, "want": ["cpa", "cpa_us", "cpa_canada", "cpa_australia"] },
+    { "required": "cpa", "accept_equivalents": true, "want": ["cpa", "cpa_us", "cpa_canada", "cpa_australia", "aca_icaew", "ca_icas", "ca_ireland", "ca_anz", "ca_icai", "acca"] },
+    { "required": "acca", "accept_equivalents": true, "want": ["acca", "cpa_us", "cpa_canada", "cpa_australia", "aca_icaew", "ca_icas", "ca_ireland", "ca_anz", "ca_icai"] },
+    { "required": "aca", "accept_equivalents": false, "want": ["aca", "aca_icaew", "ca_ireland", "ca_icai"] },
+    { "required": "ca", "accept_equivalents": false, "want": ["ca", "aca_icaew", "ca_icas", "ca_ireland", "ca_anz", "ca_icai"] },
+    { "required": "cima", "accept_equivalents": true, "want": ["cima", "cma", "cgma"] },
+    { "required": "cima", "accept_equivalents": false, "want": ["cima"] },
+    { "required": "aat", "accept_equivalents": true, "want": ["aat"] },
+    { "required": "pmp", "accept_equivalents": true, "want": ["pmp"] }
   ]
 }

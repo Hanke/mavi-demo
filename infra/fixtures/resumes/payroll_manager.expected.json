@@ -16,6 +16,9 @@
     ],
     "certifications": ["cpp"],
     "other_certifications": [],
+    "qualifications": [
+      {"name_as_written": "Certified Payroll Professional", "canonical": "cpp", "issuing_body": "American Payroll Association", "jurisdiction": null, "status": "qualified", "year_obtained": 2018, "quote": "Certified Payroll Professional (CPP), American Payroll Association, 2018"}
+    ],
     "software": ["adp", "paylocity", "workday", "excel"],
     "other_software": [],
     "industries": ["healthcare", "hospitality"],

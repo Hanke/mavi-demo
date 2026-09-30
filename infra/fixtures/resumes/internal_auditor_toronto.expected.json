@@ -1,5 +1,5 @@
 {
-  "$comment": "Canadian, accented name, designations listed at the top. 'CPA, CA' is two taxonomy ids (cpa and ca) plus CIA. AuditBoard is outside the taxonomy. Year-only date ranges. Languages listed French first. Titles contain commas. IFRS 17 and IFRS are both named; SOX 404 is not an accounting standard.",
+  "$comment": "Canadian, accented name, designations listed at the top. 'CPA, CA' is one qualification, the Canadian CPA with its legacy CA designation (cpa_canada, settled by 'CPA Ontario'), not a US CPA plus a chartered accountant; CIA is the second. AuditBoard is outside the taxonomy. Year-only date ranges. Languages listed French first. Titles contain commas. IFRS 17 and IFRS are both named; SOX 404 is not an accounting standard.",
   "contact": {
     "full_name": "Étienne Roy",
     "email": "etienne.roy@example.com",
@@ -14,8 +14,12 @@
       {"title": "Manager, Internal Audit", "employer": "Dominion Trust Bank", "start_year": 2021, "end_year": 2024, "current": false},
       {"title": "Senior Associate", "employer": "Whitcombe Hale LLP", "start_year": 2018, "end_year": 2021, "current": false}
     ],
-    "certifications": ["cpa", "ca", "cia"],
+    "certifications": ["cpa_canada", "cia"],
     "other_certifications": [],
+    "qualifications": [
+      {"name_as_written": "CPA, CA", "canonical": "cpa_canada", "issuing_body": "CPA Canada", "jurisdiction": "Canada", "status": "qualified", "year_obtained": 2019, "quote": "CPA, CA (CPA Ontario, 2019)"},
+      {"name_as_written": "Certified Internal Auditor", "canonical": "cia", "issuing_body": "IIA", "jurisdiction": null, "status": "qualified", "year_obtained": 2022, "quote": "Certified Internal Auditor (IIA, 2022)"}
+    ],
     "software": ["sap", "workday", "alteryx", "tableau", "excel"],
     "other_software": ["AuditBoard"],
     "industries": ["insurance", "banking", "accounting_services"],

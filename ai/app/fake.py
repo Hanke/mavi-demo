@@ -20,16 +20,17 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import replace
 from datetime import date
 from typing import Any
 
-from app import taxonomy
+from app import qualifications, taxonomy
 from app.grounding import mentions, standards_named
 from app.llm import ProviderError
 from app.taxonomy import Kind
 
 # Bump when the answers change, so cached answers from the old rules are not replayed.
-FAKE_MODEL = "fake-2"
+FAKE_MODEL = "fake-3"
 
 _RETRY_MARKER = "\n\nYour previous answer did not match the required schema."
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
@@ -79,7 +80,78 @@ class FakeProvider:
 
 def _named(kind: Kind, text: str) -> list[str]:
     """Ids of the taxonomy terms the text names by label or alias, in taxonomy order."""
-    return [t.id for t in taxonomy.load().terms(kind) if mentions(text, t)]
+    return [t.id for t in taxonomy.load().terms(kind) if _names(text, t)]
+
+
+def _names(text: str, term: taxonomy.Term) -> bool:
+    """`mentions` by the term's own names only: "CPA" names the ambiguous cpa, not each of its variants."""
+    return mentions(text, replace(term, inherited=()))
+
+
+_SHORT = 4  # as in app.grounding: short names are matched case-sensitively
+_YEAR_AFTER = r"[^\n]{{0,25}}?(?<!\d)((?:19|20)\d\d)(?!\d)(?!\s*[-\u2013\u2014])"
+_NO_EQUIVALENTS = re.compile(r"\b(?:active|current|valid)\b[^\n]*\blicen[sc]e\b|\bno equivalents?\b", re.I)
+_EQUIVALENTS = re.compile(r"\bequivalent", re.I)
+
+
+# "a 40-person CPA firm" names an employer, not a licence; "ACA reporting" is the Affordable Care Act.
+_NOT_A_HOLDING = re.compile(r"\s+(?:firms?|practices?|reporting|compliance|filings?|forms?)\b", re.I)
+_SOMEONE_ELSE = re.compile(r"(?:client's|clients'|outside|external|their)\s$", re.I)
+_STATE_LIST = re.compile(r",\s*[A-Z]{2}\b")
+_CITY_BEFORE = re.compile(r"(?:[a-z]\w*,|\bin)\s$")
+
+
+def _is_place(text: str, start: int, end: int) -> bool:
+    """Two capitals that are a state, not a qualification: "Oakland, CA", "in CA, WA, OR"."""
+    if end - start != 2:  # noqa: PLR2004
+        return False
+    return bool(_CITY_BEFORE.search(text[max(0, start - 40) : start]) or _STATE_LIST.match(text, end))
+
+
+def _qualifications(text: str, header: str = "") -> list[dict[str, Any]]:
+    """One record per certification the text names, as the text writes it.
+
+    A name inside a longer one ("CA" in "CPA, CA") is not a second
+    qualification. Of several mentions, the first that does not read as
+    "part-qualified" or "studying for" is the one quoted; which body and
+    jurisdiction it is from is left to the schema's validators, given the
+    body the line names and the country in the header."""
+    tax = taxonomy.load()
+    spans: list[tuple[int, int, str]] = []
+    for term in tax.terms("certifications"):
+        for name in term.names:
+            flags = 0 if len(name) <= _SHORT else re.IGNORECASE
+            pattern = rf"(?<![A-Za-z0-9]){re.escape(name)}(?![A-Za-z0-9])"
+            spans += [(m.start(), m.end(), term.id) for m in re.finditer(pattern, text, flags)]
+    spans = [
+        s
+        for s in spans
+        if not _NOT_A_HOLDING.match(text, s[1])
+        and not _SOMEONE_ELSE.search(text[max(0, s[0] - 12) : s[0]])
+        and not _is_place(text, s[0], s[1])
+    ]
+    spans = [s for s in spans if not any(o[0] <= s[0] and s[1] <= o[1] and o[1] - o[0] > s[1] - s[0] for o in spans)]
+    where = qualifications.guess_jurisdiction(tax, header)
+    records: dict[str, dict[str, Any]] = {}
+    for start, end, term_id in sorted(spans):
+        name = text[start:end]
+        line = text[text.rfind("\n", 0, start) + 1 : (text.find("\n", end) + 1 or len(text) + 1) - 1]
+        quote = _BULLET.sub("", line).strip()
+        held = qualifications.status_from(name, quote, "qualified") == "qualified"
+        if term_id in records and (records[term_id]["_held"] or not held):
+            continue
+        year = re.search(re.escape(name) + _YEAR_AFTER.format(), quote)
+        records[term_id] = {
+            "name_as_written": name,
+            "canonical": term_id,
+            "issuing_body": qualifications.body_in(tax, term_id, quote),
+            "jurisdiction": where if tax.variants(term_id) else None,
+            "status": "qualified",
+            "year_obtained": int(year.group(1)) if year else None,
+            "quote": quote,
+            "_held": held,
+        }
+    return [{k: v for k, v in r.items() if k != "_held"} for r in records.values()]
 
 
 def _after(prompt: str, marker: str) -> str:
@@ -116,8 +188,9 @@ def _resume(prompt: str) -> dict[str, Any]:
             "headline": None,
             "years_experience": min(today.year - min(years), MAX_YEARS) if years else None,
             "positions": [],
-            "certifications": _named("certifications", text),
+            "certifications": [],
             "other_certifications": [],
+            "qualifications": _qualifications(text, "\n".join(text.strip().splitlines()[:3])),
             "software": _named("software", text),
             "other_software": [],
             "industries": _named("industries", text),
@@ -158,8 +231,18 @@ def _jd(prompt: str) -> dict[str, Any]:
         "company": None,
         "requirements": {
             "title": title or None,
-            "required_certifications": _named("certifications", required_in),
+            "required_certifications": [],
             "other_required_certifications": [],
+            "required_qualifications": [
+                {
+                    "name_as_written": q["name_as_written"],
+                    "canonical": q["canonical"],
+                    "accept_equivalents": not _NO_EQUIVALENTS.search(q["quote"]),
+                    "equivalents_stated": bool(_NO_EQUIVALENTS.search(q["quote"]) or _EQUIVALENTS.search(q["quote"])),
+                    "quote": q["quote"],
+                }
+                for q in _required(_qualifications(required_in))
+            ],
             "required_software": _named("software", required_in),
             "other_required_software": [],
             "industries": _named("industries", text),
@@ -172,18 +255,29 @@ def _jd(prompt: str) -> dict[str, Any]:
     }
 
 
+def _required(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """In "CPA or equivalent (ACA, ACCA, CA)" the first name is the requirement
+    and the rest are examples of the equivalents, not three more requirements."""
+    out: list[dict[str, Any]] = []
+    for q in records:
+        if _EQUIVALENTS.search(q["quote"]) and any(o["quote"] == q["quote"] for o in out):
+            continue
+        out.append(q)
+    return out
+
+
 def _rerank(prompt: str) -> dict[str, Any]:
     head, *rest = _CANDIDATE.split(prompt)
     role = _after(head, "Role:\n\n")
     candidates = list(zip(rest[0::2], rest[1::2], strict=True))
     tax = taxonomy.load()
-    wanted = [t for kind in ("certifications", "software") for t in tax.terms(kind) if mentions(role, t)]
+    wanted = [t for kind in ("certifications", "software") for t in tax.terms(kind) if _names(role, t)]
     role_words = set(_WORD.findall(role.lower()))
 
     results: list[dict[str, Any]] = []
     for cid, text in candidates:
-        has = [t.label for t in wanted if mentions(text, t)]
-        lacks = [t.label for t in wanted if not mentions(text, t)]
+        has = [t.label for t in wanted if _names(text, t)]
+        lacks = [t.label for t in wanted if not _names(text, t)]
         overlap = len(role_words & set(_WORD.findall(text.lower()))) / len(role_words) if role_words else 0.0
         score = TERM_WEIGHT * len(has) / len(wanted) + (1 - TERM_WEIGHT) * overlap if wanted else overlap
         reasons = [f"names {', '.join(has)}"] if has else []

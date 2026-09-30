@@ -1,5 +1,5 @@
 {
-  "$comment": "Early career, conventional chronological format. The CPA exam progress must not become a certification: the candidate holds none, so certifications and other_certifications are both empty. Google Sheets is only named in a bullet, not in the SOFTWARE section. The internship is a position but does not count towards years_experience.",
+  "$comment": "The CPA is in progress (two exam sections passed): it is recorded in qualifications with status in_progress and is not a certification. Early career, conventional chronological format. The CPA exam progress must not become a certification: the candidate holds none, so certifications and other_certifications are both empty. Google Sheets is only named in a bullet, not in the SOFTWARE section. The internship is a position but does not count towards years_experience.",
   "contact": {
     "full_name": "Maya Lindqvist",
     "email": "maya.lindqvist@example.com",
@@ -15,6 +15,9 @@
     ],
     "certifications": [],
     "other_certifications": [],
+    "qualifications": [
+      {"name_as_written": "CPA", "canonical": "cpa_us", "issuing_body": "US state boards / AICPA", "jurisdiction": "US", "status": "in_progress", "year_obtained": null, "quote": "CPA candidate: FAR and AUD passed; REG scheduled for December 2026"}
+    ],
     "software": ["quickbooks", "bill_com", "excel", "google_sheets"],
     "other_software": [],
     "industries": ["accounting_services"],

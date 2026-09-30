@@ -1,0 +1,42 @@
+{
+  "$comment": "Two things that must not pass as a fully qualified accountant. 'Part-qualified ACCA' is recorded with status part_qualified and stays out of certifications, so no requirement for ACCA or an equivalent is met. AAT is fully held and is in certifications, but it sits in the technician group, not the CPA-level one. The summary names both in one sentence: only the ACCA is part-qualified.",
+  "contact": {
+    "full_name": "Callum Reid",
+    "email": "callum.reid@example.com",
+    "phone": "+44 7700 900789",
+    "location": "Birmingham, UK"
+  },
+  "profile": {
+    "headline": "Assistant Accountant, AAT qualified and part-qualified ACCA - month-end and management accounts in manufacturing",
+    "years_experience": 4,
+    "positions": [
+      {"title": "Assistant Accountant", "employer": "Brindley Components Ltd", "start_year": 2023, "end_year": null, "current": true},
+      {"title": "Accounts Assistant", "employer": "Brindley Components Ltd", "start_year": 2022, "end_year": 2023, "current": false}
+    ],
+    "certifications": ["aat"],
+    "other_certifications": [],
+    "qualifications": [
+      {"name_as_written": "AAT", "canonical": "aat", "issuing_body": "AAT", "jurisdiction": "UK", "status": "qualified", "year_obtained": 2022, "quote": "AAT Level 4 Professional Diploma in Accounting, MAAT, 2022"},
+      {"name_as_written": "ACCA", "canonical": "acca", "issuing_body": "ACCA", "jurisdiction": "UK", "status": "part_qualified", "year_obtained": null, "quote": "ACCA: part-qualified, 9 of 13 papers passed (finals planned for 2027)"}
+    ],
+    "software": ["sage", "excel", "xero"],
+    "other_software": [],
+    "industries": ["manufacturing"],
+    "other_industries": [],
+    "gaap_exposure": ["FRS 102"],
+    "skills": [
+      "month-end journals",
+      "accruals and prepayments",
+      "balance sheet reconciliations",
+      "management accounts",
+      "fixed asset register",
+      "purchase ledger",
+      "bank reconciliations",
+      "audit support"
+    ],
+    "languages": ["en"],
+    "availability": "immediate",
+    "available_from": null,
+    "timezone": "Europe/London"
+  }
+}

@@ -5,6 +5,7 @@
     "title": "Controller",
     "required_certifications": [],
     "other_required_certifications": [],
+    "required_qualifications": [],
     "required_software": ["sap"],
     "other_required_software": [],
     "industries": ["manufacturing"],
@@ -24,5 +25,5 @@
     "timezone": "America/New_York",
     "starts_on": null
   },
-  "hard_filter_matches": ["controller_manufacturing", "internal_auditor_toronto"]
+  "hard_filter_matches": ["controller_manufacturing", "internal_auditor_toronto", "management_accountant_cima"]
 }

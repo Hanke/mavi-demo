@@ -5,6 +5,7 @@
     "title": "Finance & Ops person",
     "required_certifications": [],
     "other_required_certifications": [],
+    "required_qualifications": [],
     "required_software": [],
     "other_required_software": [],
     "industries": [],
@@ -23,11 +24,14 @@
     "starts_on": null
   },
   "hard_filter_matches": [
+    "assistant_accountant_part_qualified",
     "bookkeeper_part_time",
     "controller_manufacturing",
+    "financial_controller_aca_uk",
     "fpa_manager_london",
     "fractional_cfo",
     "internal_auditor_toronto",
+    "management_accountant_cima",
     "messy_ap_specialist",
     "payroll_manager",
     "senior_accountant_cpa_netsuite",

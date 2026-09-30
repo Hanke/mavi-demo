@@ -29,6 +29,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any, cast
 
+from app import matching
 from app.schemas import CandidateProfile, Contact, RoleRequirements
 
 ROOT = Path(__file__).resolve().parents[2] / "infra" / "fixtures"
@@ -120,15 +121,15 @@ def load_jds(root: Path = ROOT) -> list[JDFixture]:
 
 
 def passes_hard_filters(profile: CandidateProfile, req: RoleRequirements) -> bool:
-    """The certification and software containment of the README's shortlist query.
+    """The qualification and software clauses of the README's shortlist query:
+    every required qualification held (or an equivalent, where the role
+    accepts one) and every required product listed.
 
-    Only the two array clauses. The query's `available_from <= starts_on` clause
-    depends on the availability date the pipeline derives, which a profile does
-    not carry, so `hard_filter_matches` is deliberately computed without it.
+    The query's `available_from <= starts_on` clause depends on the
+    availability date the pipeline derives, which a profile does not carry,
+    so `hard_filter_matches` is deliberately computed without it.
     """
-    return set(req.required_certifications) <= set(profile.certifications) and set(req.required_software) <= set(
-        profile.software
-    )
+    return matching.check_hard_filters(profile, req).passed
 
 
 # --- PDF rendering -----------------------------------------------------------

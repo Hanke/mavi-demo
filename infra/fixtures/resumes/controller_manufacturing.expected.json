@@ -15,8 +15,12 @@
       {"title": "Senior Cost Accountant", "employer": "Great Lakes Fastener Corp.", "start_year": 2013, "end_year": 2016, "current": false},
       {"title": "Staff Accountant", "employer": "Great Lakes Fastener Corp.", "start_year": 2011, "end_year": 2013, "current": false}
     ],
-    "certifications": ["cpa", "cma"],
+    "certifications": ["cpa_us", "cma"],
     "other_certifications": [],
+    "qualifications": [
+      {"name_as_written": "Certified Public Accountant", "canonical": "cpa_us", "issuing_body": "US state boards / AICPA", "jurisdiction": "US", "status": "qualified", "year_obtained": 2014, "quote": "Certified Public Accountant (Michigan), 2014"},
+      {"name_as_written": "Certified Management Accountant", "canonical": "cma", "issuing_body": "IMA", "jurisdiction": "US", "status": "qualified", "year_obtained": 2018, "quote": "Certified Management Accountant, 2018"}
+    ],
     "software": ["sap", "concur", "power_bi", "excel"],
     "other_software": [],
     "industries": ["automotive", "manufacturing"],

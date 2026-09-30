@@ -14,8 +14,11 @@
       {"title": "Accountant", "employer": "Harborline Analytics", "start_year": 2020, "end_year": 2023, "current": false},
       {"title": "Audit Associate", "employer": "Keller, Tan & Associates LLP", "start_year": 2019, "end_year": 2020, "current": false}
     ],
-    "certifications": ["cpa"],
+    "certifications": ["cpa_us"],
     "other_certifications": [],
+    "qualifications": [
+      {"name_as_written": "Certified Public Accountant", "canonical": "cpa_us", "issuing_body": "US state boards / AICPA", "jurisdiction": "US", "status": "qualified", "year_obtained": 2022, "quote": "Certified Public Accountant, California, licensed 2022"}
+    ],
     "software": ["netsuite", "blackline", "expensify", "stripe", "excel", "google_sheets"],
     "other_software": [],
     "industries": ["saas", "accounting_services"],

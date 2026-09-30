@@ -17,7 +17,8 @@ Three adjustments are made to what FastAPI serves at /openapi.json:
   components even though no endpoint returns them yet. They are the shapes
   the API stores in `candidate_profiles.profile` and `roles.requirements`,
   so consumers can generate types for them from one place.
-* The taxonomy id enums are removed from those models' list fields. The ids
+* The taxonomy id enums are removed from those models' list fields and from
+  the `canonical` of a qualification record. The ids
   come from infra/taxonomy.json, which is mounted at runtime and edited
   without a rebuild; baking them into the contract would make every
   taxonomy edit a schema change. They stay validated at runtime.
@@ -45,6 +46,8 @@ from app.schemas import CandidateProfile, RoleRequirements, TaxonomyModel
 SPEC_PATH = Path(__file__).resolve().parents[1] / "openapi.json"
 
 SHARED_MODELS: tuple[type[TaxonomyModel], ...] = (CandidateProfile, RoleRequirements)
+# Their `canonical` is a certification id too, with the same enum to strip.
+QUALIFICATION_MODELS = ("Qualification", "RequiredQualification")
 
 
 def build() -> dict[str, Any]:
@@ -62,6 +65,9 @@ def build() -> dict[str, Any]:
             items = properties[field]["items"]
             items.pop("enum", None)
             items["description"] = "A canonical id from infra/taxonomy.json; validated at runtime."
+    for name in QUALIFICATION_MODELS:
+        for variant in schemas[name]["properties"]["canonical"]["anyOf"]:
+            variant.pop("enum", None)
     spec["openapi"] = "3.0.3"
     _downgrade(spec)
     _plain_go_slices(spec)

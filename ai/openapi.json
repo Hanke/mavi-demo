@@ -105,6 +105,15 @@
             "type": "array",
             "x-go-type-skip-optional-pointer": true
           },
+          "qualifications": {
+            "description": "Every professional qualification the resume mentions, held or not, as written.",
+            "items": {
+              "$ref": "#/components/schemas/Qualification"
+            },
+            "title": "Qualifications",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
           "skills": {
             "description": "Free-text skills, e.g. 'month-end close'.",
             "items": {
@@ -380,6 +389,113 @@
         "title": "Position",
         "type": "object"
       },
+      "Qualification": {
+        "additionalProperties": false,
+        "description": "One professional qualification exactly as the resume gives it.\n\n`canonical` is the qualification the candidate holds, never the one a\nrole might want instead: an ACA is `aca_icaew`, not `cpa`.",
+        "properties": {
+          "canonical": {
+            "default": null,
+            "description": "Taxonomy id of this qualification itself, e.g. 'aca_icaew'; null if it is not in the taxonomy.",
+            "nullable": true,
+            "title": "Canonical",
+            "type": "string"
+          },
+          "issuing_body": {
+            "default": null,
+            "description": "e.g. 'ICAEW', 'ACCA', 'CPA Ontario'; null if unstated.",
+            "nullable": true,
+            "title": "Issuing Body",
+            "type": "string"
+          },
+          "jurisdiction": {
+            "default": null,
+            "description": "Where it was awarded, e.g. 'UK', 'US', 'Australia'; null if it cannot be determined.",
+            "nullable": true,
+            "title": "Jurisdiction",
+            "type": "string"
+          },
+          "name_as_written": {
+            "description": "Exactly what the resume says, e.g. 'ACA', 'CPA, CA'.",
+            "minLength": 1,
+            "title": "Name As Written",
+            "type": "string"
+          },
+          "quote": {
+            "default": null,
+            "description": "The resume's own words that show it, verbatim.",
+            "nullable": true,
+            "title": "Quote",
+            "type": "string"
+          },
+          "status": {
+            "default": "qualified",
+            "description": "qualified only when fully held; 'ACCA finalist' is part_qualified, 'studying for' in_progress.",
+            "enum": [
+              "qualified",
+              "part_qualified",
+              "in_progress"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "year_obtained": {
+            "default": null,
+            "maximum": 2100,
+            "minimum": 1950,
+            "nullable": true,
+            "title": "Year Obtained",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name_as_written"
+        ],
+        "title": "Qualification",
+        "type": "object"
+      },
+      "RequiredQualification": {
+        "additionalProperties": false,
+        "description": "One qualification a role requires, and whether an equivalent will do.",
+        "properties": {
+          "accept_equivalents": {
+            "default": true,
+            "description": "False only when the JD rules equivalents out, e.g. 'active US CPA licence required'.",
+            "title": "Accept Equivalents",
+            "type": "boolean"
+          },
+          "canonical": {
+            "default": null,
+            "description": "Taxonomy id of the qualification asked for; null if not in the taxonomy.",
+            "nullable": true,
+            "title": "Canonical",
+            "type": "string"
+          },
+          "equivalents_stated": {
+            "default": false,
+            "description": "True when the JD says either way ('CPA or equivalent', 'US licence required'); false means accept_equivalents is the default and the employer should confirm it at intake.",
+            "title": "Equivalents Stated",
+            "type": "boolean"
+          },
+          "name_as_written": {
+            "description": "The qualification as the JD names it, e.g. 'CPA'.",
+            "minLength": 1,
+            "title": "Name As Written",
+            "type": "string"
+          },
+          "quote": {
+            "default": null,
+            "description": "The JD's own words, verbatim.",
+            "nullable": true,
+            "title": "Quote",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name_as_written"
+        ],
+        "title": "RequiredQualification",
+        "type": "object"
+      },
       "RerankCandidate": {
         "additionalProperties": false,
         "properties": {
@@ -550,6 +666,15 @@
               "type": "string"
             },
             "title": "Required Certifications",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
+          },
+          "required_qualifications": {
+            "description": "Each required qualification with whether an equivalent is acceptable.",
+            "items": {
+              "$ref": "#/components/schemas/RequiredQualification"
+            },
+            "title": "Required Qualifications",
             "type": "array",
             "x-go-type-skip-optional-pointer": true
           },

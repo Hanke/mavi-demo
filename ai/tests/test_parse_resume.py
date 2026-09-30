@@ -70,7 +70,7 @@ def test_expected_roles_and_years_of_a_sample_resume():
         ("Accountant", "Harborline Analytics", 2020, 2023, False),
         ("Audit Associate", "Keller, Tan & Associates LLP", 2019, 2020, False),
     ]
-    assert profile.certifications == ["cpa"]
+    assert profile.certifications == ["cpa_us"]
     assert profile.software == ["netsuite", "blackline", "expensify", "stripe", "excel", "google_sheets"]
     assert profile.gaap_exposure == ["ASC 606", "ASC 350-40"]
     assert profile.industries == ["saas", "accounting_services"]

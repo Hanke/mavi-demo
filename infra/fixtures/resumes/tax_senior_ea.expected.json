@@ -15,6 +15,9 @@
     ],
     "certifications": ["ea"],
     "other_certifications": [],
+    "qualifications": [
+      {"name_as_written": "Enrolled Agent", "canonical": "ea", "issuing_body": "IRS", "jurisdiction": "US", "status": "qualified", "year_obtained": 2023, "quote": "Enrolled Agent, admitted to practice before the IRS, 2023"}
+    ],
     "software": ["quickbooks", "excel"],
     "other_software": ["CCH Axcess", "Lacerte", "Adobe Acrobat"],
     "industries": ["accounting_services", "construction", "real_estate", "healthcare"],

@@ -1,10 +1,13 @@
 {
-  "$comment": "UK role: ACCA required (no US certification), Anaplan and Excel required, SQL and Power BI or Looker only desirable. 'Ideally within three months' is not a start date. Written to match the London FP&A resume.",
+  "$comment": "'Fully qualified accountant (ACCA)' does not say whether an equivalent will do, so accept_equivalents defaults to true with equivalents_stated false: the employer confirms it at intake. UK role: ACCA required (no US certification), Anaplan and Excel required, SQL and Power BI or Looker only desirable. 'Ideally within three months' is not a start date. Written to match the London FP&A resume.",
   "company": "Corrin Pay Ltd",
   "requirements": {
     "title": "FP&A Manager",
     "required_certifications": ["acca"],
     "other_required_certifications": [],
+    "required_qualifications": [
+      {"name_as_written": "ACCA", "canonical": "acca", "accept_equivalents": true, "equivalents_stated": false, "quote": "Fully qualified accountant (ACCA)"}
+    ],
     "required_software": ["anaplan", "excel"],
     "other_required_software": [],
     "industries": ["fintech"],

@@ -1,5 +1,5 @@
 {
-  "$comment": "The messy one: all-caps name, contact details at the bottom, three bullet styles, tabs, a stray table, inconsistent date formats and typos ('excell', 'reimbursments'). Years run from the first temp role (Sep 2022). Studying for a certification is not holding one. Concur must resolve to concur, not sap. Position years come from three date styles (2023-present, Jan '23, Sep 2022).",
+  "$comment": "'Certifications: none (studying for the IOFM AP certification)' is a qualification in progress that is not in the taxonomy: recorded, but in neither certifications nor other_certifications. The messy one: all-caps name, contact details at the bottom, three bullet styles, tabs, a stray table, inconsistent date formats and typos ('excell', 'reimbursments'). Years run from the first temp role (Sep 2022). Studying for a certification is not holding one. Concur must resolve to concur, not sap. Position years come from three date styles (2023-present, Jan '23, Sep 2022).",
   "contact": {
     "full_name": "Jordan Blake",
     "email": "jordan.blake@example.com",
@@ -16,6 +16,9 @@
     ],
     "certifications": [],
     "other_certifications": [],
+    "qualifications": [
+      {"name_as_written": "IOFM AP certification", "canonical": null, "issuing_body": null, "jurisdiction": null, "status": "in_progress", "year_obtained": null, "quote": "Certifications: none (studying for the IOFM AP certification)"}
+    ],
     "software": ["netsuite", "concur", "quickbooks", "bill_com", "excel"],
     "other_software": [],
     "industries": ["logistics", "construction"],

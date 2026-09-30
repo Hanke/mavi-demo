@@ -17,9 +17,9 @@ from datetime import date
 from pydantic import BaseModel, ConfigDict, Field
 
 from app import llm, taxonomy
-from app.grounding import in_text, mentions, year_in_text
+from app.grounding import in_text, line_with, mentions, year_in_text
 from app.llm import Provider
-from app.schemas import CandidateProfile, Contact, Position, RoleRequirements
+from app.schemas import CandidateProfile, Contact, Position, Qualification, RoleRequirements
 
 log = logging.getLogger(__name__)
 
@@ -31,6 +31,7 @@ Read the resume text and fill in the schema. Extract only what the resume states
 - profile.years_experience: whole years of professional experience from the first professional role to the date given as "today". Exclude internships and study. null if it cannot be worked out.
 - profile.positions: every job in the work history, in the order the resume lists them. title and employer as written (employer null if none is named); start_year and end_year as four-digit years, null when the resume gives none. A role that runs to the present has current true and end_year null. When one date range carries two titles ("Staff Accountant, then Accountant"), return one position with the most recent title. Clients served within a self-employed or consulting role are not separate positions. Internships are positions.
 - profile.certifications / profile.software / profile.industries: only ids from the enum lists in the schema. Use a candidate's own wording for an item not in the list by putting it in other_certifications / other_software / other_industries instead. Never invent a certification or tool the resume does not name. A certification counts only when it is held: exam progress, "candidate" or "studying for" is not one.
+- profile.qualifications: one entry for every professional qualification or certification the resume mentions, including ones not yet held. name_as_written is exactly what the resume says ("ACA", "CPA, CA", "Chartered Accountant"). canonical is the enum id of that qualification itself. Never convert one qualification into another: an ACA is aca_icaew, never cpa, however similar the two are. Letters that several bodies share are ambiguous on their own: "CPA" is cpa_us, cpa_canada or cpa_australia, and "CA" or "ACA" belong to several institutes. Pick the specific id only when the issuing body or the candidate's location settles it; otherwise use the plain id (cpa, ca, aca) and leave jurisdiction null. issuing_body as the resume names it, null if it does not; jurisdiction as a country ("UK", "US", "Australia"). status is qualified only when the qualification is fully held: "part-qualified", "finalist" or some exams passed is part_qualified, and "studying for", "candidate" or "in progress" is in_progress ("ACCA finalist" is not ACCA). year_obtained only if stated. quote is the resume's own words showing it, verbatim.
 - profile.gaap_exposure: the accounting frameworks and standards the resume names, each written as the resume writes it, e.g. "US GAAP", "IFRS", "ASC 606", "IFRS 17", "FRS 102". Only ones named in the text; do not infer a framework from the candidate's country or job title. Empty if none is named.
 - profile.skills: 6 to 14 short skills the resume evidences, lower case except acronyms, e.g. "month-end close", "ASC 606 revenue recognition".
 - profile.languages: ISO 639-1 codes, "en" if nothing else is stated.
@@ -45,6 +46,7 @@ Read the job description and fill in the schema. Rules:
 - company: the hiring company's name if stated, otherwise null.
 - requirements.title: the role title as written.
 - requirements.required_certifications / required_software: only ids from the enum lists in the schema, and only for things the JD requires (not "nice to have"). Anything required but not in the list goes in other_required_certifications / other_required_software in the JD's wording.
+- requirements.required_qualifications: one entry for each qualification in required_certifications or other_required_certifications. name_as_written as the JD names it; canonical the enum id, using the specific id for shared letters ("CPA" in a US role is cpa_us) only when the JD or its location settles which one is meant. accept_equivalents: true for "CPA or equivalent", "or international equivalent", "ACCA / ACA / CA"; false when the JD rules equivalents out, e.g. "active US CPA licence required" or a licence needed to sign US audits. equivalents_stated is true when the JD says either of those, false when it just names the qualification (accept_equivalents is then true). quote is the JD's own words, verbatim. A choice between qualifications of different kinds ("CPA or CMA") is not a single requirement: leave it in must_haves only.
 - requirements.industries: ids from the enum for the industry context of the role; other_industries for anything else.
 - requirements.must_haves: every hard requirement, each a verbatim fragment of the JD. nice_to_haves: preferred-but-optional items, also verbatim. An item is in one list or the other, never both.
 - requirements.timezone: the IANA zone the role operates in, from the location or stated hours; null if unstated.
@@ -55,6 +57,8 @@ Return only the JSON object."""
 RERANK_SYSTEM = """You rank candidates for a finance and accounting role.
 
 You are given the role and a list of candidates, each with an id and a summary. Score every candidate from 0.0 (no fit) to 1.0 (ideal) for this specific role, judging on the hard requirements first (certifications, software, seniority, location or time zone) and then on relevance of experience. Give each candidate one to three short reasons in plain language a recruiter could read.
+
+Qualifications from other countries: when the role accepts equivalents, a fully qualified accountant from another jurisdiction (ACA, ACCA, CA, a Canadian or Australian CPA) meets a CPA requirement, and the reverse. Do not mark such a candidate down for the letters. An equivalent qualification is not equivalent experience, though: score exposure to the accounting framework the role works under (US GAAP versus IFRS or UK GAAP) as its own question, from what the candidate has actually done, and say so in a reason when it is the gap. Part-qualified, a management accounting qualification (CIMA, CMA) or technician level (AAT) does not meet a requirement for a fully qualified accountant.
 
 Return one entry for every candidate id given, each id exactly once, ordered from best to worst. Return only the JSON object."""
 
@@ -175,17 +179,42 @@ def ground_resume(out: ResumeExtraction, text: str) -> ResumeExtraction:
                 }
             )
         )
+    # A qualification has to be on the page under the name given. Its quote
+    # and year are replaced or cleared rather than costing the whole record.
+    quals: list[Qualification] = []
+    for q in profile.qualifications:
+        if not keep("qualifications", q.name_as_written, in_text(q.name_as_written, text)):
+            continue
+        quote = q.quote if q.quote is not None and in_text(q.quote, text) else line_with(q.name_as_written, text)
+        year = q.year_obtained
+        if year is not None and not keep("qualifications.year_obtained", str(year), year_in_text(year, text)):
+            year = None
+        body = q.issuing_body
+        if (
+            body is not None
+            and q.canonical is not None
+            and body == tax.term("certifications", q.canonical).issuing_body
+        ):
+            pass  # the taxonomy's name for the body, not a claim about the text
+        elif body is not None and not keep("qualifications.issuing_body", body, in_text(body, text)):
+            body = None
+        quals.append(q.model_copy(update={"quote": quote, "year_obtained": year, "issuing_body": body}))
+    held = {q.canonical for q in quals if q.status == "qualified"}
     years = profile.years_experience
     if years is not None and not keep("years_experience", str(years), _TENURE.search(text) is not None):
         years = None
-    profile = profile.model_copy(
-        update={
+    profile = CandidateProfile.model_validate(
+        profile.model_dump()
+        | {
             "years_experience": years,
             "positions": positions,
+            "qualifications": quals,
+            # An id that came from a qualification record stands or falls with the record.
             "certifications": [
                 c
                 for c in profile.certifications
                 if keep("certifications", c, mentions(text, tax.term("certifications", c)))
+                and (c in held or not any(q.canonical == c for q in profile.qualifications))
             ],
             "software": [s for s in profile.software if keep("software", s, mentions(text, tax.term("software", s)))],
             "other_certifications": [

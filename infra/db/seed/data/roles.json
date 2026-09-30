@@ -1,5 +1,5 @@
 {
-  "$comment": "Sample job descriptions for the demo seed. Hand-written; every company is fictional. `requirements` is the JD parser's RoleRequirements shape (starts_on is filled at seed time from starts_in_days) and its hard-filter lists are promoted to the roles columns by `make seed-render`. Each role's required certifications / software / timezone / start date is chosen so that it matches a different slice of infra/db/seed/data/candidates.json.",
+  "$comment": "Sample job descriptions for the demo seed. Hand-written; every company is fictional. `requirements` is the JD parser's RoleRequirements shape (starts_on is filled at seed time from starts_in_days) and its hard-filter lists are promoted to the roles columns by `make seed-render`. Each role's required certifications / software / timezone / start date is chosen so that it matches a different slice of infra/db/seed/data/candidates.json. A required qualification carries accept_equivalents: the US roles that just say 'CPA' accept an ACA, ACCA or CA by default, the London role says so, and the Tax Manager needs the US licence itself.",
   "roles": [
     {
       "id": "22222222-0000-0000-0000-000000000001",
@@ -11,9 +11,18 @@
       "requirements": {
         "title": "Senior Accountant",
         "required_certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_required_certifications": [],
+        "required_qualifications": [
+          {
+            "name_as_written": "CPA",
+            "canonical": "cpa_us",
+            "accept_equivalents": true,
+            "equivalents_stated": false,
+            "quote": "Active CPA"
+          }
+        ],
         "required_software": [
           "netsuite"
         ],
@@ -50,6 +59,7 @@
         "title": "Staff Accountant",
         "required_certifications": [],
         "other_required_certifications": [],
+        "required_qualifications": [],
         "required_software": [
           "quickbooks"
         ],
@@ -83,9 +93,18 @@
       "requirements": {
         "title": "Controller",
         "required_certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_required_certifications": [],
+        "required_qualifications": [
+          {
+            "name_as_written": "CPA",
+            "canonical": "cpa_us",
+            "accept_equivalents": true,
+            "equivalents_stated": false,
+            "quote": "CPA"
+          }
+        ],
         "required_software": [
           "microsoft_dynamics_365"
         ],
@@ -120,6 +139,7 @@
         "title": "FP&A Manager",
         "required_certifications": [],
         "other_required_certifications": [],
+        "required_qualifications": [],
         "required_software": [
           "adaptive_planning",
           "excel"
@@ -151,13 +171,22 @@
       "company": "Ridgeline Advisory Group",
       "status": "open",
       "starts_in_days": 60,
-      "description": "Ridgeline Advisory Group is a 45-person CPA firm in Atlanta serving closely held businesses, real estate partnerships and their owners. We are adding a Tax Manager ahead of the 2027 filing season.\n\nResponsibilities\n- Review federal and multi-state returns for partnerships, S-corporations and C-corporations, plus the related individual returns.\n- Manage a portfolio of 60-80 clients and their quarterly estimates.\n- Handle IRS and state notices and represent clients in examinations.\n- Prepare and review ASC 740 provisions for our handful of audited corporate clients.\n- Supervise and develop two tax seniors and a seasonal associate.\n\nRequirements\n- CPA (an EA with a strong review background will be considered for a Senior title).\n- 7+ years of public accounting tax experience, 2+ reviewing.\n- Deep experience with partnership taxation and real estate.\n- Comfortable in QuickBooks for client books cleanup.\n- Eastern time zone; hybrid in Atlanta during busy season.\n\nPreferred\n- CCH Axcess or similar tax software.\n- Experience with R&D credit studies.\n- Master of Taxation.",
+      "description": "Ridgeline Advisory Group is a 45-person CPA firm in Atlanta serving closely held businesses, real estate partnerships and their owners. We are adding a Tax Manager ahead of the 2027 filing season.\n\nResponsibilities\n- Review federal and multi-state returns for partnerships, S-corporations and C-corporations, plus the related individual returns.\n- Manage a portfolio of 60-80 clients and their quarterly estimates.\n- Handle IRS and state notices and represent clients in examinations.\n- Prepare and review ASC 740 provisions for our handful of audited corporate clients.\n- Supervise and develop two tax seniors and a seasonal associate.\n\nRequirements\n- Active US CPA license; you will sign client returns (an EA with a strong review background will be considered for a Senior title).\n- 7+ years of public accounting tax experience, 2+ reviewing.\n- Deep experience with partnership taxation and real estate.\n- Comfortable in QuickBooks for client books cleanup.\n- Eastern time zone; hybrid in Atlanta during busy season.\n\nPreferred\n- CCH Axcess or similar tax software.\n- Experience with R&D credit studies.\n- Master of Taxation.",
       "requirements": {
         "title": "Tax Manager",
         "required_certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_required_certifications": [],
+        "required_qualifications": [
+          {
+            "name_as_written": "US CPA",
+            "canonical": "cpa_us",
+            "accept_equivalents": false,
+            "equivalents_stated": true,
+            "quote": "Active US CPA license; you will sign client returns"
+          }
+        ],
         "required_software": [
           "quickbooks"
         ],
@@ -168,7 +197,7 @@
         ],
         "other_industries": [],
         "must_haves": [
-          "CPA",
+          "Active US CPA license; you will sign client returns",
           "7+ years of public accounting tax experience, 2+ reviewing",
           "Deep experience with partnership taxation and real estate",
           "Comfortable in QuickBooks for client books cleanup",
@@ -195,6 +224,15 @@
           "cpp"
         ],
         "other_required_certifications": [],
+        "required_qualifications": [
+          {
+            "name_as_written": "CPP",
+            "canonical": "cpp",
+            "accept_equivalents": true,
+            "equivalents_stated": false,
+            "quote": "CPP (Certified Payroll Professional)"
+          }
+        ],
         "required_software": [
           "adp"
         ],
@@ -229,6 +267,7 @@
         "title": "Bookkeeper (part-time, remote)",
         "required_certifications": [],
         "other_required_certifications": [],
+        "required_qualifications": [],
         "required_software": [
           "quickbooks",
           "bill_com"
@@ -263,6 +302,7 @@
         "title": "Revenue Accountant",
         "required_certifications": [],
         "other_required_certifications": [],
+        "required_qualifications": [],
         "required_software": [
           "netsuite",
           "salesforce"
@@ -300,6 +340,15 @@
           "acca"
         ],
         "other_required_certifications": [],
+        "required_qualifications": [
+          {
+            "name_as_written": "ACCA",
+            "canonical": "acca",
+            "accept_equivalents": true,
+            "equivalents_stated": true,
+            "quote": "ACCA qualified (or ACA / CA)"
+          }
+        ],
         "required_software": [
           "xero"
         ],
@@ -334,6 +383,7 @@
         "title": "Accounts Payable Specialist",
         "required_certifications": [],
         "other_required_certifications": [],
+        "required_qualifications": [],
         "required_software": [
           "sap"
         ],
@@ -369,6 +419,15 @@
           "cia"
         ],
         "other_required_certifications": [],
+        "required_qualifications": [
+          {
+            "name_as_written": "CIA",
+            "canonical": "cia",
+            "accept_equivalents": true,
+            "equivalents_stated": false,
+            "quote": "CIA, or CPA with 3+ years in internal audit"
+          }
+        ],
         "required_software": [],
         "other_required_software": [],
         "industries": [
@@ -399,9 +458,18 @@
       "requirements": {
         "title": "Fractional CFO",
         "required_certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_required_certifications": [],
+        "required_qualifications": [
+          {
+            "name_as_written": "CPA",
+            "canonical": "cpa_us",
+            "accept_equivalents": true,
+            "equivalents_stated": false,
+            "quote": "CPA"
+          }
+        ],
         "required_software": [
           "netsuite"
         ],

@@ -29,7 +29,7 @@ from typing import cast
 from app import extract, fixtures, llm
 from app.extract import RerankCandidate
 from app.llm import LLMError, Provider
-from app.schemas import CandidateProfile, Contact
+from app.schemas import CandidateProfile, Contact, RoleRequirements
 from app.settings import get_settings
 
 RESUME_FIELDS = (
@@ -40,13 +40,23 @@ RESUME_FIELDS = (
     "years_experience",
     "positions",
     "certifications",
+    "qualifications",
     "software",
     "industries",
     "gaap_exposure",
     "availability",
     "timezone",
 )
-JD_FIELDS = ("company", "title", "required_certifications", "required_software", "industries", "timezone", "starts_on")
+JD_FIELDS = (
+    "company",
+    "title",
+    "required_certifications",
+    "required_qualifications",
+    "required_software",
+    "industries",
+    "timezone",
+    "starts_on",
+)
 
 
 @dataclass
@@ -101,13 +111,28 @@ def _section[F](
 
 
 def _resume_values(contact: Contact, profile: CandidateProfile) -> dict[str, object]:
-    """Contact and profile as one flat dict, with the two free-form lists made
-    comparable: a position is its title and years, a standard its lower-cased name."""
+    """Contact and profile as one flat dict, with the free-form lists made
+    comparable: a position is its title and years, a standard its lower-cased
+    name, a qualification what it is, where it is from and whether it is held."""
     return {
         **contact.model_dump(),
         **profile.model_dump(),
         "positions": [f"{p.title.lower()} {p.start_year}-{p.end_year}" for p in profile.positions],
         "gaap_exposure": [g.lower() for g in profile.gaap_exposure],
+        "qualifications": [
+            f"{q.canonical or q.name_as_written.lower()} {q.jurisdiction} {q.status}" for q in profile.qualifications
+        ],
+    }
+
+
+def _jd_values(company: str | None, req: RoleRequirements) -> dict[str, object]:
+    """As above for a JD: a required qualification is its id and whether equivalents will do."""
+    return {
+        "company": company,
+        **req.model_dump(),
+        "required_qualifications": [
+            f"{q.canonical or q.name_as_written.lower()} {q.accept_equivalents}" for q in req.required_qualifications
+        ],
     }
 
 
@@ -124,8 +149,8 @@ def run(provider: Provider) -> Report:
 
     def jd(fx: fixtures.JDFixture) -> dict[str, float]:
         out = extract.parse_jd(provider, fx.text)
-        got = {"company": out.company, **out.requirements.model_dump()}
-        want = {"company": fx.company, **fx.expected.model_dump()}
+        got = _jd_values(out.company, out.requirements)
+        want = _jd_values(fx.company, fx.expected)
         return {f: _score(got[f], want[f]) for f in JD_FIELDS}
 
     candidates = [RerankCandidate(id=r.slug, text=r.text) for r in resumes]

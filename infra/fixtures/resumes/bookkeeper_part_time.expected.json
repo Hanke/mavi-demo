@@ -16,6 +16,9 @@
     ],
     "certifications": ["quickbooks_proadvisor"],
     "other_certifications": [],
+    "qualifications": [
+      {"name_as_written": "QuickBooks Online ProAdvisor", "canonical": "quickbooks_proadvisor", "issuing_body": "Intuit", "jurisdiction": null, "status": "qualified", "year_obtained": 2021, "quote": "QuickBooks Online ProAdvisor (Advanced), Intuit, 2021"}
+    ],
     "software": ["quickbooks", "xero", "gusto", "google_sheets", "shopify"],
     "other_software": ["Dext", "Zoho Books"],
     "industries": ["hospitality", "retail"],

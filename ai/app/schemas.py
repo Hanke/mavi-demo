@@ -6,6 +6,12 @@ LLM produced ("QBO", "QuickBooks Online", "Quickbooks") to the canonical id,
 and moves anything it cannot resolve into the matching `other_*` free-text
 field rather than dropping it. The JSON schema handed to the model carries
 the id list as an enum so the model is nudged towards it up front.
+
+Accounting qualifications get a fuller record next to the id list
+(`qualifications`, `required_qualifications`): what was written, which body
+and jurisdiction, and whether it is actually held. The id lists stay the
+hard-filter columns and are kept in step with those records by the validators
+here, so "part-qualified ACCA" never puts `acca` in `certifications`.
 """
 
 from __future__ import annotations
@@ -15,7 +21,8 @@ from typing import Annotated, Any, ClassVar, Literal, cast
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app import taxonomy
+from app import qualifications, taxonomy
+from app.qualifications import Status
 from app.taxonomy import Kind
 
 Availability = Literal["immediate", "two_weeks", "one_month", "unavailable", "unknown"]
@@ -129,6 +136,122 @@ class Position(BaseModel):
         return self
 
 
+def _certification_id(description: str) -> Any:
+    return Field(
+        default=None,
+        description=description,
+        json_schema_extra=lambda schema: schema.update(
+            anyOf=[{"type": "string", "enum": list(taxonomy.load().ids("certifications"))}, {"type": "null"}]
+        ),
+    )
+
+
+def _blank_is_none(value: object) -> object:
+    if isinstance(value, str):
+        return value.strip() or None
+    return value
+
+
+class Qualification(BaseModel):
+    """One professional qualification exactly as the resume gives it.
+
+    `canonical` is the qualification the candidate holds, never the one a
+    role might want instead: an ACA is `aca_icaew`, not `cpa`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name_as_written: str = Field(min_length=1, description="Exactly what the resume says, e.g. 'ACA', 'CPA, CA'.")
+    canonical: str | None = _certification_id(
+        "Taxonomy id of this qualification itself, e.g. 'aca_icaew'; null if it is not in the taxonomy."
+    )
+    issuing_body: str | None = Field(default=None, description="e.g. 'ICAEW', 'ACCA', 'CPA Ontario'; null if unstated.")
+    jurisdiction: str | None = Field(
+        default=None, description="Where it was awarded, e.g. 'UK', 'US', 'Australia'; null if it cannot be determined."
+    )
+    status: Status = Field(
+        default="qualified",
+        description="qualified only when fully held; 'ACCA finalist' is part_qualified, 'studying for' in_progress.",
+    )
+    year_obtained: int | None = Field(default=None, ge=1950, le=2100)
+    quote: str | None = Field(default=None, description="The resume's own words that show it, verbatim.")
+
+    _blank = field_validator("name_as_written", "canonical", "issuing_body", "jurisdiction", "quote", mode="before")(
+        _blank_is_none
+    )
+
+    def settled(self, hint: str | None) -> Qualification:
+        tax = taxonomy.load()
+        canonical, body, where = qualifications.settle(
+            tax, self.name_as_written, self.canonical, self.issuing_body, self.jurisdiction, hint=hint
+        )
+        status = qualifications.status_from(self.name_as_written, self.quote, self.status)
+        return self.model_copy(
+            update={"canonical": canonical, "issuing_body": body, "jurisdiction": where, "status": status}
+        )
+
+
+class RequiredQualification(BaseModel):
+    """One qualification a role requires, and whether an equivalent will do."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name_as_written: str = Field(min_length=1, description="The qualification as the JD names it, e.g. 'CPA'.")
+    canonical: str | None = _certification_id(
+        "Taxonomy id of the qualification asked for; null if not in the taxonomy."
+    )
+    accept_equivalents: bool = Field(
+        default=True,
+        description="False only when the JD rules equivalents out, e.g. 'active US CPA licence required'.",
+    )
+    equivalents_stated: bool = Field(
+        default=False,
+        description="True when the JD says either way ('CPA or equivalent', 'US licence required'); "
+        "false means accept_equivalents is the default and the employer should confirm it at intake.",
+    )
+    quote: str | None = Field(default=None, description="The JD's own words, verbatim.")
+
+    _blank = field_validator("name_as_written", "canonical", "quote", mode="before")(_blank_is_none)
+
+
+def _sync_ids(
+    ids: list[str], other: list[str], records: list[tuple[str | None, str, bool]]
+) -> tuple[list[str], list[str]]:
+    """Bring an id list (and its free-text overflow) in step with the fuller
+    records: (canonical, name as written, counts). A record replaces whatever
+    the list said about the same family of letters, so a bare "cpa" next to a
+    record settled as `cpa_us` becomes `cpa_us`, and one that does not count
+    (part-qualified) takes its id out."""
+    tax = taxonomy.load()
+    for canonical, name, counts in records:
+        related = {qualifications.resolve_name(tax, name), canonical} - {None}
+        for term_id in list(related):
+            related |= set(tax.term("certifications", cast(str, term_id)).variant_of)
+        # The record takes the place of the first id it supersedes, so the list keeps its order.
+        at = next((i for i, cid in enumerate(ids) if cid in related), len(ids))
+        ids = [cid for cid in ids if cid not in related]
+        key = taxonomy.normalize_key("certifications", name)
+        other = [o for o in other if taxonomy.normalize_key("certifications", o) != key]
+        if not counts:
+            continue
+        if canonical is not None and canonical not in ids:
+            ids.insert(min(at, len(ids)), canonical)
+        elif canonical is None:
+            other.append(name)
+    return ids, other
+
+
+def _unique[Q: (Qualification, RequiredQualification)](records: list[Q]) -> list[Q]:
+    """One record per qualification: the first for each id (or unresolved name) wins."""
+    seen: set[str] = set()
+    out: list[Q] = []
+    for r in records:
+        key = r.canonical or "?" + taxonomy.normalize_key("certifications", r.name_as_written)
+        if key not in seen:
+            seen.add(key)
+            out.append(r)
+    return out
+
+
 class CandidateProfile(TaxonomyModel):
     """What the resume parser extracts. Maps onto candidate_profiles."""
 
@@ -151,6 +274,10 @@ class CandidateProfile(TaxonomyModel):
     other_certifications: list[str] = Field(
         default_factory=list, description="Certifications not in the taxonomy, verbatim."
     )
+    qualifications: list[Qualification] = Field(
+        default_factory=list[Qualification],
+        description="Every professional qualification the resume mentions, held or not, as written.",
+    )
     software: list[SoftwareID] = _taxonomy_list("software", "Software the candidate has used, as taxonomy ids.")
     other_software: list[str] = Field(default_factory=list, description="Software not in the taxonomy, verbatim.")
     industries: list[IndustryID] = _taxonomy_list(
@@ -166,6 +293,28 @@ class CandidateProfile(TaxonomyModel):
     availability: Availability = "unknown"
     available_from: date | None = None
     timezone: str | None = Field(default=None, description="IANA name, e.g. America/Chicago.")
+
+    @model_validator(mode="after")
+    def _settle_qualifications(self) -> CandidateProfile:
+        """Fix each qualification's id, body and jurisdiction (the candidate's
+        time zone stands in for a location when nothing else says where a
+        "CPA" is from), then make `certifications` hold exactly the ones that
+        are fully held."""
+        if not self.qualifications:
+            return self
+        hint = taxonomy.load().jurisdiction_for_timezone(self.timezone)
+        settled = [q.settled(hint) for q in self.qualifications]
+        records = _unique(settled)
+        # An id the model gave a qualification that turned out to be something
+        # else (cpa for an ACA) goes, unless another record really is that.
+        overruled = {q.canonical for q in self.qualifications} - {q.canonical for q in settled}
+        ids, other = _sync_ids(
+            [c for c in self.certifications if c not in overruled],
+            list(self.other_certifications),
+            [(q.canonical, q.name_as_written, q.status == "qualified") for q in records],
+        )
+        self.qualifications, self.certifications, self.other_certifications = records, ids, other
+        return self
 
 
 class RoleRequirements(TaxonomyModel):
@@ -184,6 +333,10 @@ class RoleRequirements(TaxonomyModel):
     other_required_certifications: list[str] = Field(
         default_factory=list, description="Required certifications not in the taxonomy, verbatim."
     )
+    required_qualifications: list[RequiredQualification] = Field(
+        default_factory=list[RequiredQualification],
+        description="Each required qualification with whether an equivalent is acceptable.",
+    )
     required_software: list[SoftwareID] = _taxonomy_list("software", "Software the role requires, as taxonomy ids.")
     other_required_software: list[str] = Field(
         default_factory=list, description="Required software not in the taxonomy, verbatim."
@@ -196,3 +349,29 @@ class RoleRequirements(TaxonomyModel):
     )
     timezone: str | None = Field(default=None, description="IANA name the role operates in.")
     starts_on: date | None = None
+
+    @model_validator(mode="after")
+    def _settle_qualifications(self) -> RoleRequirements:
+        """As on the candidate side. Which "CPA" a JD means comes from its own
+        words ("any US state") and otherwise from where the role is."""
+        if not self.required_qualifications:
+            return self
+        tax = taxonomy.load()
+        records: list[RequiredQualification] = []
+        for r in self.required_qualifications:
+            stated = qualifications.guess_jurisdiction(tax, f"{r.name_as_written} {r.quote or ''}")
+            hint = stated or tax.jurisdiction_for_timezone(self.timezone)
+            canonical, _, _ = qualifications.settle(tax, r.name_as_written, r.canonical, None, None, hint=hint)
+            records.append(r.model_copy(update={"canonical": canonical}))
+        records = _unique(records)
+        ids, other = _sync_ids(
+            list(self.required_certifications),
+            list(self.other_required_certifications),
+            [(r.canonical, r.name_as_written, True) for r in records],
+        )
+        self.required_qualifications, self.required_certifications, self.other_required_certifications = (
+            records,
+            ids,
+            other,
+        )
+        return self

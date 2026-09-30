@@ -1,0 +1,43 @@
+{
+  "$comment": "The qualifications ticket's main case: a UK chartered accountant whose resume says 'ACA', never 'CPA'. It is stored as aca_icaew / ICAEW / UK, not converted to cpa; it passes the 'CPA or equivalent' JD and fails the strict JD, whose software she fully meets, on the US licence alone. She names FRS 102 and IFRS and no US GAAP: the equivalent qualification says nothing about the framework, which is the rerank's question. 'Chartered accountant (ACA, ICAEW)' and 'ACA' are one qualification, not two.",
+  "contact": {
+    "full_name": "Hannah Whitaker",
+    "email": "hannah.whitaker@example.com",
+    "phone": "+44 7700 900456",
+    "location": "Leeds, UK"
+  },
+  "profile": {
+    "headline": "Financial Controller, ACA - NetSuite group close and FRS 102 statutory accounts for SaaS",
+    "years_experience": 10,
+    "positions": [
+      {"title": "Financial Controller", "employer": "Tessellate Software Ltd", "start_year": 2022, "end_year": null, "current": true},
+      {"title": "Group Financial Accountant", "employer": "Northgate Learning Group plc", "start_year": 2020, "end_year": 2022, "current": false},
+      {"title": "Assistant Manager", "employer": "Harcourt Fenn LLP", "start_year": 2016, "end_year": 2020, "current": false}
+    ],
+    "certifications": ["aca_icaew"],
+    "other_certifications": [],
+    "qualifications": [
+      {"name_as_written": "ACA", "canonical": "aca_icaew", "issuing_body": "ICAEW", "jurisdiction": "UK", "status": "qualified", "year_obtained": 2019, "quote": "ACA, ICAEW, admitted 2019"}
+    ],
+    "software": ["netsuite", "blackline", "excel", "xero"],
+    "other_software": [],
+    "industries": ["saas", "education", "accounting_services"],
+    "other_industries": [],
+    "gaap_exposure": ["FRS 102", "IFRS 15", "IFRS", "IFRS 16"],
+    "skills": [
+      "month-end close",
+      "group consolidation",
+      "statutory accounts under FRS 102",
+      "IFRS 15 revenue recognition",
+      "balance sheet reconciliations",
+      "year-end audit management",
+      "multi-entity accounting",
+      "external audit",
+      "team leadership"
+    ],
+    "languages": ["en"],
+    "availability": "one_month",
+    "available_from": null,
+    "timezone": "Europe/London"
+  }
+}

@@ -9,7 +9,7 @@ regenerations. The model only writes prose for the spec it is handed.
 from __future__ import annotations
 
 import random
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from typing import Any
 
 from app import taxonomy
@@ -545,6 +545,44 @@ INTERNATIONAL_ZONES: tuple[tuple[str, int, str, tuple[str, ...]], ...] = (
     ("America/Bogota", 3, "co", ("Bogota, Colombia", "Medellin, Colombia")),
 )
 
+# ---------------------------------------------------------------------------
+# Qualifications by country
+# ---------------------------------------------------------------------------
+#
+# The archetypes roll the US names ("cpa", "ca", "cma"). Nobody in London holds
+# a CPA: `_localize` turns each rolled qualification into the one a candidate
+# in that time zone would actually hold. It runs after the draw and takes no
+# random numbers, so every other fact of every slot is unchanged by it.
+
+US_QUALIFICATIONS = {"cpa": "cpa_us"}
+
+# zone -> {rolled id: local id}. "cpa" left out of a zone stays the ambiguous
+# `cpa`: a CPA from a body the equivalence map does not list (the Philippine
+# CPA in Manila), which must not pass as a US CPA equivalent.
+LOCAL_QUALIFICATIONS: dict[str, dict[str, str]] = {
+    "America/Toronto": {"cpa": "cpa_canada", "ca": "cpa_canada"},
+    "Europe/Dublin": {"cpa": "ca_ireland", "ca": "ca_ireland", "cma": "cima"},
+    "Australia/Sydney": {"cpa": "cpa_australia", "ca": "ca_anz"},
+    "Asia/Kolkata": {"cpa": "ca_icai", "ca": "ca_icai"},
+    "Asia/Manila": {"ca": "acca"},
+}
+# Everywhere else abroad (Berlin, Paris, Bogota, ...) the international
+# qualification is the ACCA.
+ELSEWHERE_QUALIFICATIONS = {"cpa": "acca", "ca": "acca"}
+
+# The UK has three chartered bodies and an Irish neighbour. Chartered
+# candidates drawn in London are dealt round this list in slot order, moving
+# to Dublin or Edinburgh where the body calls for it, so the seed always has
+# an Irish-qualified candidate and a Scottish CA (the zone weights alone draw
+# no Dublin slot at 200 candidates).
+UK_CHARTERED: tuple[tuple[str, str, str | None], ...] = (
+    ("ca_ireland", "Europe/Dublin", "Dublin, Ireland"),
+    ("aca_icaew", "Europe/London", None),
+    ("ca_icas", "Europe/London", "Edinburgh, UK"),
+    ("acca", "Europe/London", None),
+)
+UK_QUALIFICATIONS = {"cma": "cima"}
+
 # Share of non-international archetypes that still sit outside the US.
 ABROAD_SHARE = 0.08
 
@@ -798,6 +836,33 @@ def _ascii_slug(text: str) -> str:
     return "".join(ch for ch in plain.lower() if ch.isalnum())
 
 
+def _localize(slots: list[Slot]) -> list[Slot]:
+    """Swap each rolled qualification for the one held where the candidate lives."""
+    us_zones = {z[0] for z in US_ZONES}
+    dealt = 0
+    out: list[Slot] = []
+    for slot in slots:
+        zone, location = slot.timezone, slot.location
+        if zone in us_zones:
+            mapping = US_QUALIFICATIONS
+        elif zone == "Europe/London":
+            mapping = dict(UK_QUALIFICATIONS)
+            if {"cpa", "ca"} & set(slot.certifications):
+                local, zone, city = UK_CHARTERED[dealt % len(UK_CHARTERED)]
+                dealt += 1
+                location = city or location
+                mapping |= {"cpa": local, "ca": local}
+        else:
+            mapping = LOCAL_QUALIFICATIONS.get(zone, ELSEWHERE_QUALIFICATIONS)
+        certs: list[str] = []
+        for cid in slot.certifications:
+            local = mapping.get(cid, cid)
+            if local not in certs:
+                certs.append(local)
+        out.append(replace(slot, certifications=certs, timezone=zone, location=location))
+    return out
+
+
 def build_plan(count: int = DEFAULT_COUNT, seed: int = PLAN_SEED) -> list[Slot]:
     """Return `count` slots. Same (count, seed) -> same plan, every time."""
     rng = random.Random(seed)
@@ -860,8 +925,6 @@ def build_plan(count: int = DEFAULT_COUNT, seed: int = PLAN_SEED) -> list[Slot]:
             if lang not in languages and rng.random() < p:
                 languages.append(lang)
 
-        for cid in certs:
-            assert tax.is_canonical("certifications", cid), cid
         for sid in software:
             assert tax.is_canonical("software", sid), sid
         for iid in industries:
@@ -890,6 +953,10 @@ def build_plan(count: int = DEFAULT_COUNT, seed: int = PLAN_SEED) -> list[Slot]:
                 languages=languages,
             )
         )
+    slots = _localize(slots)
+    for slot in slots:
+        for cid in slot.certifications:
+            assert tax.is_canonical("certifications", cid), cid
     return slots
 
 

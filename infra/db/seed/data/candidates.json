@@ -47,6 +47,17 @@
           "cma"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Management Accountant",
+            "canonical": "cma",
+            "issuing_body": "IMA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Management Accountant (CMA)"
+          }
+        ],
         "software": [
           "microsoft_dynamics_365",
           "excel",
@@ -120,9 +131,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Arizona"
+          }
+        ],
         "software": [
           "netsuite",
           "excel",
@@ -200,6 +222,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "sap",
           "excel",
@@ -271,9 +294,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Colorado"
+          }
+        ],
         "software": [
           "quickbooks",
           "excel"
@@ -339,6 +373,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel"
@@ -403,6 +438,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel",
@@ -471,9 +507,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Idaho"
+          }
+        ],
         "software": [
           "quickbooks",
           "excel"
@@ -514,37 +561,48 @@
       "source": "upload",
       "status": "active",
       "available_in_days": 0,
-      "resume_text": "Kwame O'Connor\nBristol, UK | kwame.oconnor@example.com\n\nSUMMARY\nGroup finance leader with twenty years in the construction sector, the last eight as VP, Controller of a UK contractor with US and Spanish operations. CMA-qualified, hands-on with IFRS reporting, and I have led two ERP implementations without breaking a month-end. Available immediately following a completed restructuring. Bilingual English and Spanish.\n\nEXPERIENCE\nAvonmere Construction Group, VP, Controller, Bristol, UK, Apr 2018 - Present\n- Head of a 22-person finance function for a GBP 310M contractor with 11 entities across the UK, Spain, and the US.\n- Own IFRS reporting for the group: IFRS 15 contract revenue on 70-plus live projects, IFRS 16 plant and property leases, and the annual consolidated accounts; three consecutive audits with no unadjusted differences over materiality.\n- Led the ERP implementation replacing QuickBooks across the subsidiaries with Sage Intacct in 2020, including dimension design for project, cost centre, and entity; consolidation time fell from 15 days to 6.\n- Introduced BlackLine for balance sheet reconciliations and FloQast for close task management; 900 reconciliations a month now certified with a full audit trail.\n- Maintain the employee share scheme and cap table in Carta and prepare the IFRS 2 charge.\n- Present the monthly board pack, built in Excel, covering cash, work in progress, and covenant headroom.\n\nKestrel Civil Engineering Ltd, Group Financial Controller, Cardiff, UK, Sep 2012 - Mar 2018\n- Ran statutory and management reporting for a GBP 120M civils contractor; converted the group from UK GAAP to IFRS ahead of a debt raise.\n- Selected and implemented a new ERP, migrating five years of project ledgers and training 40 users.\n- Managed the external audit and monthly WIP and retention reviews with commercial teams.\n\nHarbourline Developments, Management Accountant, later Finance Manager, Bristol, UK, Oct 2006 - Aug 2012\n- Prepared monthly management accounts, cash flow forecasts, and project cost reports for a residential developer.\n- Built the Excel cost-to-complete model still used by the company's quantity surveyors.\n\nEDUCATION\nBA (Hons) Accounting and Finance, a UK university\n\nCERTIFICATIONS\nCertified Management Accountant (CMA)\n\nSOFTWARE\nSage Intacct, Microsoft Excel, QuickBooks, BlackLine, FloQast, Carta\n",
+      "resume_text": "Kwame O'Connor\nBristol, UK | kwame.oconnor@example.com\n\nSUMMARY\nCIMA-qualified management accountant (ACMA) with 20 years in construction finance, the last seven as group controller of a private-equity-backed contractor. I moved that group from QuickBooks to Sage Intacct, brought the close down to five working days and report under IFRS to lenders and investors. The business was sold in the summer, my handover is complete and I am available immediately.\n\nEXPERIENCE\nStonebridge Build Group, VP, Controller, Bristol, UK, Apr 2019 - Present\n- Lead a finance team of 14 across six legal entities with combined revenue of £210m; consolidated IFRS accounts delivered to the board by working day 5, down from day 12.\n- Sponsored and ran the ERP implementation that replaced four QuickBooks ledgers with Sage Intacct: chart of accounts redesign, project costing dimensions, data migration of 9 years of job history, go-live in 11 months and within budget.\n- Introduced FloQast for the close checklist and BlackLine for 180 balance sheet reconciliations; unreconciled items over 60 days fell from 94 to 6.\n- Own IFRS 15 contract accounting for around 70 live projects, including monthly cost-to-complete reviews with commercial managers and the onerous contract provision.\n- Maintain the cap table and management share option records in Carta and prepare the IFRS 2 share-based payment charge.\n\nHarrowgate Civil Engineering, Financial Controller, Bristol, UK, Jul 2013 - Mar 2019\n- Controller for a £65m roads and groundworks contractor; managed a team of six and the annual audit.\n- Converted the statutory accounts to IFRS ahead of a bank refinancing, including IFRS 16 lease schedules for 140 items of plant.\n- Built the Excel work-in-progress model used for monthly contract valuation and retention tracking.\n- Reduced debtor days from 71 to 52 by tightening application-for-payment procedures.\n\nPendle & Wray Homes, Management Accountant, Cardiff, UK, Oct 2006 - Jun 2013\n- Prepared monthly management accounts for a regional housebuilder with 12 active sites.\n- Site-level cost reporting and variance analysis against build budgets in Excel.\n- Land and work-in-progress reconciliations, subcontractor accruals and CIS returns.\n\nEDUCATION\nBSc (Hons) Economics, a university in the west of England, 2006\n\nCERTIFICATIONS\nACMA, CIMA, 2010\n\nSOFTWARE\nSage Intacct, QuickBooks, BlackLine, FloQast, Carta, Microsoft Excel\n",
       "profile": {
-        "headline": "VP, Controller (CMA) - IFRS group reporting, Sage Intacct implementation",
+        "headline": "VP, Controller (CIMA) - construction groups, IFRS reporting, Sage Intacct rollout",
         "years_experience": 20,
         "positions": [
           {
             "title": "VP, Controller",
-            "employer": "Avonmere Construction Group",
-            "start_year": 2018,
+            "employer": "Stonebridge Build Group",
+            "start_year": 2019,
             "end_year": null,
             "current": true
           },
           {
-            "title": "Group Financial Controller",
-            "employer": "Kestrel Civil Engineering Ltd",
-            "start_year": 2012,
-            "end_year": 2018,
+            "title": "Financial Controller",
+            "employer": "Harrowgate Civil Engineering",
+            "start_year": 2013,
+            "end_year": 2019,
             "current": false
           },
           {
-            "title": "Finance Manager",
-            "employer": "Harbourline Developments",
+            "title": "Management Accountant",
+            "employer": "Pendle & Wray Homes",
             "start_year": 2006,
-            "end_year": 2012,
+            "end_year": 2013,
             "current": false
           }
         ],
         "certifications": [
-          "cma"
+          "cima"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "ACMA",
+            "canonical": "cima",
+            "issuing_body": "CIMA",
+            "jurisdiction": "UK",
+            "status": "qualified",
+            "year_obtained": 2010,
+            "quote": "ACMA, CIMA, 2010"
+          }
+        ],
         "software": [
           "sage_intacct",
           "excel",
@@ -561,22 +619,21 @@
         "gaap_exposure": [
           "IFRS",
           "IFRS 15",
-          "IFRS 16",
           "IFRS 2",
-          "UK GAAP"
+          "IFRS 16"
         ],
         "skills": [
           "IFRS reporting",
           "ERP implementation",
-          "IFRS 15 contract revenue",
-          "IFRS 16 leases",
           "group consolidation",
+          "month-end close",
+          "IFRS 15 contract accounting",
+          "IFRS 16 leases",
           "balance sheet reconciliations",
-          "close management",
-          "cap table management",
-          "board reporting",
-          "work in progress accounting",
-          "finance team leadership"
+          "work-in-progress valuation",
+          "share-based payments",
+          "audit management",
+          "team leadership"
         ],
         "languages": [
           "en",
@@ -617,9 +674,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), California"
+          }
+        ],
         "software": [
           "sap",
           "excel",
@@ -684,6 +752,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "expensify",
@@ -747,6 +816,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "gusto",
@@ -825,9 +895,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Texas"
+          }
+        ],
         "software": [
           "quickbooks",
           "excel",
@@ -904,6 +985,17 @@
           "cia"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Internal Auditor",
+            "canonical": "cia",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Internal Auditor (CIA)"
+          }
+        ],
         "software": [
           "excel"
         ],
@@ -974,6 +1066,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel",
@@ -1039,6 +1132,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "excel"
         ],
@@ -1103,6 +1197,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "sage_intacct",
           "excel",
@@ -1146,54 +1241,73 @@
       "source": "upload",
       "status": "active",
       "available_in_days": 21,
-      "resume_text": "Arjun Campbell\nToronto, ON | arjun.campbell@example.com\n\nSUMMARY\nTax Senior based in Toronto with six years handling US corporate tax for Canadian technology companies with American operations. US CPA and IRS Enrolled Agent. Federal and multi-state corporate returns and sales and use tax are my daily work. Available on two weeks' notice. English, Spanish, and French.\n\nEXPERIENCE\nMaplewire Software Inc., Tax Senior, Toronto, ON, Jun 2023 - Present\n- In-house US tax lead for a 450-person software company with subsidiaries in Delaware, Texas, and Washington.\n- Prepare the consolidated federal Form 1120 and 19 state corporate returns, including apportionment workpapers, state modifications, and Form 5472 reporting for the Canadian parent.\n- Manage sales and use tax for SaaS subscriptions and hardware sold into 24 US states: monthly and quarterly filings, exemption certificate management, and a nexus study that added six registrations after economic nexus thresholds were crossed.\n- Reconcile the US entities' QuickBooks Online ledgers to tax workpapers and prepare book-to-tax adjustments in Excel.\n- Respond to state notices and IRS correspondence as the company's Enrolled Agent; resolved a $45K erroneous penalty assessment in 2024.\n- Coordinate with external advisers on the US transfer pricing study and the annual ASC 740 provision.\n\nLakeshore Cloud Technologies, Tax Analyst, Toronto, ON, Oct 2020 - May 2023\n- Prepared federal and multi-state corporate returns for the company's two US subsidiaries and supported Canadian corporate filings.\n- Filed sales and use tax returns in 11 states and maintained the exemption certificate database.\n- Maintained tax fixed asset registers and Excel depreciation schedules for US federal and state purposes.\n- Cleaned up the US subsidiaries' QuickBooks files ahead of year-end and reconciled intercompany balances.\n\nEDUCATION\nBachelor of Commerce, Accounting, a Canadian university\n\nCERTIFICATIONS\nCertified Public Accountant (US CPA), licensed in Washington\nEnrolled Agent (EA), IRS\n\nSOFTWARE\nQuickBooks Online, Microsoft Excel\n",
+      "resume_text": "Arjun Campbell\nToronto, ON | arjun.campbell@example.com\n\nSUMMARY\nTax senior with six years in cross-border corporate tax for Canadian technology companies that sell into the United States. I hold the Canadian CPA designation (CPA Ontario) and am an IRS Enrolled Agent, so I prepare and sign off US returns as well as supporting the Canadian side. I work in English, French and Spanish and can start with two to three weeks' notice.\n\nEXPERIENCE\nTamarack Ledger Advisors, Tax Senior, Toronto, ON, Feb 2023 - Present\n- Prepare and review federal and multi-state corporate returns for 35 US subsidiaries of Canadian software companies: Form 1120 plus state filings in up to 22 states per client, with apportionment workpapers built in Excel.\n- Run sales and use tax compliance for 18 clients: economic nexus studies after each new state crosses its threshold, taxability reviews of software and SaaS products, and monthly or quarterly filings in 30 states.\n- Led voluntary disclosure agreements in seven states for a payments client, cutting assessed back tax and penalties by roughly US$410,000.\n- Review the work of three juniors and sign off return packages before partner review; first-pass review notes are down by a third since I introduced a standard workpaper index.\n\nQuillfeather Software Inc., Tax Analyst, Toronto, ON, Oct 2020 - Jan 2023\n- In-house analyst at a 300-person software company with entities in Canada and the US and revenue of C$85m.\n- Prepared the quarterly tax provision schedules and the state return workpapers for the outside preparer; took the state filings in-house in my second year, saving about C$60,000 in fees.\n- Reconciled sales tax payable in QuickBooks Online each month and filed returns in 14 states; cleared a backlog of 40 unanswered state notices.\n- Maintained the fixed-asset tax depreciation schedules and the transfer pricing invoice support.\n\nEDUCATION\nBachelor of Commerce, Accounting, a university in Ontario, 2020\n\nCERTIFICATIONS\nCPA, CPA Ontario, 2023\nEnrolled Agent (EA), IRS, 2022\n\nSOFTWARE\nQuickBooks Online, Microsoft Excel, CCH Axcess\n",
       "profile": {
-        "headline": "Tax Senior, US CPA and EA - multi-state corporate returns and sales tax",
+        "headline": "Tax Senior, CPA (Ontario) and Enrolled Agent - US corporate and sales tax for tech",
         "years_experience": 6,
         "positions": [
           {
             "title": "Tax Senior",
-            "employer": "Maplewire Software Inc.",
+            "employer": "Tamarack Ledger Advisors",
             "start_year": 2023,
             "end_year": null,
             "current": true
           },
           {
             "title": "Tax Analyst",
-            "employer": "Lakeshore Cloud Technologies",
+            "employer": "Quillfeather Software Inc.",
             "start_year": 2020,
             "end_year": 2023,
             "current": false
           }
         ],
         "certifications": [
-          "cpa",
+          "cpa_canada",
           "ea"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "CPA",
+            "canonical": "cpa_canada",
+            "issuing_body": "CPA Canada",
+            "jurisdiction": "Canada",
+            "status": "qualified",
+            "year_obtained": 2023,
+            "quote": "CPA, CPA Ontario, 2023"
+          },
+          {
+            "name_as_written": "Enrolled Agent",
+            "canonical": "ea",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": 2022,
+            "quote": "Enrolled Agent (EA), IRS, 2022"
+          }
+        ],
         "software": [
           "quickbooks",
           "excel"
         ],
-        "other_software": [],
+        "other_software": [
+          "CCH Axcess"
+        ],
         "industries": [
           "technology"
         ],
         "other_industries": [],
-        "gaap_exposure": [
-          "ASC 740"
-        ],
+        "gaap_exposure": [],
         "skills": [
           "federal and multi-state corporate returns",
           "sales and use tax",
           "state apportionment",
-          "exemption certificate management",
-          "nexus studies",
-          "book-to-tax adjustments",
-          "Form 5472 reporting",
-          "IRS correspondence",
-          "tax depreciation schedules",
-          "cross-border tax"
+          "economic nexus studies",
+          "voluntary disclosure agreements",
+          "tax provision support",
+          "Form 1120",
+          "state notice resolution",
+          "return review"
         ],
         "languages": [
           "en",
@@ -1236,6 +1350,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel",
@@ -1306,9 +1421,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Oregon"
+          }
+        ],
         "software": [
           "oracle_erp_cloud",
           "excel"
@@ -1349,30 +1475,41 @@
       "source": "upload",
       "status": "active",
       "available_in_days": 33,
-      "resume_text": "Arjun Roy\nOttawa, ON | arjun.roy@example.com\n\nSUMMARY\nStaff Accountant with two years at fast-growing SaaS companies in Ottawa, recently designated as a CPA. I handle balance sheet reconciliations, fixed assets and depreciation, and accruals and prepaids in QuickBooks Online and Excel. Available in about a month.\n\nEXPERIENCE\nRideau Software Labs, Staff Accountant, Ottawa, ON, Jul 2025 - Present\n- Support the monthly close for a 120-person subscription analytics company on QuickBooks Online, with a five-day close target hit every month since I joined.\n- Prepare 30 balance sheet reconciliations monthly, covering bank, credit card, deferred revenue, accrued liabilities, and intercompany with the US subsidiary; reconciling items are documented and cleared within 30 days.\n- Maintain the fixed asset register for laptops, servers, and leasehold improvements (about 600 assets), run monthly depreciation, and record additions and disposals; the register ties to the ledger with no audit adjustments.\n- Own accruals and prepaids: accrued hosting and contractor costs, and a prepaid schedule of 55 software subscriptions and insurance policies with monthly amortization entries.\n- Build Excel flux analysis for the controller and gather audit support for the year-end review.\n\nBytown Cloud Inc., Junior Accountant, Ottawa, ON, Oct 2024 - Jun 2025\n- Processed vendor bills, customer receipts, and expense reports in QBO for a 40-person SaaS startup.\n- Reconciled four bank and credit card accounts and the payroll clearing account each month.\n- Set up the fixed asset and prepaid expense schedules in Excel that the company still uses.\n- Prepared month-end accrual entries and supported HST filings.\n\nEDUCATION\nBachelor of Commerce, Accounting, a Canadian university, 2024\n\nCERTIFICATIONS\nCertified Public Accountant (CPA)\n\nSOFTWARE\nQuickBooks Online, Microsoft Excel\n",
+      "resume_text": "Arjun Roy\nOttawa, ON | arjun.roy@example.com\n\nSUMMARY\nStaff accountant with two years of month-end experience in subscription software, newly admitted as a CPA in Ontario. Most of my week is reconciliations, accruals and the fixed asset register, and I like leaving a file that the next person can follow. I am required to give one month's notice and could start in early November.\n\nEXPERIENCE\nBeaconline Software Inc., Staff Accountant, Ottawa, ON, Dec 2025 - Present\n- Prepare 45 balance sheet reconciliations each month for a SaaS company with C$22m in annual recurring revenue, including cash, deferred revenue, payroll liabilities and intercompany; all are submitted by working day 4.\n- Maintain the fixed asset register of about 600 laptops, servers and leasehold improvements; run monthly depreciation, record disposals and tie the register to the general ledger.\n- Book accruals and prepaids at month-end: roughly 70 software subscription prepaids amortised from an Excel schedule and accruals for hosting, commissions and contractor costs.\n- Cleared 31 reconciling items older than 90 days in my first quarter, the oldest dating from 2023.\n- Support the year-end audit with lead sheets and sample requests for my accounts.\n\nRideau Ledgerworks, Junior Accountant, Ottawa, ON, Oct 2024 - Nov 2025\n- Bookkeeping and month-end for nine small software clients of an outsourced accounting practice, all on QuickBooks Online.\n- Bank and credit card reconciliations, around 1,200 transactions a month across the client group.\n- Set up prepaid and accrual schedules for clients that had been expensing annual contracts on payment.\n- Built fixed asset continuity schedules with straight-line depreciation for three clients ahead of their first review engagements.\n- Prepared HST working papers for the senior accountant's review.\n\nEDUCATION\nBachelor of Commerce, Accounting, a university in Ottawa, 2024\n\nCERTIFICATIONS\nCPA, CPA Ontario, 2026\n\nSOFTWARE\nQuickBooks Online, Microsoft Excel (pivot tables, XLOOKUP, amortisation schedules)\n",
       "profile": {
-        "headline": "Staff Accountant, CPA - QBO reconciliations, fixed assets, accruals",
+        "headline": "Staff Accountant, CPA (Ontario) - SaaS month-end, reconciliations, fixed assets",
         "years_experience": 2,
         "positions": [
           {
             "title": "Staff Accountant",
-            "employer": "Rideau Software Labs",
+            "employer": "Beaconline Software Inc.",
             "start_year": 2025,
             "end_year": null,
             "current": true
           },
           {
             "title": "Junior Accountant",
-            "employer": "Bytown Cloud Inc.",
+            "employer": "Rideau Ledgerworks",
             "start_year": 2024,
             "end_year": 2025,
             "current": false
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_canada"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "CPA",
+            "canonical": "cpa_canada",
+            "issuing_body": "CPA Canada",
+            "jurisdiction": "Canada",
+            "status": "qualified",
+            "year_obtained": 2026,
+            "quote": "CPA, CPA Ontario, 2026"
+          }
+        ],
         "software": [
           "quickbooks",
           "excel"
@@ -1388,12 +1525,10 @@
           "fixed assets and depreciation",
           "accruals and prepaids",
           "month-end close",
-          "deferred revenue",
-          "intercompany reconciliations",
-          "flux analysis",
-          "accounts payable",
-          "HST filings",
-          "audit support"
+          "bank reconciliations",
+          "deferred revenue reconciliation",
+          "audit support",
+          "intercompany reconciliations"
         ],
         "languages": [
           "en"
@@ -1440,9 +1575,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Missouri"
+          }
+        ],
         "software": [
           "sage_intacct",
           "excel"
@@ -1519,6 +1665,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "excel",
           "adaptive_planning",
@@ -1592,9 +1739,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), North Carolina"
+          }
+        ],
         "software": [
           "netsuite",
           "excel",
@@ -1668,9 +1826,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Colorado"
+          }
+        ],
         "software": [
           "sap",
           "excel",
@@ -1742,6 +1911,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "excel"
         ],
@@ -1808,6 +1978,17 @@
           "cma"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Management Accountant",
+            "canonical": "cma",
+            "issuing_body": "IMA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Management Accountant (CMA)"
+          }
+        ],
         "software": [
           "netsuite",
           "excel",
@@ -1872,6 +2053,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "microsoft_dynamics_365",
           "excel"
@@ -1932,9 +2114,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Washington"
+          }
+        ],
         "software": [
           "quickbooks",
           "excel",
@@ -2004,6 +2197,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "sap",
           "concur"
@@ -2067,6 +2261,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "sap",
           "excel"
@@ -2138,6 +2333,17 @@
           "cma"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Management Accountant",
+            "canonical": "cma",
+            "issuing_body": "IMA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Management Accountant (CMA)"
+          }
+        ],
         "software": [
           "sap",
           "excel",
@@ -2208,11 +2414,40 @@
           }
         ],
         "certifications": [
-          "cpa",
+          "cpa_us",
           "cia",
           "cisa"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Colorado"
+          },
+          {
+            "name_as_written": "Certified Internal Auditor",
+            "canonical": "cia",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Internal Auditor (CIA)"
+          },
+          {
+            "name_as_written": "Certified Information Systems Auditor",
+            "canonical": "cisa",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Information Systems Auditor (CISA)"
+          }
+        ],
         "software": [
           "excel",
           "sql"
@@ -2286,10 +2521,30 @@
           }
         ],
         "certifications": [
-          "cpa",
+          "cpa_us",
           "ea"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Texas"
+          },
+          {
+            "name_as_written": "Enrolled Agent",
+            "canonical": "ea",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Enrolled Agent (EA)"
+          }
+        ],
         "software": [
           "quickbooks",
           "excel",
@@ -2363,9 +2618,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), California"
+          }
+        ],
         "software": [
           "sap",
           "excel",
@@ -2434,10 +2700,30 @@
           }
         ],
         "certifications": [
-          "cpa",
+          "cpa_us",
           "cisa"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Minnesota"
+          },
+          {
+            "name_as_written": "Certified Information Systems Auditor",
+            "canonical": "cisa",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Information Systems Auditor (CISA)"
+          }
+        ],
         "software": [
           "netsuite",
           "excel",
@@ -2501,6 +2787,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "microsoft_dynamics_365",
           "excel",
@@ -2571,6 +2858,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel"
@@ -2642,6 +2930,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel",
@@ -2707,6 +2996,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "sap",
           "excel",
@@ -2771,6 +3061,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "sap",
           "excel",
@@ -2843,9 +3134,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), New Mexico"
+          }
+        ],
         "software": [
           "netsuite",
           "excel",
@@ -2911,9 +3213,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": 2026,
+            "quote": "Certified Public Accountant (CPA), Pennsylvania, 2026"
+          }
+        ],
         "software": [
           "quickbooks",
           "excel",
@@ -2981,6 +3294,17 @@
           "cma"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Management Accountant",
+            "canonical": "cma",
+            "issuing_body": "IMA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Management Accountant (CMA)"
+          }
+        ],
         "software": [
           "netsuite",
           "excel"
@@ -3055,6 +3379,17 @@
           "cpp"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Payroll Professional",
+            "canonical": "cpp",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Payroll Professional (CPP)"
+          }
+        ],
         "software": [
           "adp",
           "excel"
@@ -3115,9 +3450,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Wisconsin"
+          }
+        ],
         "software": [
           "netsuite",
           "excel",
@@ -3181,6 +3527,17 @@
           "cpp"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Payroll Professional",
+            "canonical": "cpp",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Payroll Professional (CPP)"
+          }
+        ],
         "software": [
           "adp",
           "excel"
@@ -3240,9 +3597,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), California"
+          }
+        ],
         "software": [
           "quickbooks",
           "excel"
@@ -3306,6 +3674,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel",
@@ -3375,9 +3744,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Pennsylvania"
+          }
+        ],
         "software": [
           "netsuite",
           "excel",
@@ -3423,30 +3803,48 @@
       "source": "linkedin",
       "status": "active",
       "available_in_days": null,
-      "resume_text": "Santiago Gómez\nBogota, Colombia | santiago.gomez@example.com\n\nSUMMARY\nChartered Accountant with nine years across hospitality and real estate groups in Colombia, preparing IFRS financial statements and monthly management accounts in Xero and Excel. Comfortable with VAT (IVA) and withholding tax returns for multi-property operations. Fluent in Spanish and English.\n\nEXPERIENCE\nAndina Hotel Collection - Management Accountant - Bogotá, Colombia - Apr 2021 - Present\n- Prepare monthly management accounts for eight boutique hotels (approximately USD 28M annual revenue) in Xero, with departmental P&Ls for rooms, food and beverage and events delivered to general managers by the 8th working day.\n- Produce the annual IFRS consolidated financial statements for the group, including IFRS 16 lease schedules for four leased properties and IFRS 15 treatment of deposits, loyalty points and package revenue.\n- File monthly and bimonthly VAT / IVA returns and withholding tax returns for each hotel entity, reconciling output and input tax to the Xero tax reports; no penalties in five years.\n- Built the Excel forecast model that links occupancy and average rate assumptions to cash flow and covenant tests for the group's lenders.\n- Review supplier invoices for correct VAT treatment on exempt and excluded services.\n\nCerros Property Holdings - Financial Accountant - Bogotá, Colombia - Oct 2017 - Mar 2021\n- Kept the books in Xero for twelve property-owning entities and prepared the IFRS reporting pack, including investment property fair value movements under IAS 40 and straight-lining of rental income.\n- Prepared VAT and municipal ICA returns and coordinated with external advisors on the annual income tax filing.\n- Reconciled tenant deposits, service charge recoveries and intercompany loans each month.\n- Documented the chart of accounts mapping from local GAAP to IFRS for the group auditors.\n\nEDUCATION\nContador Público, a national university, Bogotá\n\nCERTIFICATIONS\nChartered Accountant (CA)\n\nSOFTWARE\nXero, Microsoft Excel\n",
+      "resume_text": "Santiago Gómez\nBogota, Colombia | santiago.gomez@example.com\n\nSUMMARY\nManagement accountant and ACCA member with nine years in hotels and property companies in Colombia. I produce IFRS management and statutory reporting for owners based abroad, file the VAT returns and explain the numbers to operations managers in plain language. Bilingual in Spanish and English.\n\nEXPERIENCE\nCasa Albor Hotels, Management Accountant, Bogota, Colombia, Jun 2022 - Present\n- Monthly management accounts for seven boutique hotels with 640 rooms and revenue of about US$38m, issued by working day 6 with departmental profit and RevPAR analysis.\n- Prepare the IFRS reporting pack for the European owners each quarter, covering IFRS 16 on 11 property leases and the componentised depreciation of hotel buildings.\n- File bimonthly VAT returns for four legal entities; a review of input VAT on refurbishment spend recovered the equivalent of US$210,000.\n- Rebuilt the annual budget in Excel by hotel and department and introduced a rolling 12-month forecast.\n- Moved two smaller entities onto Xero with daily bank feeds, reducing their close by three days.\n\nTorreverde Propiedades, Financial Accountant, Bogota, Colombia, Mar 2019 - May 2022\n- Accounting for a commercial property company with 23 office and retail buildings.\n- IFRS reporting for investment property under IAS 40, working with external valuers on the annual fair value exercise across a US$160m portfolio.\n- Service charge reconciliations for 190 tenants and the quarterly budget-to-actual report to landlords.\n- Prepared VAT and withholding tax returns and answered two tax authority information requests without adjustment.\n\nHostal Cumbre Group, Accounts Assistant, Medellin, Colombia, Oct 2017 - Feb 2019\n- Daily revenue audit and cash reconciliations for three hotels.\n- Supplier payments and statement reconciliations for about 250 vendors.\n- Assisted with month-end accruals and the VAT working papers.\n\nEDUCATION\nDegree in Public Accounting, a university in Bogota, 2017\n\nCERTIFICATIONS\nACCA member, 2020\n\nSOFTWARE\nXero, Microsoft Excel\n",
       "profile": {
-        "headline": "Management Accountant, CA - IFRS reporting and VAT for hotel and property groups",
+        "headline": "Management Accountant, ACCA - IFRS reporting and VAT for hotels and property",
         "years_experience": 9,
         "positions": [
           {
             "title": "Management Accountant",
-            "employer": "Andina Hotel Collection",
-            "start_year": 2021,
+            "employer": "Casa Albor Hotels",
+            "start_year": 2022,
             "end_year": null,
             "current": true
           },
           {
             "title": "Financial Accountant",
-            "employer": "Cerros Property Holdings",
+            "employer": "Torreverde Propiedades",
+            "start_year": 2019,
+            "end_year": 2022,
+            "current": false
+          },
+          {
+            "title": "Accounts Assistant",
+            "employer": "Hostal Cumbre Group",
             "start_year": 2017,
-            "end_year": 2021,
+            "end_year": 2019,
             "current": false
           }
         ],
         "certifications": [
-          "ca"
+          "acca"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "ACCA member",
+            "canonical": "acca",
+            "issuing_body": "ACCA",
+            "jurisdiction": "UK",
+            "status": "qualified",
+            "year_obtained": 2020,
+            "quote": "ACCA member, 2020"
+          }
+        ],
         "software": [
           "xero",
           "excel"
@@ -3460,21 +3858,18 @@
         "gaap_exposure": [
           "IFRS",
           "IFRS 16",
-          "IFRS 15",
-          "IAS 40",
-          "GAAP"
+          "IAS 40"
         ],
         "skills": [
           "IFRS reporting",
           "VAT / GST returns",
           "management accounts",
           "IFRS 16 leases",
-          "IFRS 15 revenue",
-          "IAS 40 investment property",
-          "withholding tax",
-          "cash flow forecasting",
-          "covenant reporting",
-          "departmental P&L"
+          "investment property accounting",
+          "budgeting and forecasting",
+          "service charge reconciliations",
+          "month-end close",
+          "hotel departmental reporting"
         ],
         "languages": [
           "en",
@@ -3518,6 +3913,17 @@
           "cpp"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Payroll Professional",
+            "canonical": "cpp",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Payroll Professional (CPP)"
+          }
+        ],
         "software": [
           "workday",
           "excel"
@@ -3580,9 +3986,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Tennessee"
+          }
+        ],
         "software": [
           "excel",
           "power_bi"
@@ -3652,9 +4069,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Florida"
+          }
+        ],
         "software": [
           "netsuite",
           "excel",
@@ -3729,6 +4157,17 @@
           "acca"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "ACCA",
+            "canonical": "acca",
+            "issuing_body": "ACCA",
+            "jurisdiction": "UK",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "ACCA (Association of Chartered Certified Accountants)"
+          }
+        ],
         "software": [
           "xero",
           "excel"
@@ -3791,6 +4230,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel",
@@ -3861,6 +4301,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel",
@@ -3927,6 +4368,17 @@
           "cma"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Management Accountant",
+            "canonical": "cma",
+            "issuing_body": "IMA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Management Accountant (CMA)"
+          }
+        ],
         "software": [
           "microsoft_dynamics_365",
           "excel",
@@ -3992,6 +4444,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel",
@@ -4056,6 +4509,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel",
@@ -4121,6 +4575,26 @@
           "fpc"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Payroll Professional",
+            "canonical": "cpp",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Payroll Professional (CPP)"
+          },
+          {
+            "name_as_written": "Fundamental Payroll Certification",
+            "canonical": "fpc",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Fundamental Payroll Certification (FPC)"
+          }
+        ],
         "software": [
           "paylocity",
           "quickbooks"
@@ -4183,6 +4657,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel",
@@ -4225,28 +4700,28 @@
       "source": "referral",
       "status": "active",
       "available_in_days": null,
-      "resume_text": "Emma Roy\nToronto, ON | emma.roy@example.com\n\nSUMMARY\nFinance Manager and Chartered Accountant (CA) with ten years in professional services, the last six leading the finance function of a Canadian advisory subsidiary owned by a US parent. ACCA qualified as well, with hands-on experience in Sage 300 and advanced Excel modelling. I am not currently looking but would consider the right role.\n\nEXPERIENCE\nNorthgate Advisory Partners - Finance Manager - Toronto, ON - Jan 2021 - Present\n- Lead a team of four running the month-end close for the Canadian entity ($42M revenue, 180 staff) in Sage 300, closing in six business days.\n- Prepare the monthly consolidation package for our US parent: convert Canadian ASPE ledgers to US GAAP, book intercompany eliminations across three entities and deliver the group consolidation reporting pack by workday 8.\n- Own the annual local statutory audit, coordinating with the external auditors on PBC lists and closing the audit with no adjustments in each of the last three years.\n- File monthly GST/HST returns for Canada and quarterly VAT returns for the UK branch, recovering roughly $310K in input tax credits annually, and manage CRA and HMRC queries.\n- Built the Excel-based cash forecasting model used by the partner group for quarterly distributions.\n\nMaple & Quill Consulting - Senior Accountant - Toronto, ON - Jun 2018 - Dec 2020\n- Prepared year-end statutory financial statements and audit working papers for a 60-person consulting firm.\n- Managed GST/HST filings and input tax credit reconciliations, resolving a $95K CRA reassessment in the firm's favour.\n- Ran fixed asset, prepaid and accrual schedules and the weekly cash reconciliation in Sage 50.\n- Supported a change of ownership by preparing the opening balance sheet and mapping the chart of accounts to the acquirer's group structure.\n\nHarbourline Legal Services - Accountant - Toronto, ON - Oct 2016 - May 2018\n- Completed the full accounting cycle for a law firm with trust accounting obligations, including bank and trust reconciliations.\n- Prepared monthly management accounts in Excel and assisted with the annual review engagement.\n- Handled GST/HST returns and remittances.\n\nEDUCATION\nBachelor of Commerce, Accounting - a Canadian university\n\nCERTIFICATIONS\nChartered Accountant (CA)\nACCA member\n\nSOFTWARE\nSage 300, Sage 50, Microsoft Excel\n",
+      "resume_text": "Emma Roy\nToronto, ON | emma.roy@example.com\n\nSUMMARY\nFinance manager with ten years in professional services firms. I qualified with ACCA, moved to Canada and was admitted as a CPA by CPA Ontario, and I now run finance for the Canadian arm of a US-owned consultancy. I am settled in my role and not actively looking, but I would talk about the right opportunity.\n\nEXPERIENCE\nAlderpoint Consulting Canada, Finance Manager, Toronto, ON, May 2021 - Present\n- Manage a team of four and the full finance function for a 260-person consultancy with revenue of C$74m across three Canadian entities.\n- Own the group consolidation with a US parent: submit the monthly reporting package by working day 4, reconcile intercompany balances in two currencies and explain variances on the parent's review call.\n- Lead the local statutory audit of each entity; the last two audits closed with no adjustments and the fieldwork was shortened from four weeks to two.\n- Review and file monthly GST/HST returns and QST returns, including the self-assessment on services bought from the parent.\n- Migrated the ledgers from Sage 50 to Sage 300 and rebuilt the project WIP and unbilled revenue reports in Excel.\n\nFenwick Marlow Architects, Financial Accountant, Toronto, ON, Aug 2018 - Apr 2021\n- Month-end close, WIP and revenue schedules for a 90-person architecture practice.\n- Prepared the year-end file for the auditors and drafted the financial statements.\n- Prepared quarterly GST/HST returns and handled one desk audit with no reassessment.\n- Cut the close from 12 to 7 working days by standardising timesheet cut-off.\n\nBrackley Shore Partners, Accounts Assistant, Leeds, UK, Oct 2016 - Jul 2018\n- Accounts assistant at a firm of surveyors: purchase ledger, expenses and bank reconciliations in Sage 50.\n- Prepared quarterly VAT returns for two entities.\n- Supported the year-end statutory audit with schedules and sample requests.\n\nEDUCATION\nBA (Hons) Accounting and Finance, a university in the north of England, 2016\n\nCERTIFICATIONS\nCPA, CPA Ontario, 2021\nACCA member, 2019\n\nSOFTWARE\nSage 300, Sage 50, Microsoft Excel\n",
       "profile": {
-        "headline": "Finance Manager, CA and ACCA - US-parent consolidation, GST/HST, statutory audit",
+        "headline": "Finance Manager, CPA (Ontario) and ACCA - statutory audit, GST/HST, US parent reporting",
         "years_experience": 10,
         "positions": [
           {
             "title": "Finance Manager",
-            "employer": "Northgate Advisory Partners",
+            "employer": "Alderpoint Consulting Canada",
             "start_year": 2021,
             "end_year": null,
             "current": true
           },
           {
-            "title": "Senior Accountant",
-            "employer": "Maple & Quill Consulting",
+            "title": "Financial Accountant",
+            "employer": "Fenwick Marlow Architects",
             "start_year": 2018,
-            "end_year": 2020,
+            "end_year": 2021,
             "current": false
           },
           {
-            "title": "Accountant",
-            "employer": "Harbourline Legal Services",
+            "title": "Accounts Assistant",
+            "employer": "Brackley Shore Partners",
             "start_year": 2016,
             "end_year": 2018,
             "current": false
@@ -4254,9 +4729,29 @@
         ],
         "certifications": [
           "acca",
-          "ca"
+          "cpa_canada"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "ACCA member",
+            "canonical": "acca",
+            "issuing_body": "ACCA",
+            "jurisdiction": "UK",
+            "status": "qualified",
+            "year_obtained": 2019,
+            "quote": "ACCA member, 2019"
+          },
+          {
+            "name_as_written": "CPA",
+            "canonical": "cpa_canada",
+            "issuing_body": "CPA Canada",
+            "jurisdiction": "Canada",
+            "status": "qualified",
+            "year_obtained": 2021,
+            "quote": "CPA, CPA Ontario, 2021"
+          }
+        ],
         "software": [
           "sage",
           "excel"
@@ -4266,22 +4761,17 @@
           "professional_services"
         ],
         "other_industries": [],
-        "gaap_exposure": [
-          "ASPE",
-          "US GAAP"
-        ],
+        "gaap_exposure": [],
         "skills": [
-          "group consolidation with a US parent",
           "VAT / GST returns",
-          "GST/HST filings",
           "local statutory audit",
+          "group consolidation with a US parent",
+          "GST/HST returns",
+          "intercompany reconciliations",
           "month-end close",
-          "intercompany eliminations",
-          "ASPE to US GAAP conversion",
-          "cash forecasting",
-          "management accounts",
-          "team leadership",
-          "Sage 300"
+          "WIP and unbilled revenue",
+          "financial statement preparation",
+          "team management"
         ],
         "languages": [
           "en"
@@ -4329,6 +4819,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "sap",
           "excel",
@@ -4400,6 +4891,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel",
@@ -4474,10 +4966,30 @@
           }
         ],
         "certifications": [
-          "cpa",
+          "cpa_us",
           "cgma"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Utah"
+          },
+          {
+            "name_as_written": "Chartered Global Management Accountant",
+            "canonical": "cgma",
+            "issuing_body": "AICPA & CIMA",
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Chartered Global Management Accountant (CGMA)"
+          }
+        ],
         "software": [
           "netsuite",
           "excel",
@@ -4545,6 +5057,17 @@
           "quickbooks_proadvisor"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "QuickBooks Online ProAdvisor",
+            "canonical": "quickbooks_proadvisor",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "QuickBooks Online ProAdvisor"
+          }
+        ],
         "software": [
           "quickbooks",
           "bill_com",
@@ -4609,6 +5132,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel",
@@ -4678,9 +5202,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), California"
+          }
+        ],
         "software": [
           "sage_intacct",
           "excel",
@@ -4752,9 +5287,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), North Carolina"
+          }
+        ],
         "software": [
           "sap",
           "excel",
@@ -4823,9 +5369,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Missouri"
+          }
+        ],
         "software": [
           "workday",
           "excel"
@@ -4888,9 +5445,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Oregon"
+          }
+        ],
         "software": [
           "sap",
           "excel"
@@ -4960,6 +5528,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel",
@@ -5032,9 +5601,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Texas"
+          }
+        ],
         "software": [
           "sage_intacct",
           "excel",
@@ -5102,9 +5682,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), North Carolina"
+          }
+        ],
         "software": [
           "quickbooks",
           "excel",
@@ -5175,9 +5766,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Wisconsin"
+          }
+        ],
         "software": [
           "netsuite",
           "excel"
@@ -5216,35 +5818,55 @@
       "full_name": "Poppy O'Connor",
       "email": "poppy.oconnor@example.com",
       "phone": null,
-      "location": "Edinburgh, UK",
+      "location": "Dublin, Ireland",
       "source": "referral",
       "status": "active",
       "available_in_days": 19,
-      "resume_text": "Poppy O'Connor\nEdinburgh, UK | poppy.oconnor@example.com\n\nSUMMARY\nAudit Senior with four years in financial services assurance, working on US-listed banking and asset management clients audited under PCAOB standards. US CPA and Certified Fraud Examiner. Available on two weeks' notice. Fluent in English and Korean.\n\nEXPERIENCE\nFirth & Lomond Chartered Accountants - Audit Senior - Edinburgh, UK - Jan 2025 - Present\n- Lead fieldwork teams of two to four on the audits of a US-listed asset manager's UK subsidiaries and a Scottish retail bank with a US parent, all performed under PCAOB standards as part of the group audit.\n- SOX 404 testing: plan and execute testing of 85 key controls across the financial close, treasury, fee revenue and loan impairment processes, including sample sizing, walkthroughs and deficiency evaluation for the integrated audit.\n- IT general controls: test ITGCs over SAP S/4HANA and the core banking platform (user access provisioning and reviews, change management, batch job monitoring, backup), and assess the impact of exceptions on reliance for the substantive audit.\n- Document PCAOB AS 2201 and AS 2301 compliance in the audit file and review the associate team's work before manager sign-off.\n- Applied CFE training to a whistleblower matter, tracing suspicious journal entries in SAP through Excel-based data analysis.\n\nFirth & Lomond Chartered Accountants - Audit Associate - Edinburgh, UK - Oct 2022 - Dec 2024\n- Performed substantive and controls testing on financial services clients, including cash, investments and fee revenue.\n- Tested SOX 404 controls and ITGCs for two SEC registrant subsidiaries under senior supervision.\n- Built Excel reperformance workpapers for interest income and expected credit loss models.\n- Completed the CPA examination and the CFE credential while working full time.\n\nEDUCATION\nMA (Hons) Accountancy and Finance - a Scottish university, 2022\n\nCERTIFICATIONS\nCertified Public Accountant (CPA), US\nCertified Fraud Examiner (CFE)\n\nSOFTWARE\nSAP S/4HANA, Microsoft Excel\n",
+      "resume_text": "Poppy O'Connor\nDublin, Ireland | poppy.oconnor@example.com\n\nSUMMARY\nAudit senior with four years at a Dublin firm, working almost entirely on the Irish operations of US-listed banks, insurers and fund administrators. I am an ACA with Chartered Accountants Ireland and a Certified Fraud Examiner. Controls work is what I enjoy most, particularly where the finance process meets the system. My notice period is two to three weeks.\n\nEXPERIENCE\nCorrib Hale Audit LLP, Audit Senior, Dublin, Ireland, Oct 2024 - Present\n- Lead fieldwork teams of three or four on five financial services engagements performed under PCAOB standards, reporting to the US group auditor on agreed deadlines.\n- Plan and review SOX 404 testing over lending, treasury and financial close: around 140 key controls a year, with walkthroughs, design assessment and operating effectiveness samples.\n- Test IT general controls over SAP S/4HANA and its feeder systems, covering user access, change management and batch job monitoring; identified a segregation of duties conflict affecting 23 users that management remediated before year end.\n- Wrote up eight control deficiencies last cycle and agreed their severity with the client's controllers.\n- Applied my CFE training to journal entry testing, building Excel analytics over 1.2 million postings to flag unusual manual entries.\n\nCorrib Hale Audit LLP, Audit Associate, Dublin, Ireland, Oct 2022 - Sep 2024\n- Performed SOX 404 control testing and substantive work on banking and fund administration clients.\n- Tested ITGC evidence such as access listings, change tickets and joiner and leaver samples extracted from SAP.\n- Prepared lead schedules, bank confirmations and loan sample testing in Excel.\n- Documented process narratives and flowcharts for the financial close cycle of two clients.\n\nEDUCATION\nBachelor of Business Studies, Accounting, a university in Dublin, 2022\n\nCERTIFICATIONS\nACA, Chartered Accountants Ireland, 2026\nCertified Fraud Examiner (CFE), ACFE, 2025\n\nSOFTWARE\nSAP S/4HANA, Microsoft Excel\n",
       "profile": {
-        "headline": "Audit Senior, CPA and CFE - PCAOB, SOX 404 and ITGC testing; financial services",
+        "headline": "Audit Senior, ACA (Chartered Accountants Ireland), CFE - SOX 404 and ITGC testing",
         "years_experience": 4,
         "positions": [
           {
             "title": "Audit Senior",
-            "employer": "Firth & Lomond Chartered Accountants",
-            "start_year": 2025,
+            "employer": "Corrib Hale Audit LLP",
+            "start_year": 2024,
             "end_year": null,
             "current": true
           },
           {
             "title": "Audit Associate",
-            "employer": "Firth & Lomond Chartered Accountants",
+            "employer": "Corrib Hale Audit LLP",
             "start_year": 2022,
             "end_year": 2024,
             "current": false
           }
         ],
         "certifications": [
-          "cpa",
+          "ca_ireland",
           "cfe"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "ACA",
+            "canonical": "ca_ireland",
+            "issuing_body": "Chartered Accountants Ireland",
+            "jurisdiction": "Ireland",
+            "status": "qualified",
+            "year_obtained": 2026,
+            "quote": "ACA, Chartered Accountants Ireland, 2026"
+          },
+          {
+            "name_as_written": "Certified Fraud Examiner",
+            "canonical": "cfe",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": 2025,
+            "quote": "Certified Fraud Examiner (CFE), ACFE, 2025"
+          }
+        ],
         "software": [
           "sap",
           "excel"
@@ -5259,14 +5881,12 @@
           "IT general controls",
           "PCAOB standards",
           "SOX 404 testing",
-          "integrated audit",
-          "walkthroughs",
-          "deficiency evaluation",
-          "user access reviews",
-          "fraud investigation",
-          "expected credit loss testing",
-          "fieldwork team leadership",
-          "Korean"
+          "control walkthroughs",
+          "journal entry testing",
+          "segregation of duties review",
+          "control deficiency evaluation",
+          "audit fieldwork leadership",
+          "fraud risk assessment"
         ],
         "languages": [
           "en",
@@ -5274,7 +5894,7 @@
         ],
         "availability": "two_weeks",
         "available_from": null,
-        "timezone": "Europe/London"
+        "timezone": "Europe/Dublin"
       }
     },
     {
@@ -5286,30 +5906,48 @@
       "source": "upload",
       "status": "active",
       "available_in_days": 21,
-      "resume_text": "Freya Dunne\nManchester, UK | freya.dunne@example.com\n\nSUMMARY\nSenior cost accountant with eight years in food manufacturing and consumer goods. I look after product costing, bills of materials and overhead absorption in Microsoft Dynamics 365, and I track capital projects from approval through to capitalisation. US CPA, gained while working for a US-owned group. Available on two weeks' notice.\n\nEXPERIENCE\nPennine Bakehouse Ltd - Senior Cost Accountant - Manchester, UK - Mar 2022 - Present\n- Cost accounting lead for two bakeries producing 280 SKUs with £95M turnover; report to the Finance Director and supervise one assistant.\n- Bill of materials and overhead absorption: maintain 1,100 BOMs and routings in Dynamics 365, set annual overhead absorption rates by production line based on budgeted machine hours, and report under/over absorption monthly (typically within 1.5% of budget).\n- Capex tracking: manage the £7M annual capital programme in Excel, tracking approvals, purchase commitments, spend and asset go-live dates for 30-plus projects, and reconcile to D365 assets under construction each month.\n- Run the monthly standard-to-actual variance review with production managers, covering ingredient yield, labour efficiency and overhead recovery.\n- Led the D365 costing module re-implementation after a plant expansion, rebuilding cost categories and work centres.\n\nIrwell Valley Soft Drinks - Cost Accountant - Salford, UK - Oct 2018 - Feb 2022\n- Maintained bills of material for 140 drinks products in Microsoft Dynamics 365 and ran the annual standard cost roll.\n- Calculated overhead absorption rates for bottling and canning lines and analysed recovery variances.\n- Tracked capital spend on a new canning line (£3.5M) against the approved business case and prepared post-investment reviews.\n- Produced monthly gross margin by product and customer in Excel for the commercial team.\n- Supported the year-end audit with inventory valuation and overhead capitalisation workings.\n\nEDUCATION\nBSc (Hons) Accounting and Finance - a university in the North West, 2018\n\nCERTIFICATIONS\nCertified Public Accountant (CPA), US\n\nSOFTWARE\nMicrosoft Dynamics 365, Microsoft Excel\n",
+      "resume_text": "Freya Dunne\nManchester, UK | freya.dunne@example.com\n\nSUMMARY\nICAEW chartered accountant (ACA) who moved from practice into factory finance and stayed. Eight years' experience, five of them in food and consumer goods manufacturing, where I own standard costing, overhead absorption and the capital expenditure programme. I can start three weeks after an offer.\n\nEXPERIENCE\nThistledown Bakeries Ltd, Senior Cost Accountant, Manchester, UK, Mar 2023 - Present\n- Own standard costs for 420 bakery SKUs made at three sites with £130m turnover: maintain the bill of materials and routings in Microsoft Dynamics 365 and lead the annual cost roll.\n- Set overhead absorption rates by line from budgeted labour and machine hours, and report under- and over-absorption monthly; unexplained variance fell from £1.1m to £180k a year.\n- Run capex tracking for a £14m annual programme: approval papers, spend against budget by project, and post-investment reviews for anything over £250k.\n- Found BOM yield errors on 38 products during a flour price review, correcting margin reporting by £400k.\n- Business partner to the operations director for the weekly labour and waste review.\n\nMarlowe & Finch Household Products, Cost Accountant, Warrington, UK, Sep 2021 - Feb 2023\n- Product costing for a cleaning products manufacturer with 900 SKUs and two filling plants.\n- Rebuilt the overhead absorption model in Excel when a third production line opened.\n- Monthly stock valuation, the slow-moving stock provision and variance analysis for the site leadership team.\n- Tracked 25 capex projects and capitalised assets from assets under construction on completion.\n\nOakhampton Reeve LLP, Audit Associate, Manchester, UK, Oct 2018 - Aug 2021\n- Audits of manufacturing and distribution clients with turnover up to £80m.\n- Attended stock counts and tested stock costing and overhead absorption at six manufacturers.\n- Led fieldwork on smaller engagements in my final year.\n\nEDUCATION\nBSc (Hons) Mathematics, a university in the north-west of England, 2018\n\nCERTIFICATIONS\nACA, ICAEW, 2021\n\nSOFTWARE\nMicrosoft Dynamics 365, Microsoft Excel (Power Query, cost models)\n",
       "profile": {
-        "headline": "Senior Cost Accountant, CPA - BOMs and overhead absorption in D365, capex tracking",
+        "headline": "Senior Cost Accountant, ACA (ICAEW) - food manufacturing, BOM costing, capex",
         "years_experience": 8,
         "positions": [
           {
             "title": "Senior Cost Accountant",
-            "employer": "Pennine Bakehouse Ltd",
-            "start_year": 2022,
+            "employer": "Thistledown Bakeries Ltd",
+            "start_year": 2023,
             "end_year": null,
             "current": true
           },
           {
             "title": "Cost Accountant",
-            "employer": "Irwell Valley Soft Drinks",
+            "employer": "Marlowe & Finch Household Products",
+            "start_year": 2021,
+            "end_year": 2023,
+            "current": false
+          },
+          {
+            "title": "Audit Associate",
+            "employer": "Oakhampton Reeve LLP",
             "start_year": 2018,
-            "end_year": 2022,
+            "end_year": 2021,
             "current": false
           }
         ],
         "certifications": [
-          "cpa"
+          "aca_icaew"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "ACA",
+            "canonical": "aca_icaew",
+            "issuing_body": "ICAEW",
+            "jurisdiction": "UK",
+            "status": "qualified",
+            "year_obtained": 2021,
+            "quote": "ACA, ICAEW, 2021"
+          }
+        ],
         "software": [
           "microsoft_dynamics_365",
           "excel"
@@ -5326,12 +5964,11 @@
           "bill of materials and overhead absorption",
           "standard costing",
           "variance analysis",
-          "inventory valuation",
-          "product costing",
+          "stock valuation",
+          "annual cost roll",
           "post-investment reviews",
-          "gross margin analysis",
-          "assets under construction",
-          "Dynamics 365 costing"
+          "finance business partnering",
+          "margin analysis"
         ],
         "languages": [
           "en",
@@ -5380,6 +6017,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel"
@@ -5448,6 +6086,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "sap",
           "excel"
@@ -5510,6 +6149,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel"
@@ -5575,6 +6215,35 @@
           "shrm_cp"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Payroll Professional",
+            "canonical": "cpp",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Payroll Professional (CPP)"
+          },
+          {
+            "name_as_written": "Fundamental Payroll Certification",
+            "canonical": "fpc",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Fundamental Payroll Certification (FPC)"
+          },
+          {
+            "name_as_written": "SHRM Certified Professional",
+            "canonical": "shrm_cp",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "SHRM Certified Professional (SHRM-CP)"
+          }
+        ],
         "software": [
           "adp",
           "excel"
@@ -5637,9 +6306,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), New Mexico"
+          }
+        ],
         "software": [
           "quickbooks",
           "excel",
@@ -5705,6 +6385,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "sap",
           "excel",
@@ -5770,6 +6451,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel",
@@ -5843,9 +6525,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Washington"
+          }
+        ],
         "software": [
           "netsuite",
           "excel",
@@ -5916,6 +6609,17 @@
           "cpp"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Payroll Professional",
+            "canonical": "cpp",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Payroll Professional (CPP)"
+          }
+        ],
         "software": [
           "adp",
           "excel"
@@ -5955,37 +6659,48 @@
       "source": "referral",
       "status": "active",
       "available_in_days": 2,
-      "resume_text": "Lachlan Taylor\nMelbourne, Australia | lachlan.taylor@example.com\n\nSUMMARY\nChartered Accountant and Finance Manager with ten years in software businesses, the last seven in-house at SaaS companies. Available immediately. Comfortable working across English, Spanish and Mandarin with offshore teams and customers.\n\nEXPERIENCE\nWattlebird Software Pty Ltd - Finance Manager, Melbourne - Aug 2021 - Present\n- Lead a finance team of four for a A$38M ARR subscription business with entities in Australia, New Zealand and Singapore.\n- Prepare consolidated IFRS reporting monthly and the annual general-purpose financial statements, including IFRS 15 contract asset and deferred revenue disclosures and IFRS 16 lease schedules.\n- Lodge monthly BAS and quarterly GST returns for the Australian entity plus NZ GST and Singapore GST filings, reconciled to the Sage 300 GL each period with no amended lodgements in three years.\n- Manage the local statutory audit in all three jurisdictions, delivering the audit file within 20 business days of year-end and closing the FY25 audit with no unadjusted differences.\n- Built the Excel ARR waterfall, churn and cash runway models used in the monthly board pack.\n\nKookaburra Analytics - Financial Accountant, Melbourne - Oct 2018 - Jul 2021\n- Ran month-end close on Sage 50 for a 60-person analytics SaaS startup and prepared IFRS-compliant management accounts.\n- Prepared quarterly GST returns and payroll tax lodgements and handled ATO correspondence.\n- Coordinated the first statutory audit after the Series A, preparing all workpapers in Excel.\n\nHartley Rowe Chartered Accountants - Senior, Audit, Melbourne - Oct 2016 - Sep 2018\n- Audited technology and professional services clients, including revenue testing under IFRS 15 and review of GST reconciliations.\n\nEDUCATION\nBachelor of Commerce (Accounting) - a Melbourne university\n\nCERTIFICATIONS\nChartered Accountant (CA)\n\nSOFTWARE\nSage 300, Sage 50, Microsoft Excel\n",
+      "resume_text": "Lachlan Taylor\nMelbourne, Australia | lachlan.taylor@example.com\n\nSUMMARY\nChartered Accountant (CA ANZ) with ten years' experience, six of them running finance for software businesses. Strong on IFRS reporting, GST compliance and getting an audit finished without drama. My role was made redundant following an acquisition, so I am available immediately.\n\nEXPERIENCE\nWattlebird Cloud Pty Ltd, Finance Manager, Melbourne, Australia, Feb 2022 - Present\n- Manage a team of three for a SaaS group with A$48m ARR and entities in Australia, New Zealand and Singapore.\n- Prepare the consolidated IFRS financial statements, including IFRS 15 subscription revenue, capitalised development costs under IAS 38 and IFRS 16 leases.\n- Lead the local statutory audit of each entity; signed accounts delivered 5 weeks earlier than in the year before I joined.\n- Review and lodge monthly BAS and GST returns for the Australian entities and the GST returns in New Zealand and Singapore; recovered A$130k of unclaimed input tax credits.\n- Monthly close in Sage 300 by working day 5, with board reporting built in Excel.\n\nGumleaf Analytics Pty Ltd, Financial Accountant, Melbourne, Australia, Jul 2019 - Jan 2022\n- Financial accountant for a venture-backed SaaS company growing from A$6m to A$19m ARR.\n- Built the deferred revenue waterfall in Excel and reconciled it to billing each month.\n- Prepared the statutory accounts and managed the first full audit after the Series B.\n- Prepared quarterly BAS and the annual R&D tax incentive schedules.\n\nYarrow Bight Partners, Auditor, Melbourne, Australia, Oct 2016 - Jun 2019\n- External audit of technology and professional services clients at a mid-tier firm.\n- Senior on statutory audits with revenue up to A$120m in my final year.\n- Tested revenue, payroll and GST balances and drafted financial statements for smaller clients.\n\nEDUCATION\nBachelor of Commerce, Accounting and Finance, a university in Victoria, 2016\n\nCERTIFICATIONS\nCA, Chartered Accountants ANZ, 2019\n\nSOFTWARE\nSage 300, Microsoft Excel\n",
       "profile": {
-        "headline": "Finance Manager, CA - IFRS reporting, GST, statutory audit for SaaS (Melbourne)",
+        "headline": "Finance Manager, CA (CA ANZ) - SaaS, IFRS reporting, GST and statutory audit",
         "years_experience": 10,
         "positions": [
           {
             "title": "Finance Manager",
-            "employer": "Wattlebird Software Pty Ltd",
-            "start_year": 2021,
+            "employer": "Wattlebird Cloud Pty Ltd",
+            "start_year": 2022,
             "end_year": null,
             "current": true
           },
           {
             "title": "Financial Accountant",
-            "employer": "Kookaburra Analytics",
-            "start_year": 2018,
-            "end_year": 2021,
+            "employer": "Gumleaf Analytics Pty Ltd",
+            "start_year": 2019,
+            "end_year": 2022,
             "current": false
           },
           {
-            "title": "Senior, Audit",
-            "employer": "Hartley Rowe Chartered Accountants",
+            "title": "Auditor",
+            "employer": "Yarrow Bight Partners",
             "start_year": 2016,
-            "end_year": 2018,
+            "end_year": 2019,
             "current": false
           }
         ],
         "certifications": [
-          "ca"
+          "ca_anz"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "CA",
+            "canonical": "ca_anz",
+            "issuing_body": "CA ANZ",
+            "jurisdiction": "Australia / New Zealand",
+            "status": "qualified",
+            "year_obtained": 2019,
+            "quote": "CA, Chartered Accountants ANZ, 2019"
+          }
+        ],
         "software": [
           "sage",
           "excel"
@@ -5998,21 +6713,20 @@
         "gaap_exposure": [
           "IFRS",
           "IFRS 15",
+          "IAS 38",
           "IFRS 16"
         ],
         "skills": [
           "IFRS reporting",
           "VAT / GST returns",
           "local statutory audit",
-          "IFRS 15 revenue",
-          "IFRS 16 leases",
-          "consolidation",
           "BAS lodgement",
+          "group consolidation",
+          "IFRS 15 subscription revenue",
+          "deferred revenue",
           "month-end close",
           "board reporting",
-          "ARR modelling",
-          "Sage 300",
-          "Excel modelling"
+          "team management"
         ],
         "languages": [
           "en",
@@ -6061,9 +6775,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Texas"
+          }
+        ],
         "software": [
           "oracle_erp_cloud",
           "excel",
@@ -6133,9 +6858,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), North Carolina"
+          }
+        ],
         "software": [
           "quickbooks",
           "excel",
@@ -6203,6 +6939,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "concur",
@@ -6268,6 +7005,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "oracle_erp_cloud",
           "excel",
@@ -6340,9 +7078,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Missouri"
+          }
+        ],
         "software": [
           "netsuite",
           "excel",
@@ -6414,6 +7163,17 @@
           "quickbooks_proadvisor"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "QuickBooks Online ProAdvisor",
+            "canonical": "quickbooks_proadvisor",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "QuickBooks Online ProAdvisor"
+          }
+        ],
         "software": [
           "quickbooks",
           "expensify",
@@ -6479,6 +7239,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel",
@@ -6543,6 +7304,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "gusto",
@@ -6608,6 +7370,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel"
@@ -6677,6 +7440,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "microsoft_dynamics_365",
           "excel",
@@ -6746,6 +7510,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel",
@@ -6813,6 +7578,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "gusto",
@@ -6883,9 +7649,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Texas"
+          }
+        ],
         "software": [
           "netsuite",
           "excel",
@@ -6963,6 +7740,17 @@
           "quickbooks_proadvisor"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "QuickBooks Online ProAdvisor",
+            "canonical": "quickbooks_proadvisor",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "QuickBooks Online ProAdvisor (Intuit)"
+          }
+        ],
         "software": [
           "xero",
           "excel"
@@ -7025,9 +7813,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": 2026,
+            "quote": "Certified Public Accountant (CPA), Georgia, 2026"
+          }
+        ],
         "software": [
           "quickbooks",
           "excel",
@@ -7093,11 +7892,40 @@
           }
         ],
         "certifications": [
-          "cpa",
+          "cpa_us",
           "cia",
           "cisa"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA)"
+          },
+          {
+            "name_as_written": "Certified Internal Auditor",
+            "canonical": "cia",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Internal Auditor (CIA)"
+          },
+          {
+            "name_as_written": "Certified Information Systems Auditor",
+            "canonical": "cisa",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Information Systems Auditor (CISA)"
+          }
+        ],
         "software": [
           "excel"
         ],
@@ -7159,9 +7987,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), New York"
+          }
+        ],
         "software": [
           "sage_intacct",
           "excel",
@@ -7234,6 +8073,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "bill_com",
@@ -7298,6 +8138,17 @@
           "cma"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Management Accountant",
+            "canonical": "cma",
+            "issuing_body": "IMA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Management Accountant (CMA)"
+          }
+        ],
         "software": [
           "oracle_erp_cloud",
           "excel",
@@ -7365,6 +8216,17 @@
           "cpb"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Bookkeeper",
+            "canonical": "cpb",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Bookkeeper (CPB), NACPB"
+          }
+        ],
         "software": [
           "quickbooks",
           "excel"
@@ -7427,6 +8289,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel",
@@ -7501,6 +8364,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "excel",
           "adaptive_planning"
@@ -7571,9 +8435,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), North Carolina"
+          }
+        ],
         "software": [
           "sage_intacct",
           "excel",
@@ -7642,6 +8517,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "sage_intacct",
           "excel"
@@ -7714,9 +8590,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Missouri"
+          }
+        ],
         "software": [
           "quickbooks",
           "excel"
@@ -7784,6 +8671,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "oracle_erp_cloud",
           "excel"
@@ -7854,6 +8742,17 @@
           "ea"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Enrolled Agent",
+            "canonical": "ea",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Enrolled Agent (EA), IRS"
+          }
+        ],
         "software": [
           "excel"
         ],
@@ -7922,6 +8821,17 @@
           "quickbooks_proadvisor"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "QuickBooks Online ProAdvisor",
+            "canonical": "quickbooks_proadvisor",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "QuickBooks Online ProAdvisor"
+          }
+        ],
         "software": [
           "quickbooks",
           "gusto",
@@ -7987,6 +8897,17 @@
           "quickbooks_proadvisor"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "QuickBooks Online ProAdvisor",
+            "canonical": "quickbooks_proadvisor",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "QuickBooks Online ProAdvisor (Intuit)"
+          }
+        ],
         "software": [
           "quickbooks",
           "bill_com",
@@ -8050,6 +8971,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "oracle_erp_cloud",
           "excel",
@@ -8120,9 +9042,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), New Mexico"
+          }
+        ],
         "software": [
           "sage_intacct",
           "excel"
@@ -8186,6 +9119,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel"
@@ -8226,31 +9160,58 @@
       "source": "linkedin",
       "status": "active",
       "available_in_days": 35,
-      "resume_text": "Vikram Banerjee\nBengaluru, India | vikram.banerjee@example.com\n\nSUMMARY\nNonprofit Controller with eight years in education and government-funded programmes, holding the US CPA and CGMA. I currently lead finance for a US-registered education charity operating in India, which means grant budgets and drawdowns, restricted fund accounting and the annual Form 990 all sit with me. Available about a month after accepting an offer. Fluent in English and Hindi.\n\nEXPERIENCE\nAshwatha Learning Foundation - Controller, Bengaluru, India\nFeb 2023 - Present\n- Lead a four-person finance team for a US 501(c)(3) education charity with Indian operations, USD 11M in annual revenue and 140 staff across 22 school programmes.\n- Own grant budgeting and drawdowns for 18 active grants, including two US federal sub-awards; prepare budgets to funder templates, submit monthly drawdown requests on a reimbursement basis and keep unspent balances reconciled to the general ledger.\n- Maintain restricted vs unrestricted fund accounting in Microsoft Dynamics 365 using dimension tracking by grant and programme; produce the statement of financial position with net assets with and without donor restrictions each month and release restrictions on a documented schedule.\n- Prepare the annual Form 990 workpapers and Schedule F for foreign activities, and coordinate the US audit; no material adjustments in three years.\n- Run vendor payments through Bill.com for the US entity and reconcile them into D365 monthly.\n- Built the grant burn-rate and cash forecast model in Microsoft Excel that the board finance committee reviews quarterly.\n\nKarnataka Civic Data Initiative - Senior Accountant, Bengaluru, India\nOct 2018 - Jan 2023\n- Managed accounting for a government-funded open data programme with an INR 60 crore annual budget across three state departments.\n- Prepared quarterly utilisation certificates and drawdown claims for government grants and reconciled them to the ledger.\n- Tracked restricted project funds separately from unrestricted core funding and prepared the monthly fund balance report for the steering committee.\n- Supported the US parent organisation's Form 990 by preparing the India expenditure schedules and functional expense allocation.\n- Migrated the books from spreadsheets to Dynamics 365 in 2021 and trained six programme officers on expense coding.\n\nEDUCATION\nBachelor of Commerce - a university in Karnataka\nMaster of Business Administration (Finance) - a regional business school\n\nCERTIFICATIONS\nCertified Public Accountant (US CPA)\nChartered Global Management Accountant (CGMA)\n\nSOFTWARE\nMicrosoft Dynamics 365, BILL (Bill.com), Microsoft Excel\n",
+      "resume_text": "Vikram Banerjee\nBengaluru, India | vikram.banerjee@example.com\n\nSUMMARY\nChartered Accountant (ICAI) and CGMA holder with eight years in grant-funded organisations. For the past four years I have been controller of the India finance hub of a US-registered education charity, which means I work daily with restricted funds, government grant drawdowns and the annual Form 990. I am on a 30-day notice period and could join about five weeks after an offer.\n\nEXPERIENCE\nVidyasetu Learning Foundation, Nonprofit Controller, Bengaluru, India, Aug 2022 - Present\n- Controller for a schools charity with an annual budget of US$31m, 60% of it from government and institutional grants; lead a team of seven.\n- Own grant budgeting and drawdowns for 24 active awards: build each award budget with programme leads, submit monthly drawdown requests and keep cash received within 3% of allowable spend.\n- Maintain the split of restricted vs unrestricted funds in Microsoft Dynamics 365 using fund and grant dimensions, and release restrictions as conditions are met.\n- Prepare the Form 990 workpapers, including the functional expense allocation and Schedules A, F and I, for the US tax advisers who file it.\n- Moved supplier payments to BILL with two-step approval; invoice processing time fell from 11 days to 4.\n\nKarnataka Skills Mission Support Unit, Grants Accountant, Bengaluru, India, Jun 2020 - Jul 2022\n- Finance lead in a state government programme office managing vocational training grants worth INR 180 crore.\n- Tracked grant budgets and utilisation for 46 training partners and prepared quarterly utilisation certificates.\n- Reviewed drawdown claims against milestones, rejecting or correcting about 8% of claims.\n- Built an Excel tracker that separated tied and untied funds by scheme.\n\nSundaram Rao & Associates, Audit Executive, Bengaluru, India, Oct 2018 - May 2020\n- Statutory audits of educational trusts, colleges and charitable societies.\n- Tested grant income recognition and fund balances for 15 clients.\n- Drafted financial statements and audit reports for partner review.\n\nEDUCATION\nBachelor of Commerce, a university in Karnataka, 2015\n\nCERTIFICATIONS\nCA, ICAI (Institute of Chartered Accountants of India), 2018\nCGMA (Chartered Global Management Accountant), 2022\n\nSOFTWARE\nMicrosoft Dynamics 365, BILL, Microsoft Excel\n",
       "profile": {
-        "headline": "Nonprofit Controller, CPA/CGMA - grants, restricted funds and Form 990 on Dynamics 365",
+        "headline": "Nonprofit Controller, CA (ICAI), CGMA - grants, fund accounting, Form 990",
         "years_experience": 8,
         "positions": [
           {
-            "title": "Controller",
-            "employer": "Ashwatha Learning Foundation",
-            "start_year": 2023,
+            "title": "Nonprofit Controller",
+            "employer": "Vidyasetu Learning Foundation",
+            "start_year": 2022,
             "end_year": null,
             "current": true
           },
           {
-            "title": "Senior Accountant",
-            "employer": "Karnataka Civic Data Initiative",
+            "title": "Grants Accountant",
+            "employer": "Karnataka Skills Mission Support Unit",
+            "start_year": 2020,
+            "end_year": 2022,
+            "current": false
+          },
+          {
+            "title": "Audit Executive",
+            "employer": "Sundaram Rao & Associates",
             "start_year": 2018,
-            "end_year": 2023,
+            "end_year": 2020,
             "current": false
           }
         ],
         "certifications": [
-          "cpa",
+          "ca_icai",
           "cgma"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "CA",
+            "canonical": "ca_icai",
+            "issuing_body": "ICAI",
+            "jurisdiction": "India",
+            "status": "qualified",
+            "year_obtained": 2018,
+            "quote": "CA, ICAI (Institute of Chartered Accountants of India), 2018"
+          },
+          {
+            "name_as_written": "CGMA",
+            "canonical": "cgma",
+            "issuing_body": "AICPA & CIMA",
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": 2022,
+            "quote": "CGMA (Chartered Global Management Accountant), 2022"
+          }
+        ],
         "software": [
           "microsoft_dynamics_365",
           "excel",
@@ -8267,14 +9228,12 @@
           "grant budgeting and drawdowns",
           "restricted vs unrestricted funds",
           "Form 990 preparation",
-          "nonprofit financial statements",
+          "fund accounting",
           "functional expense allocation",
-          "federal sub-award compliance",
-          "cash forecasting",
-          "audit coordination",
-          "team leadership",
-          "ERP migration",
-          "fund accounting"
+          "grant utilisation reporting",
+          "statutory audit",
+          "accounts payable automation",
+          "team leadership"
         ],
         "languages": [
           "en",
@@ -8316,6 +9275,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "excel",
           "adaptive_planning",
@@ -8385,6 +9345,17 @@
           "fpc"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Fundamental Payroll Certification",
+            "canonical": "fpc",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Fundamental Payroll Certification (FPC)"
+          }
+        ],
         "software": [
           "adp",
           "excel"
@@ -8455,6 +9426,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel",
@@ -8524,6 +9496,17 @@
           "quickbooks_proadvisor"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "QuickBooks ProAdvisor",
+            "canonical": "quickbooks_proadvisor",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "QuickBooks ProAdvisor (QuickBooks Online)"
+          }
+        ],
         "software": [
           "quickbooks",
           "bill_com",
@@ -8594,6 +9577,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "sap",
           "excel",
@@ -8659,9 +9643,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Georgia"
+          }
+        ],
         "software": [
           "quickbooks",
           "excel"
@@ -8734,6 +9729,17 @@
           "cpp"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Payroll Professional",
+            "canonical": "cpp",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Payroll Professional (CPP)"
+          }
+        ],
         "software": [
           "adp",
           "excel",
@@ -8801,6 +9807,26 @@
           "quickbooks_proadvisor"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Bookkeeper",
+            "canonical": "cb",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Bookkeeper (AIPB)"
+          },
+          {
+            "name_as_written": "QuickBooks ProAdvisor",
+            "canonical": "quickbooks_proadvisor",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "QuickBooks ProAdvisor"
+          }
+        ],
         "software": [
           "quickbooks",
           "bill_com",
@@ -8875,6 +9901,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "excel",
           "adaptive_planning",
@@ -8944,6 +9971,35 @@
           "quickbooks_proadvisor"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Bookkeeper",
+            "canonical": "cpb",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Bookkeeper (CPB)"
+          },
+          {
+            "name_as_written": "Certified Bookkeeper",
+            "canonical": "cb",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Bookkeeper (AIPB)"
+          },
+          {
+            "name_as_written": "QuickBooks ProAdvisor",
+            "canonical": "quickbooks_proadvisor",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "QuickBooks ProAdvisor"
+          }
+        ],
         "software": [
           "quickbooks",
           "excel",
@@ -9016,6 +10072,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel",
@@ -9081,6 +10138,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "workday",
           "excel",
@@ -9145,9 +10203,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), New Jersey"
+          }
+        ],
         "software": [
           "quickbooks",
           "excel",
@@ -9215,6 +10284,17 @@
           "quickbooks_proadvisor"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "QuickBooks ProAdvisor",
+            "canonical": "quickbooks_proadvisor",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "QuickBooks ProAdvisor"
+          }
+        ],
         "software": [
           "quickbooks",
           "excel",
@@ -9254,34 +10334,52 @@
       "full_name": "Kwame Chowdhury",
       "email": "kwame.chowdhury@example.com",
       "phone": null,
-      "location": "Manchester, UK",
+      "location": "Edinburgh, UK",
       "source": "linkedin",
       "status": "active",
       "available_in_days": 15,
-      "resume_text": "Kwame Chowdhury\nManchester, UK | kwame.chowdhury@example.com\n\nSUMMARY\nSenior Revenue Accountant with seven years in technology and telecommunications, a US CPA working in the UK subsidiary of a US-listed software group. I specialise in ASC 606 order-to-cash controls, standalone selling price (SSP) analysis and contract modifications on NetSuite, with Salesforce as the source of truth for bookings. Available on two weeks' notice.\n\nEXPERIENCE\nPennine Cloud Systems Ltd, Senior Revenue Accountant, Manchester, UK, Sep 2022 - Present\n- Own revenue recognition for the EMEA region, roughly $95M of annual subscription and services revenue across 1,100 active contracts, closing revenue on NetSuite by working day four.\n- Run the annual SSP analysis: build the pricing bands for 38 SKUs from 12 months of transactions in Excel, document the methodology for the auditors and update the allocation tables in NetSuite's revenue module.\n- Assess contract modifications (upgrades, downgrades, early renewals, co-terming) and decide prospective versus cumulative catch-up treatment; about 30 modifications a month, with memos on the material ones.\n- Designed and operate the order-to-cash controls: Salesforce opportunity to signed order form to NetSuite sales order three-way match, credit memo approvals and a monthly unbilled revenue review. No control deficiencies in three SOX cycles.\n- Trained the deal desk on the contract terms that create revenue problems, cutting non-standard clauses by about half.\n\nIrwell Telecom Group, Revenue Accountant, Manchester, UK, Oct 2019 - Aug 2022\n- Accounted for bundled handset and airtime contracts under ASC 606 for a business telecoms provider with 60,000 lines, including allocation of the transaction price between equipment and service using relative SSP.\n- Reconciled Salesforce bookings to billed revenue in NetSuite monthly and investigated variances above £5,000.\n- Built the deferred revenue and contract asset roll-forwards in Excel that supported the group audit.\n- Handled contract modifications for enterprise customers adding or removing lines mid-term.\n\nEDUCATION\nBSc Accounting and Finance, a UK university, 2019\n\nCERTIFICATIONS\nCertified Public Accountant (US CPA)\n\nSOFTWARE\nNetSuite, Microsoft Excel, Salesforce\n",
+      "resume_text": "Kwame Chowdhury\nEdinburgh, UK | kwame.chowdhury@example.com\n\nSUMMARY\nICAS Chartered Accountant (CA) specialising in revenue. Seven years' experience: three in audit, four in revenue teams at telecoms and software companies. I read contracts closely, document my judgements and like fixing the process that caused the problem. Two weeks' notice.\n\nEXPERIENCE\nLomondfield Software Ltd, Senior Revenue Accountant, Edinburgh, UK, Apr 2024 - Present\n- Responsible for revenue on around 1,900 customer contracts and £62m of annual revenue, recognised in NetSuite from orders booked in Salesforce.\n- Perform the annual SSP analysis for 14 products, stratified by region and deal size in Excel, and set the ranges used to allocate bundled deals.\n- Assess contract modifications (roughly 45 upsells, co-terms and early renewals a month) and document whether each is a separate contract or a prospective change.\n- Redesigned order-to-cash controls between Salesforce and NetSuite: a daily booking-to-billing reconciliation and approval rules for non-standard terms; unbilled revenue errors fell from 3.1% to 0.4% of invoices.\n- Review the work of two revenue accountants and close revenue by working day 3.\n\nStrathcairn Telecom plc, Revenue Accountant, Edinburgh, UK, Oct 2022 - Mar 2024\n- Revenue accounting for business broadband and managed network contracts worth £140m a year.\n- Allocated revenue between hardware, installation and service using stand-alone selling prices; refreshed the SSP study twice.\n- Accounted for mid-term contract modifications on 300 enterprise accounts.\n- Tested order-to-cash controls each quarter for internal audit and cleared four open findings.\n\nBraeburn Kerr LLP, Audit Associate, Glasgow, UK, Oct 2019 - Sep 2022\n- Audited technology and telecoms clients with revenue up to £200m.\n- Focused on revenue testing: contract reviews, cut-off and deferred income.\n- Senior on three engagements in my final year.\n\nEDUCATION\nMA (Hons) Accountancy, a university in Scotland, 2019\n\nCERTIFICATIONS\nCA, ICAS, 2022\n\nSOFTWARE\nNetSuite, Salesforce, Microsoft Excel\n",
       "profile": {
-        "headline": "Senior Revenue Accountant, US CPA - ASC 606 SSP, contract modifications, NetSuite",
+        "headline": "Senior Revenue Accountant, CA (ICAS) - SSP, contract modifications, order-to-cash",
         "years_experience": 7,
         "positions": [
           {
             "title": "Senior Revenue Accountant",
-            "employer": "Pennine Cloud Systems Ltd",
-            "start_year": 2022,
+            "employer": "Lomondfield Software Ltd",
+            "start_year": 2024,
             "end_year": null,
             "current": true
           },
           {
             "title": "Revenue Accountant",
-            "employer": "Irwell Telecom Group",
+            "employer": "Strathcairn Telecom plc",
+            "start_year": 2022,
+            "end_year": 2024,
+            "current": false
+          },
+          {
+            "title": "Audit Associate",
+            "employer": "Braeburn Kerr LLP",
             "start_year": 2019,
             "end_year": 2022,
             "current": false
           }
         ],
         "certifications": [
-          "cpa"
+          "ca_icas"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "CA",
+            "canonical": "ca_icas",
+            "issuing_body": "ICAS",
+            "jurisdiction": "UK",
+            "status": "qualified",
+            "year_obtained": 2022,
+            "quote": "CA, ICAS, 2022"
+          }
+        ],
         "software": [
           "netsuite",
           "excel",
@@ -9293,21 +10391,17 @@
           "telecommunications"
         ],
         "other_industries": [],
-        "gaap_exposure": [
-          "ASC 606"
-        ],
+        "gaap_exposure": [],
         "skills": [
           "order-to-cash controls",
           "SSP analysis and contract modifications",
-          "ASC 606 revenue recognition",
+          "IFRS 15 revenue recognition",
+          "revenue allocation for bundled deals",
+          "deferred income",
+          "booking-to-billing reconciliation",
+          "contract review",
           "revenue close",
-          "deferred revenue roll-forward",
-          "contract asset accounting",
-          "SOX controls",
-          "bookings to billings reconciliation",
-          "NetSuite revenue module",
-          "Salesforce",
-          "deal desk training"
+          "technical accounting memos"
         ],
         "languages": [
           "en"
@@ -9354,10 +10448,30 @@
           }
         ],
         "certifications": [
-          "cpa",
+          "cpa_us",
           "ea"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), New Mexico"
+          },
+          {
+            "name_as_written": "Enrolled Agent",
+            "canonical": "ea",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Enrolled Agent (EA)"
+          }
+        ],
         "software": [
           "quickbooks",
           "excel"
@@ -9421,6 +10535,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "sap",
           "excel",
@@ -9491,9 +10606,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Florida"
+          }
+        ],
         "software": [
           "netsuite",
           "excel",
@@ -9569,6 +10695,17 @@
           "ea"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Enrolled Agent",
+            "canonical": "ea",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Enrolled Agent (EA)"
+          }
+        ],
         "software": [
           "excel"
         ],
@@ -9634,6 +10771,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "sap",
           "excel"
@@ -9702,10 +10840,30 @@
           }
         ],
         "certifications": [
-          "cpa",
+          "cpa_us",
           "cma"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Texas"
+          },
+          {
+            "name_as_written": "Certified Management Accountant",
+            "canonical": "cma",
+            "issuing_body": "IMA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Management Accountant (CMA)"
+          }
+        ],
         "software": [
           "netsuite",
           "excel",
@@ -9773,6 +10931,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel",
@@ -9846,6 +11005,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel",
@@ -9913,6 +11073,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "bill_com",
@@ -9979,6 +11140,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel",
@@ -10047,6 +11209,26 @@
           "shrm_cp"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Fundamental Payroll Certification",
+            "canonical": "fpc",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Fundamental Payroll Certification (FPC)"
+          },
+          {
+            "name_as_written": "SHRM Certified Professional",
+            "canonical": "shrm_cp",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "SHRM Certified Professional (SHRM-CP)"
+          }
+        ],
         "software": [
           "workday",
           "excel"
@@ -10116,6 +11298,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel"
@@ -10185,6 +11368,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel",
@@ -10256,9 +11440,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), New Mexico"
+          }
+        ],
         "software": [
           "sap",
           "excel",
@@ -10325,6 +11520,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel",
@@ -10388,6 +11584,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel"
@@ -10451,9 +11648,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Florida"
+          }
+        ],
         "software": [
           "microsoft_dynamics_365",
           "excel",
@@ -10496,38 +11704,48 @@
       "source": "linkedin",
       "status": "active",
       "available_in_days": 3,
-      "resume_text": "Maria Cristina Navarro\nManila, Philippines | maria.cristinanavarro@example.com\n\nSUMMARY\nFinance Manager with 14 years' experience, ACCA qualified and a Chartered Accountant, leading the finance function for a cross-border payments fintech in Manila. My background spans local statutory audit, UK GAAP (FRS 102) statutory accounts for a UK-parented group, and VAT / GST returns across three jurisdictions. Fluent in English, Tagalog and Spanish. Available immediately.\n\nEXPERIENCE\nKalinga Pay - Finance Manager - Manila, Philippines - Mar 2019 - Present\n- Lead a team of five covering financial reporting, treasury and tax for a remittance and e-wallet business processing PHP 14bn a year.\n- Prepare UK GAAP (FRS 102) statutory accounts for the UK holding company and consolidate the Philippine and Singapore subsidiaries into the group accounts, delivered to the UK auditors within six weeks of year end.\n- Manage the local statutory audit in the Philippines, including the BIR annual income tax return and audited financial statements; three consecutive clean opinions with no post-audit adjustments.\n- Own VAT / GST returns: monthly and quarterly Philippine VAT filings, Singapore GST returns and the UK VAT return, with input tax recovery reconciled to Xero each period.\n- Built the Power BI management pack that replaced a 40-tab Excel workbook, giving the CEO and board daily revenue, float and liquidity views.\n\nBridgewater Remit Ltd - Financial Accountant - Manila, Philippines - Sep 2014 - Feb 2019\n- Kept the books for the UK entity and its Manila shared services centre on Xero; prepared the FRS 102 accounts and the corporation tax computation support for the UK advisers.\n- Prepared quarterly UK VAT returns and Philippine VAT and withholding tax filings.\n- Coordinated the local statutory audit of the Philippine branch and the group audit fieldwork.\n- Maintained the intercompany recharge model in Excel for the shared services arrangement.\n\nLorenzo & Dizon Auditors - Audit Associate - Manila, Philippines - Oct 2012 - Aug 2014\n- Performed statutory audit fieldwork for 20+ clients in payments, retail and BPO, including cash, revenue and payables testing.\n\nEDUCATION\nBS Accountancy, a Manila university\n\nCERTIFICATIONS\nACCA (Association of Chartered Certified Accountants), member since 2016\nChartered Accountant (CA)\n\nSOFTWARE\nXero, Microsoft Power BI, Microsoft Excel\n",
+      "resume_text": "Maria Cristina Navarro\nManila, Philippines | maria.cristinanavarro@example.com\n\nSUMMARY\nFinance manager and ACCA member with 14 years' experience, the last nine in payments and lending companies. I currently look after both the Philippine entity and the UK parent of a fintech group from Manila, including its FRS 102 statutory accounts. Our finance function is moving to London at the end of this month, so I am available immediately.\n\nEXPERIENCE\nPisolink Payments, Finance Manager, Manila, Philippines, Jan 2021 - Present\n- Lead a team of six covering a UK holding company and two Philippine subsidiaries with processed volume of US$900m a year.\n- Prepare the UK GAAP (FRS 102) statutory accounts for the UK entities, including financial instrument and safeguarded client fund disclosures, and file them within five months of year end.\n- Manage the local statutory audit in both countries; audit adjustments went from 17 to 2 over three years.\n- Review monthly Philippine VAT returns and quarterly UK VAT returns, including the partial exemption calculation for exempt financial services.\n- Built Power BI dashboards on top of Xero for daily cash, float and merchant settlement positions.\n\nBayanihan Lending Technologies, Senior Accountant, Manila, Philippines, Jun 2017 - Dec 2020\n- General ledger and reporting for a digital lender with a loan book of PHP 2.4bn.\n- Monthly close in Xero by working day 6; loan loss provision schedules in Excel.\n- Prepared VAT and percentage tax returns and the schedules for the annual statutory audit.\n- Trained three junior accountants.\n\nDalisay Trade Finance Services, Accountant, Manila, Philippines, Oct 2012 - May 2017\n- Accounts payable, bank reconciliations and month-end journals for a trade finance company.\n- Prepared monthly VAT returns and withholding tax filings.\n- Assisted the external auditors at year end with confirmations and schedules.\n- Promoted from accounts assistant after two years.\n\nEDUCATION\nBS Accountancy, a university in Metro Manila, 2012\n\nCERTIFICATIONS\nACCA member, 2016\n\nSOFTWARE\nXero, Microsoft Excel, Microsoft Power BI\n",
       "profile": {
-        "headline": "Finance Manager, ACCA/CA - fintech statutory accounts, FRS 102, VAT, Power BI",
+        "headline": "Finance Manager, ACCA - fintech, FRS 102 statutory accounts, VAT, audit",
         "years_experience": 14,
         "positions": [
           {
             "title": "Finance Manager",
-            "employer": "Kalinga Pay",
-            "start_year": 2019,
+            "employer": "Pisolink Payments",
+            "start_year": 2021,
             "end_year": null,
             "current": true
           },
           {
-            "title": "Financial Accountant",
-            "employer": "Bridgewater Remit Ltd",
-            "start_year": 2014,
-            "end_year": 2019,
+            "title": "Senior Accountant",
+            "employer": "Bayanihan Lending Technologies",
+            "start_year": 2017,
+            "end_year": 2020,
             "current": false
           },
           {
-            "title": "Audit Associate",
-            "employer": "Lorenzo & Dizon Auditors",
+            "title": "Accountant",
+            "employer": "Dalisay Trade Finance Services",
             "start_year": 2012,
-            "end_year": 2014,
+            "end_year": 2017,
             "current": false
           }
         ],
         "certifications": [
-          "acca",
-          "ca"
+          "acca"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "ACCA member",
+            "canonical": "acca",
+            "issuing_body": "ACCA",
+            "jurisdiction": "UK",
+            "status": "qualified",
+            "year_obtained": 2016,
+            "quote": "ACCA member, 2016"
+          }
+        ],
         "software": [
           "xero",
           "excel",
@@ -10539,20 +11757,19 @@
         ],
         "other_industries": [],
         "gaap_exposure": [
-          "UK GAAP",
-          "FRS 102"
+          "FRS 102",
+          "UK GAAP"
         ],
         "skills": [
           "VAT / GST returns",
           "local statutory audit",
           "UK GAAP (FRS 102) statutory accounts",
-          "group consolidation",
-          "management reporting",
-          "treasury and liquidity reporting",
-          "withholding tax filings",
-          "intercompany recharges",
-          "team leadership",
-          "fintech finance"
+          "partial exemption VAT",
+          "month-end close",
+          "loan loss provisioning",
+          "client fund safeguarding disclosures",
+          "Power BI dashboards",
+          "team leadership"
         ],
         "languages": [
           "en",
@@ -10595,6 +11812,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "sap",
           "bill_com",
@@ -10659,6 +11877,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel",
@@ -10728,6 +11947,35 @@
           "shrm_cp"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Payroll Professional",
+            "canonical": "cpp",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Payroll Professional (CPP)"
+          },
+          {
+            "name_as_written": "Fundamental Payroll Certification",
+            "canonical": "fpc",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Fundamental Payroll Certification (FPC)"
+          },
+          {
+            "name_as_written": "SHRM Certified Professional",
+            "canonical": "shrm_cp",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "SHRM Certified Professional (SHRM-CP)"
+          }
+        ],
         "software": [
           "paychex",
           "excel"
@@ -10790,6 +12038,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "workday",
           "excel",
@@ -10855,6 +12104,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel"
@@ -10919,6 +12169,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel",
@@ -10986,6 +12237,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "workday",
           "excel",
@@ -11059,6 +12311,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel",
@@ -11125,6 +12378,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel",
@@ -11192,6 +12446,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel",
@@ -11256,9 +12511,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Massachusetts"
+          }
+        ],
         "software": [
           "quickbooks",
           "excel",
@@ -11331,6 +12597,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "sap",
           "excel"
@@ -11401,6 +12668,17 @@
           "quickbooks_proadvisor"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "QuickBooks Online ProAdvisor",
+            "canonical": "quickbooks_proadvisor",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "QuickBooks Online ProAdvisor (Intuit)"
+          }
+        ],
         "software": [
           "quickbooks",
           "expensify",
@@ -11471,6 +12749,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "sage",
           "excel"
@@ -11539,6 +12818,17 @@
           "cpp"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Payroll Professional",
+            "canonical": "cpp",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Payroll Professional (CPP)"
+          }
+        ],
         "software": [
           "paylocity",
           "excel"
@@ -11608,6 +12898,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel"
@@ -11673,9 +12964,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Massachusetts"
+          }
+        ],
         "software": [
           "excel",
           "netsuite"
@@ -11738,9 +13040,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Georgia"
+          }
+        ],
         "software": [
           "oracle_erp_cloud",
           "excel",
@@ -11813,6 +13126,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "bill_com",
@@ -11877,10 +13191,30 @@
           }
         ],
         "certifications": [
-          "cpa",
+          "cpa_us",
           "cia"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), Colorado"
+          },
+          {
+            "name_as_written": "Certified Internal Auditor",
+            "canonical": "cia",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Internal Auditor (CIA)"
+          }
+        ],
         "software": [
           "netsuite",
           "excel",
@@ -11957,6 +13291,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel",
@@ -12020,6 +13355,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "oracle_erp_cloud",
           "excel",
@@ -12090,9 +13426,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (CPA), North Carolina"
+          }
+        ],
         "software": [
           "sap",
           "excel"
@@ -12157,6 +13504,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "xero",
           "excel",
@@ -12233,6 +13581,17 @@
           "cpb"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Bookkeeper",
+            "canonical": "cpb",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Bookkeeper (CPB), NACPB"
+          }
+        ],
         "software": [
           "quickbooks",
           "excel",
@@ -12299,6 +13658,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel"
@@ -12369,6 +13729,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "sap",
           "bill_com",
@@ -12434,6 +13795,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel",
@@ -12500,6 +13862,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "bill_com",
@@ -12570,6 +13933,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel"
@@ -12643,9 +14007,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (Arizona)"
+          }
+        ],
         "software": [
           "netsuite",
           "excel",
@@ -12725,6 +14100,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel",
@@ -12788,6 +14164,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel",
@@ -12858,6 +14235,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "netsuite",
           "excel",
@@ -12937,6 +14315,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel"
@@ -13005,9 +14384,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (New Mexico)"
+          }
+        ],
         "software": [
           "netsuite",
           "excel",
@@ -13075,6 +14465,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "oracle_erp_cloud",
           "expensify",
@@ -13140,6 +14531,17 @@
           "acca"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "ACCA",
+            "canonical": "acca",
+            "issuing_body": "ACCA",
+            "jurisdiction": "UK",
+            "status": "qualified",
+            "year_obtained": 2024,
+            "quote": "ACCA (Association of Chartered Certified Accountants), member since 2024"
+          }
+        ],
         "software": [
           "xero",
           "excel",
@@ -13217,9 +14619,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (Texas)"
+          }
+        ],
         "software": [
           "excel"
         ],
@@ -13289,9 +14702,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (Pennsylvania)"
+          }
+        ],
         "software": [
           "excel"
         ],
@@ -13360,9 +14784,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (Texas)"
+          }
+        ],
         "software": [
           "netsuite",
           "excel"
@@ -13428,6 +14863,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "oracle_erp_cloud",
           "excel",
@@ -13498,6 +14934,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "quickbooks",
           "excel"
@@ -13565,6 +15002,26 @@
           "quickbooks_proadvisor"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Bookkeeper",
+            "canonical": "cpb",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Bookkeeper (NACPB)"
+          },
+          {
+            "name_as_written": "QuickBooks ProAdvisor",
+            "canonical": "quickbooks_proadvisor",
+            "issuing_body": null,
+            "jurisdiction": null,
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "QuickBooks ProAdvisor"
+          }
+        ],
         "software": [
           "xero",
           "bill_com",
@@ -13635,9 +15092,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (North Carolina)"
+          }
+        ],
         "software": [
           "sap",
           "excel",
@@ -13711,6 +15179,7 @@
         ],
         "certifications": [],
         "other_certifications": [],
+        "qualifications": [],
         "software": [
           "excel"
         ],
@@ -13772,9 +15241,20 @@
           }
         ],
         "certifications": [
-          "cpa"
+          "cpa_us"
         ],
         "other_certifications": [],
+        "qualifications": [
+          {
+            "name_as_written": "Certified Public Accountant",
+            "canonical": "cpa_us",
+            "issuing_body": "US state boards / AICPA",
+            "jurisdiction": "US",
+            "status": "qualified",
+            "year_obtained": null,
+            "quote": "Certified Public Accountant (Georgia)"
+          }
+        ],
         "software": [
           "netsuite",
           "excel"

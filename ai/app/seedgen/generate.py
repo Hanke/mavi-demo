@@ -20,7 +20,7 @@ import re
 import sys
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
 from typing import Any, cast
@@ -29,7 +29,7 @@ import anthropic
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app import cache as cachemod
-from app import taxonomy
+from app import qualifications, taxonomy
 from app.cache import Cache
 from app.grounding import mentions, standards_named
 from app.schemas import CandidateProfile
@@ -53,11 +53,11 @@ resume_text - plain text, 260 to 450 words, sections in this order:
   2. SUMMARY: two or three sentences. State the availability in the candidate's own words (e.g. "available immediately", "two weeks' notice", "available from mid-November", "not currently looking but open to the right role", or nothing specific for 'unknown').
   3. EXPERIENCE: two to four positions, most recent first. Each starts with one heading line, "Employer, Title, City, Region, Mar 2021 - Present" (employer first, month/year range last), then three to five bullets starting with "- ". The ranges must be contiguous, must not overlap, and must add up to the stated years of experience ending in the present (today's date is given in the spec). Someone who is 'unavailable' is still employed; do not end their current job.
   4. EDUCATION: one or two lines.
-  5. CERTIFICATIONS: one line per certification, or "None".
+  5. CERTIFICATIONS: one line per certification, or "None". For an accounting qualification write the letters the candidate would use, the body that awarded it and the year, e.g. "ACA, ICAEW, 2018", "CPA, CPA Ontario, 2016", "CA, Chartered Accountants ANZ, 2019", "CPA, State of Illinois, 2015". Every certification in the spec is fully held: never write "part-qualified", "candidate" or "studying for" next to one.
   6. SOFTWARE: one line listing the tools.
 
 Rules for the content:
-- Mention every certification and every software product in the spec somewhere in the bullets or the summary, by the display name given or a common alias ("QBO", "NetSuite OneWorld", "S/4HANA", "Dynamics 365 Business Central", "Intacct" are all fine). The SOFTWARE and CERTIFICATIONS sections list them too.
+- Mention every certification and every software product in the spec somewhere in the bullets or the summary, by the display name given or a common alias. A candidate outside the US holds the qualification of their own country as the spec gives it (an ACA in England, a Canadian CPA in Toronto); do not describe it as a US CPA or add a US licence ("QBO", "NetSuite OneWorld", "S/4HANA", "Dynamics 365 Business Central", "Intacct" are all fine). The SOFTWARE and CERTIFICATIONS sections list them too.
 - Cover every GAAP / domain topic in the spec in concrete terms: what the candidate did with it, at what scale. Bullets should read like evidence a recruiter could quote: entity counts, close timelines, ledger or revenue size, headcount, error rates.
 - Use the industries in the spec for the employers. Match seniority to years: a two-year staff accountant does not lead a SOX programme; a controller does not describe data entry.
 - Do not claim any certification or software that is not in the spec, unless you also list it in other_certifications / other_software. Tools outside our taxonomy are welcome there, at most three, e.g. "CCH Axcess", "Zuora", "Blackbaud Financial Edge", "Lacerte", "AuditBoard", "TeamMate", "Coupa", "Chargebee", "CTP".
@@ -143,8 +143,10 @@ def _names_for(tax: taxonomy.Taxonomy, kind: taxonomy.Kind, ids: Iterable[str]) 
     out: dict[str, str] = {}
     for cid in ids:
         term = tax.term(kind, cid)
-        aliases = [a for a in term.aliases[:3] if a.lower() != term.label.lower()]
+        aliases = [a for a in (*term.aliases[:3], *term.inherited[:2]) if a.lower() != term.label.lower()]
         out[cid] = term.label + (f" (also: {', '.join(aliases)})" if aliases else "")
+        if term.issuing_body:
+            out[cid] += f"; awarded by {', '.join(d for d in (term.issuing_body, term.jurisdiction) if d)}"
     return out
 
 
@@ -229,6 +231,63 @@ def positions_from(resume_text: str) -> list[dict[str, Any]]:
     return positions
 
 
+_CERTIFICATIONS = re.compile(r"^CERTIFICATIONS[ \t]*\n(.*?)(?=^[A-Z][A-Z &]+[ \t]*$|\Z)", re.DOTALL | re.MULTILINE)
+_ONE_YEAR = re.compile(rf"(?<!\d)({_YEAR})(?!\d)")
+
+
+def _named_on(line: str, term: taxonomy.Term, siblings: list[taxonomy.Term]) -> str | None:
+    """How the line writes the qualification: its first name for it on the
+    line, the longest if two start together. None when the line does not name
+    it, or says it is a sibling's: "CPA" names a Canadian CPA only while the
+    line does not read "US CPA, licensed in Washington"."""
+    if any(mentions(line, replace(t, inherited=())) for t in siblings):
+        return None
+    found = [
+        m
+        for name in (*term.names, *term.inherited)
+        if (m := re.search(rf"(?<![A-Za-z0-9]){re.escape(name)}(?![A-Za-z0-9])", line, 0 if len(name) <= 4 else re.I))
+    ]
+    return min(found, key=lambda m: (m.start(), -len(m.group()))).group() if found else None
+
+
+def qualifications_from(slot: Slot, resume_text: str, tax: taxonomy.Taxonomy) -> list[dict[str, Any]]:
+    """The record for each planned certification, read off the resume: the
+    name as the text writes it and the line that says so. A line in the
+    CERTIFICATIONS section is preferred, then one that does not read as
+    "part-qualified" or "studying for". The year is taken only from a line in
+    that section that carries exactly one."""
+    section = _CERTIFICATIONS.search(resume_text)
+    listed = section.group(1).splitlines() if section else []
+    records: list[dict[str, Any]] = []
+    for cid in slot.certifications:
+        term = tax.term("certifications", cid)
+        siblings = [t for p in term.variant_of for t in tax.variants(p) if t.id != cid]
+        mentioned = [
+            (name, line.strip().lstrip("-*\u2022 \t"), in_section)
+            for in_section, lines in ((True, listed), (False, resume_text.splitlines()))
+            for line in lines
+            if (name := _named_on(line, term, siblings))
+        ]
+        if not mentioned:
+            continue  # check() reports it
+        name, quote, in_section = next(
+            (m for m in mentioned if qualifications.status_from(m[0], m[1], "qualified") == "qualified"), mentioned[0]
+        )
+        years = _ONE_YEAR.findall(quote) if in_section else []
+        records.append(
+            {
+                "name_as_written": name,
+                "canonical": cid,
+                "issuing_body": qualifications.body_in(tax, cid, quote),
+                "jurisdiction": None,
+                "status": "qualified",
+                "year_obtained": int(years[0]) if len(years) == 1 else None,
+                "quote": quote,
+            }
+        )
+    return records
+
+
 def assemble(slot: Slot, gen: GeneratedCandidate) -> CandidateProfile:
     """The stored profile: plan facts, model prose. Validation runs the same
     taxonomy resolution the parser does, so the JSON on disk is exactly a
@@ -240,6 +299,7 @@ def assemble(slot: Slot, gen: GeneratedCandidate) -> CandidateProfile:
             "positions": positions_from(gen.resume_text),
             "certifications": list(slot.certifications),
             "other_certifications": gen.other_certifications,
+            "qualifications": qualifications_from(slot, gen.resume_text, taxonomy.load()),
             "software": list(slot.software),
             "other_software": gen.other_software,
             "industries": list(slot.industries),
@@ -273,6 +333,17 @@ def check(slot: Slot, gen: GeneratedCandidate | None, tax: taxonomy.Taxonomy) ->
         profile = assemble(slot, gen)
     except ValidationError as e:
         return None, [*problems, f"profile failed validation: {e}"]
+    if {q.canonical for q in profile.qualifications} != set(slot.certifications):
+        unnamed = sorted(set(slot.certifications) - {q.canonical for q in profile.qualifications})
+        problems.append(f"no line of the resume states these as the candidate's own qualification: {unnamed}")
+    elif profile.certifications != slot.certifications:
+        # The schema re-derives the held ids from what the resume says about
+        # each qualification; a resume that calls one "part-qualified" or
+        # names another country's body no longer carries the plan's facts.
+        problems.append(
+            f"the resume must present exactly {slot.certifications} as fully held qualifications; "
+            f"it reads as {profile.certifications}"
+        )
     if problems:
         return None, problems
     return Generated(slot=slot, resume_text=gen.resume_text.strip() + "\n", profile=profile), []
@@ -304,7 +375,43 @@ def ingest(batch: GeneratedBatch, slots: list[Slot]) -> tuple[list[Generated], d
     return good, bad
 
 
-def merge_into_file(path: Path, generated: list[Generated], model: str) -> int:
+def reassemble(path: Path, slots: list[Slot]) -> tuple[int, dict[int, list[str]]]:
+    """Re-derive every stored profile from the current plan and the stored
+    resume text, without writing new prose. For after a change to the plan or
+    the schema: a candidate whose resume still carries the plan's facts gets
+    the new profile; the rest are returned with what is wrong, to regenerate."""
+    tax = taxonomy.load()
+    data = cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
+    stored = {cast(str, c["id"]): c for c in cast(list[dict[str, Any]], data["candidates"])}
+    good: list[Generated] = []
+    bad: dict[int, list[str]] = {}
+    for slot in slots:
+        c = stored.get(slot.id)
+        if c is None:
+            continue
+        old = cast(dict[str, Any], c["profile"])
+        gen = GeneratedCandidate(
+            slot=slot.index,
+            headline=old["headline"],
+            resume_text=c["resume_text"],
+            skills=old["skills"],
+            other_software=old["other_software"],
+            other_certifications=old["other_certifications"],
+        )
+        done, problems = check(slot, gen, tax)
+        if done is None:
+            bad[slot.index] = problems
+        else:
+            good.append(done)
+    generator = cast(dict[str, Any], data.get("generator", {}))
+    if good:
+        merge_into_file(
+            path, good, cast(str, generator.get("model", MODEL)), generated_on=generator.get("generated_on")
+        )
+    return len(good), bad
+
+
+def merge_into_file(path: Path, generated: list[Generated], model: str, generated_on: str | None = None) -> int:
     """Add or replace candidates in the committed JSON, keyed by id, under a
     file lock so parallel ingests do not lose each other's work. Returns the
     total count."""
@@ -330,7 +437,7 @@ def merge_into_file(path: Path, generated: list[Generated], model: str) -> int:
                 "model": model,
                 "plan_seed": PLAN_SEED,
                 "count": len(candidates),
-                "generated_on": date.today().isoformat(),
+                "generated_on": generated_on or date.today().isoformat(),
             },
             "candidates": candidates,
         }

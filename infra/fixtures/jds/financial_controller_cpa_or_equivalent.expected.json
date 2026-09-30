@@ -1,0 +1,30 @@
+{
+  "$comment": "'CPA or equivalent international qualification' is one requirement, for a US CPA (the role is in Boston), with equivalents accepted and said so. The ACA, ACCA and CA in brackets are examples of equivalents, not three more requirements. It passes the UK ACA and the ACCA as well as the US CPAs with NetSuite, and not the part-qualified ACCA, AAT or CIMA resumes. US GAAP is only preferred, so it is not a hard filter: whether an FRS 102 candidate can lead the conversion is the rerank's call.",
+  "company": "Orrin Analytics Inc.",
+  "requirements": {
+    "title": "Financial Controller, North America",
+    "required_certifications": ["cpa_us"],
+    "other_required_certifications": [],
+    "required_qualifications": [
+      {"name_as_written": "CPA", "canonical": "cpa_us", "accept_equivalents": true, "equivalents_stated": true, "quote": "CPA or equivalent international qualification (ACA, ACCA, CA)"}
+    ],
+    "required_software": ["netsuite", "excel"],
+    "other_required_software": [],
+    "industries": ["technology"],
+    "other_industries": [],
+    "must_haves": [
+      "CPA or equivalent international qualification (ACA, ACCA, CA)",
+      "8+ years of accounting experience, including group reporting for a software business",
+      "NetSuite as a daily user",
+      "Advanced Excel"
+    ],
+    "nice_to_haves": [
+      "US GAAP reporting experience, including ASC 606 for subscription revenue",
+      "BlackLine",
+      "Experience working with a UK parent company"
+    ],
+    "timezone": "America/New_York",
+    "starts_on": null
+  },
+  "hard_filter_matches": ["financial_controller_aca_uk", "fpa_manager_london", "fractional_cfo", "senior_accountant_cpa_netsuite"]
+}
