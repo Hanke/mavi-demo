@@ -19,7 +19,7 @@ Requires Docker Desktop (Compose v2).
 cp .env.example .env     # add provider keys if you want real LLM/embedding calls
 make up                  # docker compose up --build -d, then prints health
 make migrate             # apply infra/db/migrations
-make seed                # load infra/db/seed
+make seed                # load infra/db/seed: ~200 synthetic candidates, sample roles, and their embed jobs
 ```
 
 Then open <http://localhost:5173>. The page calls the API's `/health`, which in
@@ -222,6 +222,7 @@ Run `make` to list them. The main ones:
 
 - `make up` / `make down` / `make logs` / `make ps`
 - `make migrate` / `make migrate-down` / `make migrate-status` / `make seed` — run inside the `api` image against the compose DB. `make migrate-down STEPS=2` or `STEPS=all` rolls back further.
+- `make seed-render` / `make seed-generate` — rewrite the seed SQL from the committed JSON, or regenerate the synthetic candidates with the model first (see [Seed data](#seed-data))
 - `make worker` — an extra background job worker container next to the one inside the API (see [Background jobs](#background-jobs))
 - `make test-db` — migration up/down round-trip, the API CRUD / role tests and the job queue tests against the compose DB (each test creates and drops a throwaway database)
 - `make generate` / `make check-contracts` — regenerate the shared types from the OpenAPI documents, or fail if regenerating changes anything (see [Contracts](#contracts))
@@ -264,6 +265,55 @@ ORDER BY p.embedding <=> r.embedding
 LIMIT 20;
 ```
 
+## Seed data
+
+`make seed` loads [`infra/db/seed`](infra/db/seed) in file-name order:
+
+| File | What |
+| --- | --- |
+| `010_candidates.sql` | ~200 synthetic finance / accounting candidates: raw resume text plus a structured profile with the hard-filter columns filled |
+| `020_roles.sql` | A dozen sample job descriptions whose hard filters each carve a different slice of those candidates |
+| `030_documents.sql` | Three demo documents |
+| `090_embed_jobs.sql` | Queues an `embed_profile` / `embed_role` job for every row still without a vector, so the worker in the API container fills the embeddings (no provider key needed with `EMBEDDING_PROVIDER=local`) |
+
+Every file is idempotent (fixed ids, `ON CONFLICT DO NOTHING`), so `make seed`
+is additive: it never updates a row that already exists. For a clean slate,
+`make migrate-down STEPS=all && make migrate && make seed`.
+
+The two SQL files are **generated** from
+[`infra/db/seed/data/candidates.json`](infra/db/seed/data/candidates.json) and
+[`roles.json`](infra/db/seed/data/roles.json) by `make seed-render`; edit the
+JSON, not the SQL (`tests/test_seed_data.py` fails when they disagree). The
+candidates come from `ai/app/seedgen`, in two halves:
+
+- **The plan** (`plan.py`) is code: a seeded RNG assigns each of the 200 slots
+  a role family (bookkeeper, AP/AR, payroll, staff and senior accountant,
+  controller, FP&A, tax, audit, revenue, cost, treasury, international,
+  fractional CFO, nonprofit), years of experience, certifications (about a
+  third hold a CPA; CMA, CIA, EA, CPP, ACCA, CA and others appear in smaller
+  numbers; roughly half hold none), software (QuickBooks and NetSuite most
+  common, then SAP, Dynamics, Oracle, Sage Intacct, Xero, the FP&A and close
+  tools, payroll systems), GAAP exposure, industries, availability
+  (`immediate` through `unknown`, with a relative `available_in_days`),
+  timezone (mostly US zones, some Toronto, London, Manila, Bengaluru, Sydney
+  and others) and languages. `python -m app.seedgen plan` prints the
+  distribution. Because the plan decides the facts, the hard filters and the
+  ranking visibly change results no matter what the prose says.
+- **The prose** is written by the model from each slot's spec: a 260-450 word
+  resume with quotable, specific bullets, a headline and a skills list. Every
+  certification and software product in the spec must be named in the resume
+  (by label or a taxonomy alias), and the structured profile is validated as a
+  `CandidateProfile`, so the parser and the evidence quotes have real text to
+  work on. `make seed-generate` does this over the API (`ANTHROPIC_API_KEY` in
+  `.env`; `SLOTS=3,17` or `SLOTS=1-20` regenerates a subset). Without a key,
+  `python -m app.seedgen specs --slots 1-20` prints the same brief and specs
+  for a model session to write, and `python -m app.seedgen ingest <file>`
+  applies the same checks and merges the result. The committed file records
+  which model wrote it.
+
+No real candidate data is involved: names, employers, emails and phone numbers
+are invented, and emails use `example.com`.
+
 ## Taxonomy
 
 The hard filters compare a role's `required_certifications` / `required_software`
@@ -281,7 +331,8 @@ Who reads it:
   resolve move to the matching `other_*` free-text field rather than being dropped,
   and the JSON schema handed to the model carries the id list as an enum.
 - **Seed** (`api seed`): the seed files and a check of the four hard-filter
-  columns run in one transaction. A value that is not a canonical id rolls the
+  columns run in one transaction (the generated seed writes canonical ids
+  by construction; the check still runs). A value that is not a canonical id rolls the
   whole seed back, naming the offending value and the id it should have been.
 - **Filters / API write path** (`api/internal/taxonomy`): `Resolve` / `ResolveAll`
   give the Go side the same mapping, so anything the API writes to those columns

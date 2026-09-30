@@ -6,3 +6,5 @@ __pycache__/
 .pytest_cache/
 *.pyc
 .DS_Store
+# ingest lock for the seed JSON (ai/app/seedgen)
+infra/db/seed/data/*.lock

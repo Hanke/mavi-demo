@@ -442,3 +442,104 @@ func TestSeedRollsBackWhenCheckFails(t *testing.T) {
 		t.Error("accepted seed did not commit")
 	}
 }
+
+// TestSeedIsVariedAndQueuesEmbeddings loads the real seed and checks what the
+// demo depends on: roughly 200 candidates with profiles, hard filters that
+// carve each sample role a real shortlist (neither nobody nor everybody),
+// and an embed job queued for every profile and role, exactly once even
+// when the seed is run twice.
+func TestSeedIsVariedAndQueuesEmbeddings(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	infra := filepath.Join("..", "..", "..", "infra")
+	if err := Migrate(ctx, pool, filepath.Join(infra, "db", "migrations")); err != nil {
+		t.Fatal(err)
+	}
+	if err := Seed(ctx, pool, filepath.Join(infra, "db", "seed")); err != nil {
+		t.Fatal(err)
+	}
+
+	candidates := queryInt(t, pool, `SELECT count(*) FROM candidates`)
+	profiles := queryInt(t, pool, `SELECT count(*) FROM candidate_profiles`)
+	roles := queryInt(t, pool, `SELECT count(*) FROM roles WHERE btrim(description) <> ''`)
+	if candidates < 150 || profiles != candidates {
+		t.Fatalf("seeded %d candidates with %d profiles; want >= 150 with a profile each", candidates, profiles)
+	}
+	if roles < 5 {
+		t.Fatalf("seeded %d roles with a description; want a handful", roles)
+	}
+	if n := queryInt(t, pool, `SELECT count(DISTINCT timezone) FROM candidate_profiles`); n < 6 {
+		t.Errorf("only %d distinct timezones", n)
+	}
+	if n := queryInt(t, pool, `SELECT count(DISTINCT availability) FROM candidate_profiles`); n < 4 {
+		t.Errorf("only %d distinct availability values", n)
+	}
+	if n := queryInt(t, pool, `SELECT count(*) FROM candidate_profiles WHERE embedding IS NOT NULL`); n != 0 {
+		t.Errorf("seed wrote %d embeddings directly; they come from the embed jobs", n)
+	}
+
+	// Every sample role's hard filters (the README shortlist query) select
+	// some, but not nearly all, candidates.
+	rows, err := pool.Query(ctx, `
+		SELECT r.title, count(p.id)
+		FROM roles r
+		LEFT JOIN candidate_profiles p
+		  ON p.certifications @> r.required_certifications
+		 AND p.software       @> r.required_software
+		 AND (r.starts_on IS NULL OR p.available_from <= r.starts_on)
+		LEFT JOIN candidates c ON c.id = p.candidate_id AND c.status = 'active'
+		GROUP BY r.id, r.title`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	shortlists := map[string]int{}
+	for rows.Next() {
+		var title string
+		var n int
+		if err := rows.Scan(&title, &n); err != nil {
+			t.Fatal(err)
+		}
+		shortlists[title] = n
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	distinct := map[int]bool{}
+	for title, n := range shortlists {
+		if n < 1 || n > candidates*9/10 {
+			t.Errorf("role %q: hard filters pass %d of %d candidates", title, n, candidates)
+		}
+		distinct[n] = true
+	}
+	if len(distinct) < 4 {
+		t.Errorf("roles select the same shortlist sizes: %v", shortlists)
+	}
+
+	// One queued embed job per profile and per role; a second seed adds none.
+	queued := func() (int, int) {
+		return queryInt(t, pool, `SELECT count(*) FROM jobs WHERE kind = 'embed_profile' AND status = 'queued'`),
+			queryInt(t, pool, `SELECT count(*) FROM jobs WHERE kind = 'embed_role' AND status = 'queued'`)
+	}
+	if p, r := queued(); p != profiles || r != roles {
+		t.Errorf("queued %d profile and %d role embed jobs; want %d and %d", p, r, profiles, roles)
+	}
+	if err := Seed(ctx, pool, filepath.Join(infra, "db", "seed")); err != nil {
+		t.Fatalf("second seed: %v", err)
+	}
+	if p, r := queued(); p != profiles || r != roles {
+		t.Errorf("second seed changed the queue to %d profile and %d role jobs", p, r)
+	}
+	if n := queryInt(t, pool, `SELECT count(*) FROM candidates`); n != candidates {
+		t.Errorf("second seed changed the candidate count to %d", n)
+	}
+}
+
+func queryInt(t *testing.T, pool *pgxpool.Pool, sql string, args ...any) int {
+	t.Helper()
+	var n int
+	if err := pool.QueryRow(context.Background(), sql, args...).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}

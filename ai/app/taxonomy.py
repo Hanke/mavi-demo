@@ -108,6 +108,13 @@ class Taxonomy:
     def ids(self, kind: Kind) -> tuple[str, ...]:
         return tuple(t.id for t in self._terms[kind])
 
+    def term(self, kind: Kind, term_id: str) -> Term:
+        """The term for a canonical id; KeyError for anything else."""
+        for t in self._terms[kind]:
+            if t.id == term_id:
+                return t
+        raise KeyError(f"{kind}: {term_id!r} is not a canonical id")
+
     def is_canonical(self, kind: Kind, value: str) -> bool:
         """True only for an exact id, e.g. "bill_com"; aliases and labels are not canonical."""
         return value in self._ids[kind]
