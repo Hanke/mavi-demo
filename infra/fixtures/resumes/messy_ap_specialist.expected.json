@@ -1,0 +1,36 @@
+{
+  "$comment": "The messy one: all-caps name, contact details at the bottom, three bullet styles, tabs, a stray table, inconsistent date formats and typos ('excell', 'reimbursments'). Years run from the first temp role (Sep 2022). Studying for a certification is not holding one. Concur must resolve to concur, not sap.",
+  "contact": {
+    "full_name": "Jordan Blake",
+    "email": "jordan.blake@example.com",
+    "phone": "214-555-0177",
+    "location": "Dallas, TX 75201"
+  },
+  "profile": {
+    "headline": "Accounts Payable Specialist - high-volume NetSuite AP with AR cover",
+    "years_experience": 4,
+    "certifications": [],
+    "other_certifications": [],
+    "software": ["netsuite", "concur", "quickbooks", "bill_com", "excel"],
+    "other_software": [],
+    "industries": ["logistics", "construction"],
+    "other_industries": [],
+    "skills": [
+      "high-volume invoice processing",
+      "three-way match",
+      "vendor statement reconciliations",
+      "payment runs",
+      "expense report administration",
+      "AP accruals",
+      "1099 preparation",
+      "cash application",
+      "collections",
+      "lien waivers and pay applications",
+      "retainage tracking"
+    ],
+    "languages": ["en"],
+    "availability": "two_weeks",
+    "available_from": null,
+    "timezone": "America/Chicago"
+  }
+}

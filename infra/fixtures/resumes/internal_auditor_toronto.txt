@@ -1,0 +1,34 @@
+ÉTIENNE ROY, CPA, CA, CIA
+Toronto, ON | etienne.roy@example.com | 416-555-0190
+
+DESIGNATIONS
+CPA, CA (CPA Ontario, 2019) | Certified Internal Auditor (IIA, 2022)
+
+SUMMARY
+Internal audit senior manager with eight years in financial services: three in external audit at a national firm and five in the internal audit functions of a Schedule I bank and a P&C insurer. I run risk-based audits of finance, treasury and technology processes and I am comfortable with data: Alteryx workflows and Tableau dashboards are part of every engagement I lead. Available on two weeks' notice.
+
+EXPERIENCE
+Lakeshore Mutual Insurance, Toronto, ON
+Senior Manager, Internal Audit | 2024 – Present
+- Lead a team of four auditors delivering 14 audits a year across claims, underwriting finance, actuarial reserving and IT general controls.
+- Built the continuous-monitoring programme: Alteryx workflows over SAP GL and claims data flag duplicate payments and manual journal risks monthly; findings reported in Tableau.
+- Audit lead for the IFRS 17 implementation review; presented results to the audit committee.
+- Manage the audit universe, planning and issue tracking in AuditBoard.
+
+Dominion Trust Bank, Toronto, ON
+Manager, Internal Audit | 2021 – 2024
+- Ran audits of treasury, liquidity reporting, financial close and the Workday Financials implementation.
+- Co-sourced SOX 404 testing for the US subsidiary with the external auditor.
+
+Whitcombe Hale LLP, Toronto, ON
+Audit Associate to Senior Associate | 2018 – 2021
+- External audits of banks, credit unions and insurers under IFRS; led fieldwork teams of up to five.
+
+EDUCATION
+Bachelor of Commerce (Accounting), a Canadian university, 2018
+
+TECHNICAL
+SAP (FI/CO), Workday Financials, Alteryx, Tableau, AuditBoard, Microsoft Excel
+
+LANGUAGES
+French (native), English (fluent)

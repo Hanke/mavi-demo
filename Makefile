@@ -9,7 +9,7 @@ PYTHON ?= $(shell test -x $(CURDIR)/ai/.venv/bin/python && echo $(CURDIR)/ai/.ve
 # Every file a generator writes. `make check-contracts` fails when one is stale.
 GENERATED := ai/openapi.json api/internal/aiclient/types.gen.go api/internal/contract/types.gen.go web/src/api/schema.d.ts
 
-.PHONY: help up down logs ps migrate migrate-down migrate-status seed seed-render seed-generate worker test test-api test-ai test-db test-web health \
+.PHONY: help up down logs ps migrate migrate-down migrate-status seed seed-render seed-generate fixtures-render worker test test-api test-ai test-db test-web health \
         lint lint-api lint-ai lint-web fmt-ai generate generate-ai-spec generate-api generate-web check-contracts
 
 help: ## Show this help
@@ -47,6 +47,9 @@ seed-render: ## Rewrite infra/db/seed/*.sql from infra/db/seed/data/*.json (no A
 seed-generate: ## Rewrite the synthetic candidates with the model (needs ANTHROPIC_API_KEY in .env), then render; SLOTS=3,17 or 1-20 for a subset
 	@set -a; [ -f .env ] && . ./.env; set +a; \
 	cd ai && $(PYTHON) -m app.seedgen generate $(if $(SLOTS),--only $(SLOTS)) && $(PYTHON) -m app.seedgen render
+
+fixtures-render: ## Rewrite infra/fixtures/resumes/*.pdf from the .txt files (no API key)
+	cd ai && $(PYTHON) -m app.fixtures render
 
 worker: ## Run an extra background job worker next to the one inside the API (Ctrl-C to stop)
 	$(COMPOSE) run --rm --no-deps -e WORKER_ID=worker-$$$$ api worker

@@ -1,0 +1,28 @@
+{
+  "$comment": "'CPA or CMA' is an either/or: the hard filter is array containment, so putting both ids in required_certifications would exclude everyone with only one. It stays in must_haves as text and required_certifications is empty. SAP is the only software hard filter (Power BI is preferred). Aerospace is the customers' industry, not the company's, and is not a taxonomy term anyway. 'As soon as possible' is not a date.",
+  "company": "Hadley Precision Castings, Inc.",
+  "requirements": {
+    "title": "Controller",
+    "required_certifications": [],
+    "other_required_certifications": [],
+    "required_software": ["sap"],
+    "other_required_software": [],
+    "industries": ["manufacturing"],
+    "other_industries": [],
+    "must_haves": [
+      "CPA or CMA",
+      "10 or more years of accounting experience with at least 5 in a manufacturing environment",
+      "Standard costing experience in a make-to-order or foundry setting",
+      "SAP experience (S/4HANA or ECC) as the system of record",
+      "Willingness to work on-site in Toledo five days a week"
+    ],
+    "nice_to_haves": [
+      "Power BI or similar reporting tools",
+      "Experience with an ERP implementation or upgrade",
+      "Aerospace quality environment (AS9100) exposure"
+    ],
+    "timezone": "America/New_York",
+    "starts_on": null
+  },
+  "hard_filter_matches": ["controller_manufacturing", "internal_auditor_toronto"]
+}

@@ -1,0 +1,35 @@
+{
+  "$comment": "Canadian, accented name, designations listed at the top. 'CPA, CA' is two taxonomy ids (cpa and ca) plus CIA. AuditBoard is outside the taxonomy. Year-only date ranges. Languages listed French first.",
+  "contact": {
+    "full_name": "Étienne Roy",
+    "email": "etienne.roy@example.com",
+    "phone": "416-555-0190",
+    "location": "Toronto, ON"
+  },
+  "profile": {
+    "headline": "Internal Audit Senior Manager, CPA, CA, CIA - risk-based audit with Alteryx and Tableau in financial services",
+    "years_experience": 8,
+    "certifications": ["cpa", "ca", "cia"],
+    "other_certifications": [],
+    "software": ["sap", "workday", "alteryx", "tableau", "excel"],
+    "other_software": ["AuditBoard"],
+    "industries": ["insurance", "banking", "accounting_services"],
+    "other_industries": [],
+    "skills": [
+      "risk-based internal audit",
+      "continuous monitoring",
+      "data analytics for audit",
+      "IT general controls",
+      "IFRS 17",
+      "SOX 404 testing",
+      "treasury and liquidity audits",
+      "external audit under IFRS",
+      "audit committee reporting",
+      "team leadership"
+    ],
+    "languages": ["fr", "en"],
+    "availability": "two_weeks",
+    "available_from": null,
+    "timezone": "America/Toronto"
+  }
+}

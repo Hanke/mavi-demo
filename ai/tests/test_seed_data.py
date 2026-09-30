@@ -17,7 +17,7 @@ from typing import Any, cast
 
 import pytest
 
-from app import taxonomy
+from app import fixtures, taxonomy
 from app.schemas import CandidateProfile, RoleRequirements
 from app.seedgen import generate, plan, render
 
@@ -145,11 +145,7 @@ def _passes_hard_filters(
     profile: CandidateProfile, days: int | None, active: bool, req: RoleRequirements, starts_in: int | None
 ) -> bool:
     """The README shortlist query's WHERE clause, in Python."""
-    if not active:
-        return False
-    if not set(req.required_certifications) <= set(profile.certifications):
-        return False
-    if not set(req.required_software) <= set(profile.software):
+    if not active or not fixtures.passes_hard_filters(profile, req):
         return False
     return starts_in is None or (days is not None and days <= starts_in)
 

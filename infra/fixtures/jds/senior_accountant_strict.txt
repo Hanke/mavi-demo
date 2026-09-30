@@ -1,0 +1,27 @@
+Senior Accountant (Hybrid, San Francisco)
+Vantara Health Software | Finance & Accounting | Full-time
+
+Vantara Health Software builds scheduling and billing software for outpatient clinics. We are a 260-person, Series C company with $55M ARR, and our six-person accounting team runs a tight monthly close. We are hiring a Senior Accountant to own the general ledger and the reconciliation program.
+
+Responsibilities
+- Own the month-end close calendar: journal entries, accruals, prepaids, fixed assets and intercompany for our US parent and Canadian subsidiary in NetSuite.
+- Own the BlackLine balance sheet reconciliation program (about 70 accounts) and certify the close by business day 6.
+- Prepare the monthly flux analysis and the supporting schedules for the board package.
+- Coordinate PBC requests for the annual audit and the quarterly 409A.
+- Document and improve close procedures; mentor one staff accountant.
+
+Requirements (all are required; please do not apply if you do not meet them)
+- Active CPA license (any US state).
+- Minimum 5 years of accounting experience, including at least 2 years in a Senior Accountant or equivalent role at a software or SaaS company.
+- Hands-on NetSuite experience as a daily user: journal imports, saved searches, multi-subsidiary consolidation.
+- BlackLine experience for account reconciliations.
+- Advanced Excel (pivot tables, XLOOKUP or INDEX-MATCH, Power Query).
+- Located in the San Francisco Bay Area and able to work from our SoMa office Tuesday through Thursday; Pacific time hours.
+- Able to start on or before Monday, November 2, 2026.
+
+Preferred
+- FloQast or other close-management tooling.
+- Experience with ASC 606 for multi-element SaaS contracts.
+- Healthcare technology background.
+
+Compensation: $125,000 to $145,000 base plus equity and benefits.

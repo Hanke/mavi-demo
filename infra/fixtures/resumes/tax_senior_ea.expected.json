@@ -1,0 +1,35 @@
+{
+  "$comment": "Paragraph style with no bullets, no availability statement (unknown), Arizona (no daylight saving, so America/Phoenix). Tax software (CCH Axcess, Lacerte) is outside the taxonomy. The firm is accounting_services; the client industries named as the candidate's focus are included too.",
+  "contact": {
+    "full_name": "Luis Herrera-Campos",
+    "email": "luis.herrera@example.com",
+    "phone": "480-555-0126",
+    "location": "Scottsdale, Arizona"
+  },
+  "profile": {
+    "headline": "Tax Senior, EA - review and preparation of business and individual returns in CCH Axcess",
+    "years_experience": 5,
+    "certifications": ["ea"],
+    "other_certifications": [],
+    "software": ["quickbooks", "excel"],
+    "other_software": ["CCH Axcess", "Lacerte", "Adobe Acrobat"],
+    "industries": ["accounting_services", "construction", "real_estate", "healthcare"],
+    "other_industries": [],
+    "skills": [
+      "tax return review",
+      "partnership and S-corporation taxation",
+      "multi-state tax",
+      "IRS representation",
+      "notice responses",
+      "extensions and estimates",
+      "year-end tax planning",
+      "bookkeeping clean-up",
+      "1099 preparation",
+      "Arizona TPT filings"
+    ],
+    "languages": ["en", "es"],
+    "availability": "unknown",
+    "available_from": null,
+    "timezone": "America/Phoenix"
+  }
+}

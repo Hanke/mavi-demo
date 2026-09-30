@@ -1,0 +1,29 @@
+{
+  "$comment": "UK role: ACCA required (no US certification), Anaplan and Excel required, SQL and Power BI or Looker only desirable. 'Ideally within three months' is not a start date. Written to match the London FP&A resume.",
+  "company": "Corrin Pay Ltd",
+  "requirements": {
+    "title": "FP&A Manager",
+    "required_certifications": ["acca"],
+    "other_required_certifications": [],
+    "required_software": ["anaplan", "excel"],
+    "other_required_software": [],
+    "industries": ["fintech"],
+    "other_industries": [],
+    "must_haves": [
+      "Fully qualified accountant (ACCA)",
+      "6+ years in FP&A or commercial finance, including 2+ years managing people",
+      "Anaplan model-building experience (Level 2 or equivalent hands-on experience)",
+      "Fintech or payments industry experience",
+      "Advanced Excel modelling and the ability to present to senior stakeholders",
+      "Right to work in the UK; based in or commutable to London"
+    ],
+    "nice_to_haves": [
+      "SQL and experience querying a data warehouse directly",
+      "Power BI or Looker for management reporting",
+      "Experience in a business that has raised venture capital"
+    ],
+    "timezone": "Europe/London",
+    "starts_on": null
+  },
+  "hard_filter_matches": ["fpa_manager_london"]
+}

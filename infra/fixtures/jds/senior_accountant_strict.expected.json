@@ -1,0 +1,30 @@
+{
+  "$comment": "The strict JD: every requirement is a hard must-have, three of them resolve to taxonomy ids, and there is a fixed latest start date. Only the SaaS CPA resume passes its hard filters. The 'Senior Accountant or equivalent role at a software or SaaS company' line gives the industry.",
+  "company": "Vantara Health Software",
+  "requirements": {
+    "title": "Senior Accountant",
+    "required_certifications": ["cpa"],
+    "other_required_certifications": [],
+    "required_software": ["netsuite", "blackline", "excel"],
+    "other_required_software": [],
+    "industries": ["saas", "healthcare"],
+    "other_industries": [],
+    "must_haves": [
+      "Active CPA license (any US state)",
+      "Minimum 5 years of accounting experience, including at least 2 years in a Senior Accountant or equivalent role at a software or SaaS company",
+      "Hands-on NetSuite experience as a daily user: journal imports, saved searches, multi-subsidiary consolidation",
+      "BlackLine experience for account reconciliations",
+      "Advanced Excel (pivot tables, XLOOKUP or INDEX-MATCH, Power Query)",
+      "Located in the San Francisco Bay Area and able to work from our SoMa office Tuesday through Thursday; Pacific time hours",
+      "Able to start on or before Monday, November 2, 2026"
+    ],
+    "nice_to_haves": [
+      "FloQast or other close-management tooling",
+      "Experience with ASC 606 for multi-element SaaS contracts",
+      "Healthcare technology background"
+    ],
+    "timezone": "America/Los_Angeles",
+    "starts_on": "2026-11-02"
+  },
+  "hard_filter_matches": ["senior_accountant_cpa_netsuite"]
+}

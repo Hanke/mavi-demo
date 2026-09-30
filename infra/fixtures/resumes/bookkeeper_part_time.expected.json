@@ -1,0 +1,35 @@
+{
+  "$comment": "Skills-first format, self-employed with overlapping part-time roles (years count from the first role, not the sum). Dext and Zoho Books are outside the taxonomy and go to other_software verbatim; Shopify is in it. The ProAdvisor line is a certification, not software. Bilingual line gives the languages.",
+  "contact": {
+    "full_name": "Gloria Mendes",
+    "email": "gloria.mendes@example.com",
+    "phone": "512-555-0181",
+    "location": "Austin, TX"
+  },
+  "profile": {
+    "headline": "Full-charge Bookkeeper - QuickBooks Online ProAdvisor for restaurants and retail",
+    "years_experience": 6,
+    "certifications": ["quickbooks_proadvisor"],
+    "other_certifications": [],
+    "software": ["quickbooks", "xero", "gusto", "google_sheets", "shopify"],
+    "other_software": ["Dext", "Zoho Books"],
+    "industries": ["hospitality", "retail"],
+    "other_industries": [],
+    "skills": [
+      "full-charge bookkeeping",
+      "bank reconciliations",
+      "accounts payable and receivable",
+      "payroll with tips",
+      "sales tax filings",
+      "1099 preparation",
+      "inventory and COGS tracking",
+      "cash-flow forecasting",
+      "POS reconciliation",
+      "catch-up and clean-up bookkeeping"
+    ],
+    "languages": ["en", "es"],
+    "availability": "immediate",
+    "available_from": null,
+    "timezone": "America/Chicago"
+  }
+}

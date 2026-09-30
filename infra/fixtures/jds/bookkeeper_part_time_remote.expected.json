@@ -1,0 +1,28 @@
+{
+  "$comment": "A required certification that is a product certification (QuickBooks ProAdvisor), two required taxonomy products, and one required product outside the taxonomy (Dext) that must land in other_required_software verbatim rather than be dropped. Xero, Toast and Square are bonuses. Title drops the location and hours qualifiers.",
+  "company": "Sunfish Hospitality",
+  "requirements": {
+    "title": "Part-Time Bookkeeper",
+    "required_certifications": ["quickbooks_proadvisor"],
+    "other_required_certifications": [],
+    "required_software": ["quickbooks", "gusto"],
+    "other_required_software": ["Dext"],
+    "industries": ["hospitality"],
+    "other_industries": [],
+    "must_haves": [
+      "QuickBooks Online ProAdvisor certification",
+      "At least 3 years of bookkeeping for restaurants or other hospitality businesses",
+      "Hands-on experience with Gusto payroll, including tip reporting",
+      "Dext (formerly Receipt Bank) for receipt capture and bill entry",
+      "Able to work at least two mornings a week during Pacific time"
+    ],
+    "nice_to_haves": [
+      "Experience with Toast or Square POS reconciliations",
+      "Xero experience (one of our entities may move to it)",
+      "Comfortable talking to chefs and managers about invoices"
+    ],
+    "timezone": "America/Los_Angeles",
+    "starts_on": null
+  },
+  "hard_filter_matches": ["bookkeeper_part_time"]
+}

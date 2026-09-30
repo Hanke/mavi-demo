@@ -1,0 +1,36 @@
+{
+  "$comment": "UK CV: British spelling, pound signs, 'notice period: one month' rather than a date, ACCA with no CPA. Adaptive Insights is the old name of Workday Adaptive Planning; Snowflake and SQL are separate taxonomy entries; NetSuite counts even though it is only a reporting source.",
+  "contact": {
+    "full_name": "Amara Nwosu",
+    "email": "amara.nwosu@example.com",
+    "phone": "+44 7700 900123",
+    "location": "London, UK"
+  },
+  "profile": {
+    "headline": "FP&A Manager, ACCA - Anaplan and Power BI planning for fintech and e-commerce",
+    "years_experience": 9,
+    "certifications": ["acca"],
+    "other_certifications": [],
+    "software": ["anaplan", "excel", "power_bi", "netsuite", "sql", "snowflake", "adaptive_planning"],
+    "other_software": [],
+    "industries": ["fintech", "ecommerce"],
+    "other_industries": [],
+    "skills": [
+      "budgeting and forecasting",
+      "rolling forecasts",
+      "driver-based modelling",
+      "headcount and opex planning",
+      "board reporting",
+      "unit economics",
+      "pricing analysis",
+      "management accounts",
+      "variance analysis",
+      "business partnering",
+      "team leadership"
+    ],
+    "languages": ["en", "fr"],
+    "availability": "one_month",
+    "available_from": null,
+    "timezone": "Europe/London"
+  }
+}

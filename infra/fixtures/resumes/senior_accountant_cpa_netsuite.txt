@@ -1,0 +1,32 @@
+DANIEL OKAFOR
+Oakland, CA · daniel.okafor@example.com · +1 (510) 555-0164
+
+Senior Accountant, CPA
+Seven years of progressively senior accounting roles, the last four at venture-backed SaaS companies running a multi-entity NetSuite close. Two weeks' notice.
+
+PROFESSIONAL EXPERIENCE
+
+Lumen Grid Software (B2B SaaS, ~$45M ARR) – Oakland, CA
+Senior Accountant, Feb 2023 – Present
+• Own the month-end close for the US parent and two foreign subsidiaries (UK, Ireland) in NetSuite OneWorld; close is at business day 6, down from 11 when I joined.
+• Run the BlackLine reconciliation program: 85 balance sheet accounts certified monthly, with exceptions escalated to the Controller by day 8.
+• Book ASC 606 revenue for 300+ annual and multi-year contracts, including ramped pricing and usage true-ups, and reconcile deferred revenue to the billing system each month.
+• Prepared the PBC list and led fieldwork support for the company's first Big-4 audit; zero material adjustments.
+• Administer Expensify for 220 employees and wrote the expense policy that halved out-of-policy submissions.
+
+Harborline Analytics (SaaS, Series B) – San Francisco, CA
+Staff Accountant, then Accountant, Aug 2020 – Jan 2023
+• Posted journal entries, accruals and prepaid amortisation for the monthly close in NetSuite.
+• Built the fixed-asset and capitalised software (ASC 350-40) schedules in Excel and reconciled them to the sub-ledger.
+• Reconciled Stripe payouts to NetSuite revenue daily and wrote the team's first reconciliation procedure.
+
+Keller, Tan & Associates LLP (public accounting) – San Francisco, CA
+Audit Associate, Sep 2019 – Jul 2020
+• Substantive testing of revenue, cash and fixed assets for technology and consumer clients.
+
+EDUCATION & CERTIFICATIONS
+B.S. Business Administration (Accounting), State University, 2019
+Certified Public Accountant, California, licensed 2022
+
+TECHNICAL SKILLS
+NetSuite OneWorld, BlackLine, Expensify, Stripe, Microsoft Excel (pivot tables, XLOOKUP, Power Query), Google Sheets

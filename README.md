@@ -223,6 +223,7 @@ Run `make` to list them. The main ones:
 - `make up` / `make down` / `make logs` / `make ps`
 - `make migrate` / `make migrate-down` / `make migrate-status` / `make seed` — run inside the `api` image against the compose DB. `make migrate-down STEPS=2` or `STEPS=all` rolls back further.
 - `make seed-render` / `make seed-generate` — rewrite the seed SQL from the committed JSON, or regenerate the synthetic candidates with the model first (see [Seed data](#seed-data))
+- `make fixtures-render` — rewrite the fixture PDFs from their text files (see [Parser fixtures](#parser-fixtures))
 - `make worker` — an extra background job worker container next to the one inside the API (see [Background jobs](#background-jobs))
 - `make test-db` — migration up/down round-trip, the API CRUD / role tests and the job queue tests against the compose DB (each test creates and drops a throwaway database)
 - `make generate` / `make check-contracts` — regenerate the shared types from the OpenAPI documents, or fail if regenerating changes anything (see [Contracts](#contracts))
@@ -313,6 +314,52 @@ candidates come from `ai/app/seedgen`, in two halves:
 
 No real candidate data is involved: names, employers, emails and phone numbers
 are invented, and emails use `example.com`.
+
+## Parser fixtures
+
+[`infra/fixtures`](infra/fixtures) is a small hand-written set the resume
+and JD parser tests, the pipeline tests and the eval all share: ten resumes
+(plain text plus a PDF of the same text) and six job descriptions, each with
+the structured output the parser is expected to produce.
+
+| Path | What |
+| --- | --- |
+| `resumes/<slug>.txt` | The resume as plain text, in a deliberately varied style: chronological, competency-block, skills-first, narrative, paragraph-only, a UK CV, a Canadian one, and one messy file (`messy_ap_specialist`: contact details at the bottom, tabs, three bullet styles, typos) |
+| `resumes/<slug>.pdf` | The same text rendered to PDF by `make fixtures-render` (`python -m app.fixtures render`); deterministic, so the tests compare it byte for byte with a re-render |
+| `resumes/<slug>.expected.json` | `{"$comment", "contact", "profile"}`: the header details and a complete, canonical `CandidateProfile` |
+| `jds/<slug>.txt` | The job description; `vague_finance_generalist` has no hard requirements at all and `senior_accountant_strict` has seven, with a fixed start date |
+| `jds/<slug>.expected.json` | `{"$comment", "company", "requirements", "hard_filter_matches"}`: a complete `RoleRequirements` and the resume slugs whose expected profile passes its certification and software containment |
+
+Load them with `app.fixtures.load_resumes()` / `load_jds()`; a parser test
+feeds each `text` (or `pdf_path`) in and compares with `expected`. The
+`$comment` in every expected file says what that fixture is there to catch.
+`tests/test_fixtures.py` keeps the set honest: every expected output is
+exactly what the validators produce (ids already canonical, every field
+present), every certification and software id it claims is named in the
+text, every must-have is a verbatim fragment of the JD, `hard_filter_matches`
+equals what the containment rule computes, and the PDFs are not stale.
+
+Conventions the expected outputs follow, so the parser and the eval agree:
+
+- Only credentials the candidate holds count; exam progress or "studying for"
+  is nothing, not an `other_certifications` entry.
+- Products and credentials outside the taxonomy go to the `other_*` field
+  verbatim (`Dext`, `CCH Axcess`, `AuditBoard`); anything the taxonomy knows
+  must be the id, never free text.
+- A JD's "CPA or CMA" is not a hard filter: containment would demand both, so
+  the either/or stays in `must_haves` and `required_certifications` is empty.
+  A certification listed under "nice to have" is not required either.
+- `years_experience` runs from the first professional role to
+  `app.fixtures.AS_OF` (2026-09-30, the day these were written), so a parser
+  test passes that date as "today"; overlapping part-time roles do not add.
+- `availability` is the nearest bucket to what the resume says;
+  `available_from` is set only when a date is written; "not looking" is
+  `unavailable`, no statement is `unknown`.
+- `languages` is the language the resume is written in plus any it names.
+- `must_haves` and `nice_to_haves` are the JD's own words, minus the bullet
+  and the trailing full stop.
+
+Every person, employer and contact detail is invented; emails use `example.com`.
 
 ## Taxonomy
 

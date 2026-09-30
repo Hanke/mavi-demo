@@ -1,0 +1,34 @@
+{
+  "$comment": "Early career, conventional chronological format. The CPA exam progress must not become a certification: the candidate holds none, so certifications and other_certifications are both empty. Google Sheets is only named in a bullet, not in the SOFTWARE section.",
+  "contact": {
+    "full_name": "Maya Lindqvist",
+    "email": "maya.lindqvist@example.com",
+    "phone": "(720) 555-0137",
+    "location": "Denver, CO"
+  },
+  "profile": {
+    "headline": "Staff Accountant - QuickBooks Online client accounting at a CPA firm",
+    "years_experience": 2,
+    "certifications": [],
+    "other_certifications": [],
+    "software": ["quickbooks", "bill_com", "excel", "google_sheets"],
+    "other_software": [],
+    "industries": ["accounting_services"],
+    "other_industries": [],
+    "skills": [
+      "full-cycle bookkeeping",
+      "bank reconciliations",
+      "month-end close",
+      "accounts payable",
+      "financial reporting",
+      "1099 preparation",
+      "sales tax filings",
+      "fixed asset tracking",
+      "chart of accounts cleanup"
+    ],
+    "languages": ["en"],
+    "availability": "immediate",
+    "available_from": null,
+    "timezone": "America/Denver"
+  }
+}

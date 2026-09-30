@@ -1,0 +1,35 @@
+{
+  "$comment": "Explicit start date in prose ('I can start on November 9, 2026') gives available_from; the bucket is one_month, the nearest enum. Dates are MM/YYYY with en dashes. Workday is named as 'Workday Financials' (an alias).",
+  "contact": {
+    "full_name": "Terrence Whitfield",
+    "email": "terrence.whitfield@example.com",
+    "phone": "(704) 555-0142",
+    "location": "Charlotte, NC 28202"
+  },
+  "profile": {
+    "headline": "Payroll Manager, CPP - multi-state ADP Workforce Now payroll for 6,500 employees",
+    "years_experience": 11,
+    "certifications": ["cpp"],
+    "other_certifications": [],
+    "software": ["adp", "paylocity", "workday", "excel"],
+    "other_software": [],
+    "industries": ["healthcare", "hospitality"],
+    "other_industries": [],
+    "skills": [
+      "multi-state payroll",
+      "payroll tax filings",
+      "year-end W-2 and 1095-C",
+      "payroll system migration",
+      "payroll to GL reconciliation",
+      "payroll accruals",
+      "garnishments",
+      "union payroll rules",
+      "tip-credit payroll",
+      "team leadership"
+    ],
+    "languages": ["en"],
+    "availability": "one_month",
+    "available_from": "2026-11-09",
+    "timezone": "America/New_York"
+  }
+}

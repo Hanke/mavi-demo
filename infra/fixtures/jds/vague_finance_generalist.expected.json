@@ -1,0 +1,37 @@
+{
+  "$comment": "The vague JD: no certification, no named software, no industry, no location or time zone, no start date. The parser must leave the hard-filter lists empty rather than guess ('some accounting software' is not a requirement), keep the title as written, and still pull the three soft requirements out of the prose. Every resume passes its (empty) hard filters.",
+  "company": "Pipewrench",
+  "requirements": {
+    "title": "Finance & Ops person",
+    "required_certifications": [],
+    "other_required_certifications": [],
+    "required_software": [],
+    "other_required_software": [],
+    "industries": [],
+    "other_industries": [],
+    "must_haves": [
+      "has done bookkeeping or accounting before (a couple of years is probably enough)",
+      "comfortable in spreadsheets",
+      "able to explain numbers to people who aren't finance people"
+    ],
+    "nice_to_haves": [
+      "Startup experience",
+      "Used any of the usual accounting or payroll tools",
+      "Interest in eventually building out a finance function"
+    ],
+    "timezone": null,
+    "starts_on": null
+  },
+  "hard_filter_matches": [
+    "bookkeeper_part_time",
+    "controller_manufacturing",
+    "fpa_manager_london",
+    "fractional_cfo",
+    "internal_auditor_toronto",
+    "messy_ap_specialist",
+    "payroll_manager",
+    "senior_accountant_cpa_netsuite",
+    "staff_accountant_early_career",
+    "tax_senior_ea"
+  ]
+}

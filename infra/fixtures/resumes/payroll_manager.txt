@@ -1,0 +1,38 @@
+TERRENCE WHITFIELD, CPP
+Charlotte, NC 28202 • terrence.whitfield@example.com • (704) 555-0142
+
+PAYROLL MANAGER
+Multi-state payroll leader (11 years) for hourly-heavy workforces of up to 6,500 employees. Certified Payroll Professional since 2018. Known for clean quarter-ends, fast system migrations and calm year-ends.
+
+Availability: I have committed to finishing our open enrollment cycle; I can start on November 9, 2026.
+
+KEY ACHIEVEMENTS
+- Migrated 6,500 employees across 34 states from a legacy in-house system to ADP Workforce Now in 14 weeks with zero missed pay dates.
+- Cut payroll processing time from 3 days to 1 by rebuilding the time-import validation rules.
+- Recovered $214K in over-withheld state unemployment tax through a multi-year reconciliation.
+
+EXPERIENCE
+Carolina Regional Health System, Charlotte, NC
+Payroll Manager | 11/2019 – Present
+- Lead a team of five processing biweekly payroll for 6,500 employees (nurses, techs, support staff) in 34 states through ADP Workforce Now; roughly $310M in annual wages.
+- Own quarterly and annual filings (941, state withholding and SUI, 6,500 W-2s and 1095-Cs) and all payroll tax notices.
+- Reconcile payroll to the general ledger every cycle and book payroll accruals with the accounting team in Workday Financials.
+- Manage garnishments, shift differentials, on-call pay and union-specific rules for three bargaining units.
+
+Harborview Hospitality Partners, Raleigh, NC
+Senior Payroll Specialist | 06/2017 – 10/2019
+- Ran weekly tip-credit payroll for 1,900 hotel and restaurant staff in Paylocity across NC, SC, VA and GA.
+- Led the Paylocity implementation, including time-clock integration at 22 properties.
+
+Harborview Hospitality Partners, Raleigh, NC
+Payroll Specialist | 09/2015 – 05/2017
+- Processed weekly payroll, new-hire setup and terminations; balanced quarterly returns.
+
+EDUCATION
+B.S. Business Administration, State University, 2015
+
+CERTIFICATIONS
+Certified Payroll Professional (CPP), American Payroll Association, 2018
+
+SYSTEMS
+ADP Workforce Now, Paylocity, Workday Financials, Microsoft Excel (pivot tables, VLOOKUP, macros)

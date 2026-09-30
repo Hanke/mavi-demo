@@ -1,0 +1,43 @@
+Renata Volkov, CPA, CMA
+Grand Rapids, Michigan | renata.volkov@example.com | 616-555-0119
+
+PROFESSIONAL SUMMARY
+Controller with 15 years in manufacturing finance, the last six leading accounting for a $180M tier-two automotive supplier with plants in Michigan and Ontario. Hands-on with SAP (ECC and S/4HANA), standard costing and SOX. Currently employed; able to start with one month's notice.
+
+CORE COMPETENCIES
+Standard cost and variance analysis | Inventory and WIP accounting | SOX 404 controls | Consolidations (US GAAP, USD/CAD) | Plant finance partnering | Budgeting and forecasting | Audit management | Team leadership (up to nine direct reports)
+
+EXPERIENCE
+Corvid Automotive Components, Grand Rapids, MI
+Controller, Jan 2020 - Present
+- Lead a team of nine (GL, AP, AR, cost accounting, payroll) closing two plants and a Canadian subsidiary in SAP S/4HANA by business day 5.
+- Own standard costing for 1,400 SKUs: annual cost roll, monthly PPV and absorption variance reporting, and cycle-count reconciliation with inventory accuracy above 99%.
+- Ran the SAP ECC to S/4HANA migration for finance (2022-2023), including the chart of accounts redesign and a parallel close.
+- Manage the SOX 404 control environment (62 key controls) and the annual external audit; no material weaknesses in six years.
+- Built the Power BI margin dashboard plant managers use weekly, retiring 30 Excel reports.
+- Approve travel and expense reports in SAP Concur and rewrote the T&E policy after the acquisition of a second plant.
+
+Corvid Automotive Components, Grand Rapids, MI
+Assistant Controller, Mar 2016 - Dec 2019
+- Ran the monthly close and consolidation, prepared the board reporting package and led the year-end audit.
+- Implemented cycle counting and reduced the annual physical inventory adjustment from $410K to under $40K.
+
+Great Lakes Fastener Corp., Holland, MI
+Senior Cost Accountant, Jun 2013 - Feb 2016
+- Maintained standard costs and BOM routings in SAP ECC for a 600-SKU fastener plant.
+- Produced monthly cost of goods sold and scrap analysis for plant management.
+
+Great Lakes Fastener Corp., Holland, MI
+Staff Accountant, Sep 2011 - May 2013
+- General ledger, fixed assets and monthly reconciliations.
+
+EDUCATION
+MBA, a regional business school, 2017
+B.B.A. Accounting, State University, 2011
+
+CERTIFICATIONS
+Certified Public Accountant (Michigan), 2014
+Certified Management Accountant, 2018
+
+SYSTEMS
+SAP S/4HANA and ECC, SAP Concur, Microsoft Power BI, Microsoft Excel (advanced)

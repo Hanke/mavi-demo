@@ -1,0 +1,37 @@
+{
+  "$comment": "Senior, two certifications, competency-block format with pipe separators. 'SAP S/4HANA and ECC' and 'SAP Concur' are two different products; Concur must not collapse into sap. Automotive supplier is both automotive and manufacturing.",
+  "contact": {
+    "full_name": "Renata Volkov",
+    "email": "renata.volkov@example.com",
+    "phone": "616-555-0119",
+    "location": "Grand Rapids, Michigan"
+  },
+  "profile": {
+    "headline": "Controller, CPA, CMA - SAP S/4HANA close, standard costing and SOX for an automotive supplier",
+    "years_experience": 15,
+    "certifications": ["cpa", "cma"],
+    "other_certifications": [],
+    "software": ["sap", "concur", "power_bi", "excel"],
+    "other_software": [],
+    "industries": ["automotive", "manufacturing"],
+    "other_industries": [],
+    "skills": [
+      "standard costing",
+      "variance analysis",
+      "inventory and WIP accounting",
+      "SOX 404 controls",
+      "US GAAP consolidations",
+      "multi-currency consolidation",
+      "month-end close",
+      "ERP migration",
+      "budgeting and forecasting",
+      "audit management",
+      "team leadership",
+      "cycle counting"
+    ],
+    "languages": ["en"],
+    "availability": "one_month",
+    "available_from": null,
+    "timezone": "America/Detroit"
+  }
+}

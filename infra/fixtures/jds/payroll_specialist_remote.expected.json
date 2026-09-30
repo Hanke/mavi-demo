@@ -1,0 +1,28 @@
+{
+  "$comment": "Certifications are only nice-to-have here (CPP or FPC), so required_certifications is empty even though two taxonomy certifications are named. ADP and Excel are required; Workday and UKG appear only in a nice-to-have. Remote with Eastern hours gives the time zone; a written start date gives starts_on. Assisted living is healthcare.",
+  "company": "Bluepeak Senior Living",
+  "requirements": {
+    "title": "Senior Payroll Specialist",
+    "required_certifications": [],
+    "other_required_certifications": [],
+    "required_software": ["adp", "excel"],
+    "other_required_software": [],
+    "industries": ["healthcare"],
+    "other_industries": [],
+    "must_haves": [
+      "At least 3 years of end-to-end payroll processing on ADP Workforce Now",
+      "Multi-state payroll tax experience (we are in CA, WA, OR, AZ, CO, TX, FL, GA and NC)",
+      "Experience with a workforce of 1,000 or more hourly employees",
+      "Strong Excel skills for reconciliations and audits",
+      "Availability during Eastern Time business hours (8am to 5pm ET), from anywhere in the US"
+    ],
+    "nice_to_haves": [
+      "CPP or FPC certification",
+      "Healthcare, senior living or hospitality payroll background",
+      "Experience with an ADP to Workday or UKG migration"
+    ],
+    "timezone": "America/New_York",
+    "starts_on": "2027-01-05"
+  },
+  "hard_filter_matches": ["payroll_manager"]
+}

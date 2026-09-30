@@ -1,0 +1,37 @@
+{
+  "$comment": "Very senior, narrative format organised by engagement rather than by job. Not looking ('not taking on new roles at the moment') is unavailable, not unknown. Software is scattered through prose with no software section. Years run from 2004.",
+  "contact": {
+    "full_name": "Beatriz Almeida",
+    "email": "beatriz.almeida@example.com",
+    "phone": "(617) 555-0155",
+    "location": "Boston, MA"
+  },
+  "profile": {
+    "headline": "Fractional CFO, CPA, CGMA - venture-backed software finance, fundraising and systems",
+    "years_experience": 22,
+    "certifications": ["cpa", "cgma"],
+    "other_certifications": [],
+    "software": ["netsuite", "quickbooks", "carta", "sage_intacct", "google_sheets", "adaptive_planning", "excel"],
+    "other_software": [],
+    "industries": ["technology", "saas", "education", "professional_services", "accounting_services"],
+    "other_industries": [],
+    "skills": [
+      "three-statement modelling",
+      "board reporting",
+      "fundraising and data rooms",
+      "ERP implementation",
+      "cash to accrual conversion",
+      "ASC 606 revenue recognition",
+      "cap table and 409A",
+      "13-week cash forecasting",
+      "credit facility negotiation",
+      "audit readiness",
+      "finance team building",
+      "M&A exit"
+    ],
+    "languages": ["en", "pt"],
+    "availability": "unavailable",
+    "available_from": null,
+    "timezone": "America/New_York"
+  }
+}
