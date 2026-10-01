@@ -24,13 +24,13 @@ from dataclasses import replace
 from datetime import date
 from typing import Any
 
-from app import qualifications, taxonomy
+from app import qualifications, rubric, taxonomy
 from app.grounding import mentions, standards_named
 from app.llm import ProviderError
 from app.taxonomy import Kind
 
 # Bump when the answers change, so cached answers from the old rules are not replayed.
-FAKE_MODEL = "fake-4"
+FAKE_MODEL = "fake-5"
 
 _RETRY_MARKER = "\n\nYour previous answer did not match the required schema."
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
@@ -58,8 +58,9 @@ _AVAILABILITY = (
     ("one_month", re.compile(r"\b(one|1|a) month\b|\b(four|4) weeks\b|\b30 days\b", re.I)),
 )
 MAX_YEARS = 70
-# How much of a rerank score is the role's taxonomy terms the candidate names; the rest is word overlap.
-TERM_WEIGHT = 0.7
+# Word overlap with the role that counts as the top level of experience_depth: a
+# resume for the same job shares about half of a JD's words, never all of them.
+OVERLAP_SCALE = 2.0
 
 
 class FakeProvider:
@@ -277,25 +278,47 @@ def _required(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
+def _level(share: float) -> int:
+    return round(min(share, 1.0) * rubric.MAX_LEVEL)
+
+
 def _rerank(prompt: str) -> dict[str, Any]:
+    """Rubric levels from what can be counted: the share of the role's
+    taxonomy terms a candidate names, and word overlap for experience. The
+    score itself is computed from these by app.rubric, as for a real model."""
     head, *rest = _CANDIDATE.split(prompt)
     role = _after(head, "Role:\n\n")
     candidates = list(zip(rest[0::2], rest[1::2], strict=True))
     tax = taxonomy.load()
-    wanted = [t for kind in ("certifications", "software") for t in tax.terms(kind) if _names(role, t)]
+    wanted: dict[str, list[taxonomy.Term]] = {
+        kind: [t for t in tax.terms(kind) if _names(role, t)] for kind in ("certifications", "software", "industries")
+    }
     role_words = set(_WORD.findall(role.lower()))
+
+    def named(text: str, terms: list[taxonomy.Term]) -> dict[str, Any]:
+        if not terms:
+            return {"evidence": "the role names none", "level": None}
+        has = [t.label for t in terms if _names(text, t)]
+        lacks = [t.label for t in terms if not _names(text, t)]
+        parts = ([f"names {', '.join(has)}"] if has else []) + ([f"does not name {', '.join(lacks)}"] if lacks else [])
+        return {"evidence": "; ".join(parts), "level": _level(len(has) / len(terms))}
 
     results: list[dict[str, Any]] = []
     for cid, text in candidates:
-        has = [t.label for t in wanted if _names(text, t)]
-        lacks = [t.label for t in wanted if not _names(text, t)]
         overlap = len(role_words & set(_WORD.findall(text.lower()))) / len(role_words) if role_words else 0.0
-        score = TERM_WEIGHT * len(has) / len(wanted) + (1 - TERM_WEIGHT) * overlap if wanted else overlap
-        reasons = [f"names {', '.join(has)}"] if has else []
-        if lacks:
-            reasons.append(f"does not name {', '.join(lacks)}")
-        if not reasons:
-            reasons.append(f"shares {overlap:.0%} of the role's wording")
-        results.append({"id": cid, "score": round(min(score, 1.0), 3), "reasons": reasons})
-    results.sort(key=lambda r: (-r["score"], r["id"]))
+        must = named(text, wanted["certifications"] + wanted["software"])
+        shares = f"shares {overlap:.0%} of the role's wording"
+        results.append(
+            {
+                "id": cid,
+                "dimensions": {
+                    "must_have_coverage": must,
+                    "experience_depth": {"evidence": shares, "level": _level(overlap * OVERLAP_SCALE)},
+                    "software_fluency": named(text, wanted["software"]),
+                    "industry_fit": named(text, wanted["industries"]),
+                    "nice_to_haves": {"evidence": "the fake provider does not read nice-to-haves", "level": None},
+                },
+                "reasons": [must["evidence"] if must["level"] is not None else shares],
+            }
+        )
     return {"results": results}

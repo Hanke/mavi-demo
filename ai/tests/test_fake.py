@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from app import fixtures, llm
+from app import fixtures, llm, rubric
 from app.fake import FakeProvider
 from app.llm import ProviderError
 from app.main import app
@@ -87,6 +87,7 @@ def test_rerank_with_the_fake_scores_every_candidate_and_ranks_the_match_first(c
     assert sorted(r["id"] for r in results) == sorted(r.slug for r in resumes)
     assert results[0]["id"] == jd.hard_filter_matches[0]
     assert all(r["reasons"] for r in results)
+    assert all(r["score"] == rubric.overall({k: d["level"] for k, d in r["dimensions"].items()}) for r in results)
 
 
 def test_unknown_schema_is_a_provider_error():

@@ -9,7 +9,7 @@ PYTHON ?= $(shell test -x $(CURDIR)/ai/.venv/bin/python && echo $(CURDIR)/ai/.ve
 # Every file a generator writes. `make check-contracts` fails when one is stale.
 GENERATED := ai/openapi.json api/internal/aiclient/types.gen.go api/internal/contract/types.gen.go web/src/api/schema.d.ts
 
-.PHONY: help up down logs ps migrate migrate-down migrate-status seed seed-render seed-generate fixtures-render eval cache-clear worker test test-api test-ai test-db test-web health \
+.PHONY: help up down logs ps migrate migrate-down migrate-status seed seed-render seed-generate fixtures-render rubric-render eval cache-clear worker test test-api test-ai test-db test-web health \
         lint lint-api lint-ai lint-web fmt-ai generate generate-ai-spec generate-api generate-web check-contracts
 
 help: ## Show this help
@@ -57,6 +57,9 @@ cache-clear: ## Delete the cached LLM and embedding responses in ai/.cache
 
 fixtures-render: ## Rewrite infra/fixtures/resumes/*.pdf from the .txt files (no API key)
 	cd ai && $(PYTHON) -m app.fixtures render
+
+rubric-render: ## Rewrite the tables of docs/rerank-rubric.md from ai/app/rubric.py (no API key)
+	cd ai && $(PYTHON) -m app.rubric
 
 worker: ## Run an extra background job worker next to the one inside the API (Ctrl-C to stop)
 	$(COMPOSE) run --rm --no-deps -e WORKER_ID=worker-$$$$ api worker

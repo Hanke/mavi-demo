@@ -110,7 +110,7 @@ five POST endpoints plus `/health`, every request and response a Pydantic model
 | --- | --- | --- |
 | `POST /parse-resume` | `{text, as_of?}` — the resume as plain text; `as_of` is the date `years_experience` counts to (default today) | `{contact, profile, provider}` — `contact` is the header (`full_name`, `email`, `phone`, `location`, each null when the resume does not give it); `profile` is a `CandidateProfile`: `positions` (title, employer, start and end year), `years_experience`, `certifications`, `software`, `industries` (taxonomy ids, already canonical), `qualifications` (each one as written, with its issuing body, jurisdiction and whether it is fully held; see [Qualifications](#qualifications-across-jurisdictions)), `gaap_exposure` (the frameworks and standards the resume names), plus headline, skills, languages, availability and time zone |
 | `POST /parse-jd` | `{text}` | `{company, requirements, provider}` — `requirements` is a `RoleRequirements`, split into must-haves and nice-to-haves in fields that line up with the candidate profile (see [JD requirements](#jd-requirements)); each entry of `required_qualifications` says whether an equivalent is acceptable (`accept_equivalents`) and whether the JD said so (`equivalents_stated`) |
-| `POST /rerank` | `{role, candidates: [{id, text}]}` — the JD (or a rendering of the role) and up to 50 candidates, each an opaque id plus the text to judge | `{results: [{id, score, reasons}], provider}` — every id exactly once, best first, `score` in 0..1 |
+| `POST /rerank` | `{role, candidates: [{id, text}]}` — the JD (or a rendering of the role) and up to 50 candidates, each an opaque id plus the text to judge | `{results: [{id, score, dimensions, reasons}], rubric_version, provider}` — every id exactly once, best first; `dimensions` is the candidate's level (0 to 4, or null) and evidence on each dimension of the [rerank rubric](#rerank-rubric), and `score` (0..1) is computed from those levels |
 | `POST /embed` | `{text}` — up to 60,000 characters, like the parsers | `{embedding, dim, provider}` |
 | `POST /embed-batch` | `{inputs: [...]}` — up to 256 inputs, each exactly one of `{text}`, `{profile}` (a `CandidateProfile`) or `{requirements}` (a `RoleRequirements`) | `{embeddings, texts, dim, provider}` — one vector per input in the order given, and the text each was computed from |
 
@@ -185,7 +185,8 @@ Each call sends the answer's JSON schema to the provider (Anthropic
 `LLM_PROVIDER=openai`) and validates the text that comes back with the same
 Pydantic model, including the taxonomy resolution in
 [`ai/app/schemas.py`](ai/app/schemas.py). Output that fails validation, or a
-rerank that drops or invents a candidate id, is sent back to the model once
+rerank that drops or invents a candidate id or scores a dimension for some
+candidates only, is sent back to the model once
 with the validation errors quoted; a second failure is a `502` whose `detail`
 starts with `llm output invalid:` and names the fields. Nothing that did not
 validate is ever returned. A provider failure (no credentials, rate limit,
@@ -213,6 +214,36 @@ replaced by the line that does name it). Derived values
 model. Missing information therefore comes back as null or an empty list;
 `ai/tests/test_parse_resume.py` runs every sample resume through this with
 an answer padded with invented values and asserts none survive.
+
+### Rerank rubric
+
+What `/rerank` scores, the 0 to 4 scale with a written description of every
+level, the weights and the formula are set out in
+[`docs/rerank-rubric.md`](docs/rerank-rubric.md). In short:
+
+| Dimension | Weight | Question |
+| --- | --- | --- |
+| `must_have_coverage` | 40% | Is each stated requirement met? |
+| `experience_depth` | 25% | How closely does the work done match the work of the role? |
+| `software_fluency` | 15% | How well does the candidate know the systems the role names? |
+| `industry_fit` | 10% | Has the candidate worked in the role's industry? |
+| `nice_to_haves` | 10% | How many of the preferred items does the text show? |
+
+The model gives a level and a sentence of evidence per dimension and never an
+overall score (an answer that carries one fails validation). The service
+computes `score` in [`ai/app/rubric.py`](ai/app/rubric.py): the weighted mean
+of the levels over the dimensions that apply to the role, capped at 0.30 or
+0.50 when must-have coverage is 0 or 1, rounded to three decimals. The same
+levels always give the same score, so it can be recomputed from the
+`dimensions` of any result.
+
+The rubric has one source. The tables in the document are rendered from
+`rubric.py` (`make rubric-render`), the system prompt is built from the same
+text, and the output schema has one field per dimension;
+[`ai/tests/test_rubric.py`](ai/tests/test_rubric.py) fails when any of the
+three falls behind. Changing the rubric means editing that module, bumping
+its `VERSION` (returned as `rubric_version`) and running
+`make rubric-render generate`.
 
 ### JD requirements
 
@@ -377,7 +408,9 @@ are included as components even though no endpoint returns them yet, with
 the taxonomy id enums stripped so a taxonomy edit is not a schema change
 (their never-null list fields are marked so Go gets plain slices).
 The Go API stores those as free-form JSON (`profile`, `requirements`); the
-match `breakdown` is free-form too, since no service defines a rubric yet.
+match `breakdown` is free-form too; the `dimensions` and `rubric_version` of a
+rerank result ([Rerank rubric](#rerank-rubric)) are what belongs in it once the
+matching run is a job.
 
 ## Make targets
 
@@ -387,6 +420,7 @@ Run `make` to list them. The main ones:
 - `make migrate` / `make migrate-down` / `make migrate-status` / `make seed` — run inside the `api` image against the compose DB. `make migrate-down STEPS=2` or `STEPS=all` rolls back further.
 - `make seed-render` / `make seed-generate` — rewrite the seed SQL from the committed JSON, or regenerate the synthetic candidates with the model first (see [Seed data](#seed-data))
 - `make fixtures-render` — rewrite the fixture PDFs from their text files (see [Parser fixtures](#parser-fixtures))
+- `make rubric-render` — rewrite the tables of `docs/rerank-rubric.md` from `ai/app/rubric.py` (see [Rerank rubric](#rerank-rubric))
 - `make worker` — an extra background job worker container next to the one inside the API (see [Background jobs](#background-jobs))
 - `make test-db` — migration up/down round-trip, the API CRUD / role tests and the job queue tests against the compose DB (each test creates and drops a throwaway database)
 - `make generate` / `make check-contracts` — regenerate the shared types from the OpenAPI documents, or fail if regenerating changes anything (see [Contracts](#contracts))
@@ -709,8 +743,8 @@ taxonomy lookups that answer all three endpoints with schema-valid output, the
 same way every time. It finds what can be found mechanically (the email, the
 taxonomy terms a text names, the qualifications and whether the line says
 "part-qualified" or "or equivalent", the bullets under a "Requirements" heading; the
-rerank score is the share of the role's certifications and software a
-candidate names, plus word overlap) and leaves the rest null. Use it for
+rerank levels are the share of the role's certifications, software and
+industries a candidate names, and word overlap for experience) and leaves the rest null. Use it for
 offline development and for wiring; it is not a parser, and a term that is
 also an ordinary word (the "Monday" in a start date) will fool it.
 

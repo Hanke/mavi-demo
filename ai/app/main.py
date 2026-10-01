@@ -5,7 +5,7 @@ from typing import Self
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app import embeddings, embedtext, extract, llm
+from app import embeddings, embedtext, extract, llm, rubric
 from app.extract import RerankCandidate, RerankResult
 from app.llm import InvalidOutputError, Provider
 from app.schemas import CandidateProfile, Contact, RoleRequirements
@@ -137,6 +137,7 @@ class RerankRequest(BaseModel):
 
 class RerankResponse(BaseModel):
     results: list[RerankResult] = Field(description="Every candidate, best first.")
+    rubric_version: str = Field(description="The version of the rubric (docs/rerank-rubric.md) the scores follow.")
     provider: str
 
 
@@ -198,7 +199,7 @@ def rerank(req: RerankRequest, provider: Provider = Depends(get_provider)) -> Re
         results = extract.rerank(provider, req.role, req.candidates)
     except llm.LLMError as e:
         raise _http_error(e) from e
-    return RerankResponse(results=results, provider=provider.name)
+    return RerankResponse(results=results, rubric_version=rubric.VERSION, provider=provider.name)
 
 
 def _http_error(e: llm.LLMError) -> HTTPException:

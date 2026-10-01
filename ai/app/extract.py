@@ -14,10 +14,11 @@ from __future__ import annotations
 import logging
 import re
 from datetime import date
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app import llm, taxonomy
+from app import llm, rubric, taxonomy
 from app.grounding import in_text, line_with, mentions, year_in_text
 from app.llm import Provider
 from app.schemas import (
@@ -64,13 +65,23 @@ Read the job description and fill in the schema. Rules:
 
 Return only the JSON object."""
 
-RERANK_SYSTEM = """You rank candidates for a finance and accounting role.
+RERANK_SYSTEM = f"""You score candidates for a finance and accounting role against a fixed rubric.
 
-You are given the role and a list of candidates, each with an id and a summary. Score every candidate from 0.0 (no fit) to 1.0 (ideal) for this specific role, judging on the hard requirements first (certifications, software, seniority, location or time zone) and then on relevance of experience. Give each candidate one to three short reasons in plain language a recruiter could read.
+You are given the role and a list of candidates, each with an id and the text to judge. For every candidate, give each dimension of the rubric a level from 0 to 4, with one sentence of evidence from the candidate's text for the level you chose. Rules:
+- Judge only what the text shows. A claim with no supporting detail is listed, not evidenced, and something the text does not mention is not met.
+- Pick the level whose description fits best. There are no half levels, and one dimension does not make up for another: score each on its own question.
+- Whether a dimension applies is a fact about the role, not the candidate. Where the rubric says a dimension is null, it is null for every candidate (the evidence says why); otherwise it is a level for every candidate.
+- Do not give an overall score. It is computed from your levels.
 
-Qualifications from other countries: when the role accepts equivalents, a fully qualified accountant from another jurisdiction (ACA, ACCA, CA, a Canadian or Australian CPA) meets a CPA requirement, and the reverse. Do not mark such a candidate down for the letters. An equivalent qualification is not equivalent experience, though: score exposure to the accounting framework the role works under (US GAAP versus IFRS or UK GAAP) as its own question, from what the candidate has actually done, and say so in a reason when it is the gap. Part-qualified, a management accounting qualification (CIMA, CMA) or technician level (AAT) does not meet a requirement for a fully qualified accountant.
+The rubric:
 
-Return one entry for every candidate id given, each id exactly once, ordered from best to worst. Return only the JSON object."""
+{rubric.prompt_text()}
+
+Qualifications from other countries: when the role accepts equivalents, a fully qualified accountant from another jurisdiction (ACA, ACCA, CA, a Canadian or Australian CPA) meets a CPA requirement, and the reverse. Count it as met in must_have_coverage; do not mark such a candidate down for the letters. An equivalent qualification is not equivalent experience, though: exposure to the accounting framework the role works under (US GAAP versus IFRS or UK GAAP) is scored in experience_depth, from what the candidate has actually done, and is named in a reason when it is the gap. Part-qualified, a management accounting qualification (CIMA, CMA) or technician level (AAT) does not meet a requirement for a fully qualified accountant.
+
+Also give each candidate one to three short reasons in plain language a recruiter could read: the strongest point in their favour and the main gap.
+
+Return one entry for every candidate id given, each id exactly once. Return only the JSON object."""
 
 
 class ResumeExtraction(BaseModel):
@@ -101,18 +112,72 @@ class RerankCandidate(BaseModel):
     )
 
 
-class RerankResult(BaseModel):
+def _dimension(key: str) -> Any:
+    return Field(description=rubric.BY_KEY[key].question)
+
+
+class DimensionScore(BaseModel):
+    """A candidate's level on a dimension the rubric always scores."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    evidence: str = Field(description="One sentence: what in the candidate's text decides the level.")
+    level: rubric.Level = Field(description="The rubric level, 0 (none) to 4 (full).")
+
+
+class OptionalDimensionScore(BaseModel):
+    """A candidate's level on a dimension the role may give nothing to score against."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    evidence: str = Field(
+        description="One sentence: what in the candidate's text decides the level, or why the dimension is null."
+    )
+    level: rubric.Level | None = Field(
+        description="The rubric level, 0 (none) to 4 (full); null when the dimension does not apply to the role."
+    )
+
+
+class DimensionScores(BaseModel):
+    """One level per dimension of the rubric (app/rubric.py, docs/rerank-rubric.md)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    must_have_coverage: OptionalDimensionScore = _dimension("must_have_coverage")
+    experience_depth: DimensionScore = _dimension("experience_depth")
+    software_fluency: OptionalDimensionScore = _dimension("software_fluency")
+    industry_fit: OptionalDimensionScore = _dimension("industry_fit")
+    nice_to_haves: OptionalDimensionScore = _dimension("nice_to_haves")
+
+    def levels(self) -> dict[str, int | None]:
+        return {d.key: getattr(self, d.key).level for d in rubric.DIMENSIONS}
+
+
+class RerankJudgement(BaseModel):
+    """What the model returns for a candidate: levels and reasons, no overall score."""
+
     model_config = ConfigDict(extra="forbid")
 
     id: str
-    score: float = Field(ge=0.0, le=1.0)
+    dimensions: DimensionScores
     reasons: list[str] = Field(default_factory=list)
 
 
 class RerankOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    results: list[RerankResult]
+    results: list[RerankJudgement]
+
+
+class RerankResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    score: float = Field(
+        ge=0.0, le=1.0, description="Computed from `dimensions` by the rubric's formula; never the model's own number."
+    )
+    dimensions: DimensionScores
+    reasons: list[str] = Field(default_factory=list)
 
 
 def parse_resume(provider: Provider, text: str, today: date | None = None) -> ResumeExtraction:
@@ -327,7 +392,10 @@ def ground_jd(out: JDExtraction, text: str) -> JDExtraction:
 
 
 def rerank(provider: Provider, role: str, candidates: list[RerankCandidate]) -> list[RerankResult]:
-    """Score every candidate against the role; returned best first."""
+    """Score every candidate against the role; returned best first.
+
+    The model gives the rubric levels; the score is `rubric.overall` of them,
+    so it can be recomputed from the `dimensions` of any result."""
     expected = {c.id for c in candidates}
 
     def check(out: RerankOutput) -> str | None:
@@ -339,12 +407,28 @@ def rerank(provider: Provider, role: str, candidates: list[RerankCandidate]) -> 
             problems.append(f"unknown ids {unknown}")
         if dupes := sorted({i for i in got if got.count(i) > 1}):
             problems.append(f"duplicate ids {dupes}")
-        if not problems:
-            return None
-        return "results must contain every candidate id exactly once: " + "; ".join(problems)
+        if problems:
+            return "results must contain every candidate id exactly once: " + "; ".join(problems)
+        # Scores are only comparable when every candidate was scored on the same dimensions.
+        levels = [r.dimensions.levels() for r in out.results]
+        mixed = [d.key for d in rubric.DIMENSIONS if len({lv[d.key] is None for lv in levels}) > 1]
+        if mixed:
+            return (
+                "whether a dimension applies depends on the role, not the candidate: "
+                f"{', '.join(mixed)} must be null for every candidate or for none"
+            )
+        return None
 
     rendered = "\n\n".join(f"=== candidate id: {c.id} ===\n{c.text}" for c in candidates)
     user = f"Role:\n\n{role}\n\nCandidates ({len(candidates)}):\n\n{rendered}"
     out = llm.complete_json(provider, RERANK_SYSTEM, user, RerankOutput, check=check)
-    # The model is asked for best-first; sorting makes the contract hold even when it did not comply.
-    return sorted(out.results, key=lambda r: r.score, reverse=True)
+
+    def rank(r: RerankJudgement) -> tuple[float, float]:
+        # Candidates held at the same must-have cap are ordered by what they scored before it.
+        levels = r.dimensions.levels()
+        return rubric.overall(levels), rubric.weighted(levels)
+
+    return [
+        RerankResult(id=r.id, score=rubric.overall(r.dimensions.levels()), dimensions=r.dimensions, reasons=r.reasons)
+        for r in sorted(out.results, key=rank, reverse=True)
+    ]

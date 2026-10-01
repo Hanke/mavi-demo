@@ -9,7 +9,7 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from app import fixtures, llm
+from app import extract, fixtures, llm, rubric
 from app.llm import ProviderError, ScriptedProvider
 from app.main import app, get_provider
 from app.settings import Settings, get_settings
@@ -132,15 +132,22 @@ def _rerank_request() -> tuple[dict[str, object], list[str]]:
     return body, [r.slug for r in resumes]
 
 
+def _judgement(cid: str, levels: tuple[int | None, int, int | None, int | None, int | None], *reasons: str):
+    """A model answer for one candidate: a level per rubric dimension, in rubric order."""
+    keys = ("must_have_coverage", "experience_depth", "software_fluency", "industry_fit", "nice_to_haves")
+    dimensions = {k: {"evidence": "e", "level": lv} for k, lv in zip(keys, levels, strict=True)}
+    return {"id": cid, "dimensions": dimensions, "reasons": list(reasons)}
+
+
 def test_rerank_scores_every_candidate_best_first(provider: ScriptedProvider):
     req, ids = _rerank_request()
     provider.queue(
         json.dumps(
             {
                 "results": [
-                    {"id": ids[0], "score": 0.2, "reasons": ["no CPA"]},
-                    {"id": ids[1], "score": 0.9, "reasons": ["CPA", "NetSuite"]},
-                    {"id": ids[2], "score": 0.5, "reasons": []},
+                    _judgement(ids[0], (1, 4, 4, 4, 4), "no CPA"),
+                    _judgement(ids[1], (4, 3, 4, 2, 4), "CPA", "NetSuite"),
+                    _judgement(ids[2], (2, 3, 2, 2, 2)),
                 ]
             }
         )
@@ -151,16 +158,46 @@ def test_rerank_scores_every_candidate_best_first(provider: ScriptedProvider):
     assert [r["id"] for r in body["results"]] == [ids[1], ids[2], ids[0]]
     assert body["results"][0]["reasons"] == ["CPA", "NetSuite"]
     assert body["provider"] == "scripted"
+    assert body["rubric_version"] == rubric.VERSION
     user = provider.calls[0][1]
     assert all(i in user for i in ids)
+    assert provider.calls[0][0] == extract.RERANK_SYSTEM
+
+
+def test_rerank_score_is_computed_from_the_dimension_levels(provider: ScriptedProvider):
+    req, ids = _rerank_request()
+    provider.queue(
+        json.dumps(
+            {
+                "results": [
+                    _judgement(ids[0], (1, 4, 4, 4, None)),  # 0.667 before the must-have cap
+                    _judgement(ids[1], (3, 3, 2, 4, None)),
+                    _judgement(ids[2], (1, 2, 4, 4, None)),  # same cap as ids[0], weaker before it
+                ]
+            }
+        )
+    )
+    results = client.post("/rerank", json=req).json()["results"]
+    assert [(r["id"], r["score"]) for r in results] == [(ids[1], 0.736), (ids[0], 0.5), (ids[2], 0.5)]
+    for r in results:
+        levels = {key: d["level"] for key, d in r["dimensions"].items()}
+        assert r["score"] == rubric.overall(levels)
+        assert all(d["evidence"] for d in r["dimensions"].values())
+
+
+def test_rerank_refuses_a_score_from_the_model(provider: ScriptedProvider):
+    req, ids = _rerank_request()
+    bad = json.dumps({"results": [_judgement(i, (4, 4, 4, 4, 4)) | {"score": 0.1} for i in ids]})
+    provider.queue(bad, bad)
+    resp = client.post("/rerank", json=req)
+    assert resp.status_code == 502
+    assert "score" in resp.json()["detail"]
 
 
 def test_rerank_retries_when_ids_are_missing_or_invented(provider: ScriptedProvider):
     req, ids = _rerank_request()
-    good: dict[str, object] = {"results": [{"id": i, "score": 0.5, "reasons": []} for i in ids]}
-    bad: dict[str, object] = {
-        "results": [{"id": ids[0], "score": 0.5, "reasons": []}, {"id": "nobody", "score": 0.1, "reasons": []}]
-    }
+    good: dict[str, object] = {"results": [_judgement(i, (2, 2, 2, 2, 2)) for i in ids]}
+    bad: dict[str, object] = {"results": [_judgement(ids[0], (2, 2, 2, 2, 2)), _judgement("nobody", (0, 0, 0, 0, 0))]}
     provider.queue(json.dumps(bad), json.dumps(good))
     resp = client.post("/rerank", json=req)
     assert resp.status_code == 200, resp.text
@@ -170,13 +207,24 @@ def test_rerank_retries_when_ids_are_missing_or_invented(provider: ScriptedProvi
     assert "nobody" in retry_prompt
 
 
-def test_rerank_out_of_range_score_is_never_returned(provider: ScriptedProvider):
+def test_rerank_retries_when_a_dimension_applies_to_some_candidates_only(provider: ScriptedProvider):
     req, ids = _rerank_request()
-    bad = json.dumps({"results": [{"id": i, "score": 7, "reasons": []} for i in ids]})
-    provider.queue(bad, bad)
+    mixed = {"results": [_judgement(ids[0], (2, 2, 2, 2, None)), *(_judgement(i, (2, 2, 2, 2, 2)) for i in ids[1:])]}
+    good = {"results": [_judgement(i, (2, 2, 2, 2, None)) for i in ids]}
+    provider.queue(json.dumps(mixed), json.dumps(good))
     resp = client.post("/rerank", json=req)
-    assert resp.status_code == 502
-    assert "score" in resp.json()["detail"]
+    assert resp.status_code == 200, resp.text
+    assert "nice_to_haves must be null for every candidate or for none" in provider.calls[1][1]
+
+
+def test_rerank_level_off_the_scale_is_never_returned(provider: ScriptedProvider):
+    req, ids = _rerank_request()
+    for levels in ((7, 2, 2, 2, 2), (2, None, 2, 2, 2), (2, 2.5, 2, 2, 2)):
+        bad = json.dumps({"results": [_judgement(i, levels) for i in ids]})  # pyright: ignore[reportArgumentType]
+        provider.queue(bad, bad)
+        resp = client.post("/rerank", json=req)
+        assert resp.status_code == 502
+        assert "level" in resp.json()["detail"]
 
 
 def test_rerank_rejects_duplicate_ids_and_empty_lists(provider: ScriptedProvider):
@@ -192,7 +240,7 @@ def test_error_detail_is_bounded(provider: ScriptedProvider):
     from app.main import MAX_ERROR_DETAIL_CHARS
 
     req, ids = _rerank_request()
-    bad = json.dumps({"results": [{"id": i, "score": 7, "reasons": [], "junk": "x" * 500} for i in ids]})
+    bad = json.dumps({"results": [_judgement(i, (7, 7, 7, 7, 7)) | {"junk": "x" * 500} for i in ids]})
     provider.queue(bad, bad)
     resp = client.post("/rerank", json=req)
     assert resp.status_code == 502

@@ -37,6 +37,60 @@ func (e CandidateProfileAvailability) Valid() bool {
 	}
 }
 
+// Defines values for DimensionScoreLevel.
+const (
+	DimensionScoreLevelN0 DimensionScoreLevel = 0
+	DimensionScoreLevelN1 DimensionScoreLevel = 1
+	DimensionScoreLevelN2 DimensionScoreLevel = 2
+	DimensionScoreLevelN3 DimensionScoreLevel = 3
+	DimensionScoreLevelN4 DimensionScoreLevel = 4
+)
+
+// Valid indicates whether the value is a known member of the DimensionScoreLevel enum.
+func (e DimensionScoreLevel) Valid() bool {
+	switch e {
+	case DimensionScoreLevelN0:
+		return true
+	case DimensionScoreLevelN1:
+		return true
+	case DimensionScoreLevelN2:
+		return true
+	case DimensionScoreLevelN3:
+		return true
+	case DimensionScoreLevelN4:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for OptionalDimensionScoreLevel.
+const (
+	OptionalDimensionScoreLevelN0 OptionalDimensionScoreLevel = 0
+	OptionalDimensionScoreLevelN1 OptionalDimensionScoreLevel = 1
+	OptionalDimensionScoreLevelN2 OptionalDimensionScoreLevel = 2
+	OptionalDimensionScoreLevelN3 OptionalDimensionScoreLevel = 3
+	OptionalDimensionScoreLevelN4 OptionalDimensionScoreLevel = 4
+)
+
+// Valid indicates whether the value is a known member of the OptionalDimensionScoreLevel enum.
+func (e OptionalDimensionScoreLevel) Valid() bool {
+	switch e {
+	case OptionalDimensionScoreLevelN0:
+		return true
+	case OptionalDimensionScoreLevelN1:
+		return true
+	case OptionalDimensionScoreLevelN2:
+		return true
+	case OptionalDimensionScoreLevelN3:
+		return true
+	case OptionalDimensionScoreLevelN4:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for QualificationStatus.
 const (
 	QualificationStatusInProgress    QualificationStatus = "in_progress"
@@ -118,6 +172,36 @@ type Contact struct {
 	Phone    *string `json:"phone,omitempty"`
 }
 
+// DimensionScore A candidate's level on a dimension the rubric always scores.
+type DimensionScore struct {
+	// Evidence One sentence: what in the candidate's text decides the level.
+	Evidence string `json:"evidence"`
+
+	// Level The rubric level, 0 (none) to 4 (full).
+	Level DimensionScoreLevel `json:"level"`
+}
+
+// DimensionScoreLevel The rubric level, 0 (none) to 4 (full).
+type DimensionScoreLevel int
+
+// DimensionScores One level per dimension of the rubric (app/rubric.py, docs/rerank-rubric.md).
+type DimensionScores struct {
+	// ExperienceDepth A candidate's level on a dimension the rubric always scores.
+	ExperienceDepth DimensionScore `json:"experience_depth"`
+
+	// IndustryFit A candidate's level on a dimension the role may give nothing to score against.
+	IndustryFit OptionalDimensionScore `json:"industry_fit"`
+
+	// MustHaveCoverage A candidate's level on a dimension the role may give nothing to score against.
+	MustHaveCoverage OptionalDimensionScore `json:"must_have_coverage"`
+
+	// NiceToHaves A candidate's level on a dimension the role may give nothing to score against.
+	NiceToHaves OptionalDimensionScore `json:"nice_to_haves"`
+
+	// SoftwareFluency A candidate's level on a dimension the role may give nothing to score against.
+	SoftwareFluency OptionalDimensionScore `json:"software_fluency"`
+}
+
 // EmbedBatchRequest defines model for EmbedBatchRequest.
 type EmbedBatchRequest struct {
 	Inputs []EmbedInput `json:"inputs"`
@@ -172,6 +256,18 @@ type HealthResponse struct {
 	LlmProvider       string `json:"llm_provider"`
 	Status            string `json:"status"`
 }
+
+// OptionalDimensionScore A candidate's level on a dimension the role may give nothing to score against.
+type OptionalDimensionScore struct {
+	// Evidence One sentence: what in the candidate's text decides the level, or why the dimension is null.
+	Evidence string `json:"evidence"`
+
+	// Level The rubric level, 0 (none) to 4 (full); null when the dimension does not apply to the role.
+	Level *OptionalDimensionScoreLevel `json:"level"`
+}
+
+// OptionalDimensionScoreLevel The rubric level, 0 (none) to 4 (full); null when the dimension does not apply to the role.
+type OptionalDimensionScoreLevel int
 
 // ParseJDRequest defines model for ParseJDRequest.
 type ParseJDRequest struct {
@@ -303,13 +399,20 @@ type RerankResponse struct {
 
 	// Results Every candidate, best first.
 	Results []RerankResult `json:"results"`
+
+	// RubricVersion The version of the rubric (docs/rerank-rubric.md) the scores follow.
+	RubricVersion string `json:"rubric_version"`
 }
 
 // RerankResult defines model for RerankResult.
 type RerankResult struct {
-	ID      string   `json:"id"`
-	Reasons []string `json:"reasons,omitempty"`
-	Score   float32  `json:"score"`
+	// Dimensions One level per dimension of the rubric (app/rubric.py, docs/rerank-rubric.md).
+	Dimensions DimensionScores `json:"dimensions"`
+	ID         string          `json:"id"`
+	Reasons    []string        `json:"reasons,omitempty"`
+
+	// Score Computed from `dimensions` by the rubric's formula; never the model's own number.
+	Score float32 `json:"score"`
 }
 
 // RoleRequirements What the JD parser extracts. Maps onto roles.
