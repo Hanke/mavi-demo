@@ -11,6 +11,7 @@ here are also the contract with the model.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from datetime import date
@@ -19,7 +20,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from app import llm, rubric, taxonomy
-from app.grounding import in_text, line_with, mentions, year_in_text
+from app.grounding import find_quote, in_text, line_with, mentions, year_in_text
 from app.llm import Provider
 from app.schemas import (
     CandidateProfile,
@@ -67,8 +68,9 @@ Return only the JSON object."""
 
 RERANK_SYSTEM = f"""You score candidates for a finance and accounting role against a fixed rubric.
 
-You are given the role and a list of candidates, each with an id and the text to judge. For every candidate, give each dimension of the rubric a level from 0 to 4, with one sentence of evidence from the candidate's text for the level you chose. Rules:
+You are given the role and a list of candidates, each with an id and the text to judge. For every candidate, give each dimension of the rubric a level from 0 to 4, with one sentence of evidence for the level you chose and the quotes from the candidate's text that back it. Rules:
 - Judge only what the text shows. A claim with no supporting detail is listed, not evidenced, and something the text does not mention is not met.
+- Quotes: for every dimension you give level 1 or higher, one to three short passages copied character for character from that candidate's own text: a phrase or a line, not a paragraph. No paraphrase, no ellipsis, nothing joined from separate places, nothing from the role or from another candidate. Every quote is checked against the text and one that is not found there is thrown out. An empty list when the level is 0 or null.
 - Pick the level whose description fits best. There are no half levels, and one dimension does not make up for another: score each on its own question.
 - Whether a dimension applies is a fact about the role, not the candidate. Where the rubric says a dimension is null, it is null for every candidate (the evidence says why); otherwise it is a level for every candidate.
 - Do not give an overall score. It is computed from your levels.
@@ -116,12 +118,27 @@ def _dimension(key: str) -> Any:
     return Field(description=rubric.BY_KEY[key].question)
 
 
+# A quote is a phrase or a line. More or longer than this is the resume again, not evidence.
+MAX_QUOTES = 3
+MAX_QUOTE_CHARS = 300
+# How much of a rejected quote is logged.
+LOG_QUOTE_CHARS = 120
+
+
+def _quotes() -> Any:
+    return Field(
+        description="Passages copied verbatim from the candidate's text that back the level, at most "
+        f"{MAX_QUOTES}; empty when the level is 0 or null. In a response, each is a substring of that text."
+    )
+
+
 class DimensionScore(BaseModel):
     """A candidate's level on a dimension the rubric always scores."""
 
     model_config = ConfigDict(extra="forbid")
 
     evidence: str = Field(description="One sentence: what in the candidate's text decides the level.")
+    quotes: list[str] = _quotes()
     level: rubric.Level = Field(description="The rubric level, 0 (none) to 4 (full).")
 
 
@@ -133,6 +150,7 @@ class OptionalDimensionScore(BaseModel):
     evidence: str = Field(
         description="One sentence: what in the candidate's text decides the level, or why the dimension is null."
     )
+    quotes: list[str] = _quotes()
     level: rubric.Level | None = Field(
         description="The rubric level, 0 (none) to 4 (full); null when the dimension does not apply to the role."
     )
@@ -149,8 +167,12 @@ class DimensionScores(BaseModel):
     industry_fit: OptionalDimensionScore = _dimension("industry_fit")
     nice_to_haves: OptionalDimensionScore = _dimension("nice_to_haves")
 
+    def scores(self) -> list[tuple[str, DimensionScore | OptionalDimensionScore]]:
+        """Each dimension's key and score, in rubric order."""
+        return [(d.key, getattr(self, d.key)) for d in rubric.DIMENSIONS]
+
     def levels(self) -> dict[str, int | None]:
-        return {d.key: getattr(self, d.key).level for d in rubric.DIMENSIONS}
+        return {key: score.level for key, score in self.scores()}
 
 
 class RerankJudgement(BaseModel):
@@ -391,12 +413,80 @@ def ground_jd(out: JDExtraction, text: str) -> JDExtraction:
     return JDExtraction(company=out.company, requirements=requirements)
 
 
+def _quote_span(quote: str, text: str) -> str | None:
+    """The quote as the candidate's text writes it; None when it is not there or is too long to be one."""
+    found = find_quote(quote, text)
+    return found if found is not None and len(found) <= MAX_QUOTE_CHARS else None
+
+
+def _quote_problems(out: RerankOutput, texts: dict[str, str]) -> str | None:
+    """What is wrong with the quotes of an answer, for the model to correct; None when nothing is.
+    `texts` is each candidate's text by id."""
+    problems: list[str] = []
+    for r in out.results:
+        for key, score in r.dimensions.scores():
+            where = f"{r.id}, {key}"
+            # An overlong quote is counted, not sent back: it can be a whole resume.
+            long = [q for q in score.quotes if len(q) > MAX_QUOTE_CHARS]
+            absent = [q for q in score.quotes if q not in long and _quote_span(q, texts[r.id]) is None]
+            if long:
+                problems.append(f"{where}: {len(long)} longer than {MAX_QUOTE_CHARS} characters")
+            if absent:
+                problems.append(f"{where}: not in the candidate's text: {json.dumps(absent, ensure_ascii=False)}")
+            if score.level and not score.quotes:
+                problems.append(f"{where}: level {score.level} needs at least one quote")
+    if not problems:
+        return None
+    return (
+        "every quote must be a short passage copied character for character from that candidate's own "
+        f"text (at most {MAX_QUOTE_CHARS} characters), and a level of 1 or higher needs one:\n  "
+        + "\n  ".join(problems)
+    )
+
+
+def _ground_quotes(out: RerankOutput, texts: dict[str, str]) -> dict[str, DimensionScores]:
+    """Each candidate's dimensions with every quote as their text writes it, and
+    without the quotes it does not carry. What is dropped is logged, and so is
+    a level left with no quote to back it."""
+    dropped: list[str] = []
+    unbacked: list[str] = []
+    grounded: dict[str, DimensionScores] = {}
+    for r in out.results:
+        update: dict[str, DimensionScore | OptionalDimensionScore] = {}
+        for key, score in r.dimensions.scores():
+            kept: list[str] = []
+            for q in score.quotes:
+                found = _quote_span(q, texts[r.id])
+                if found is None:
+                    dropped.append(f"{r.id}.{key}={q[:LOG_QUOTE_CHARS]!r}")
+                elif found not in kept:
+                    kept.append(found)
+            if score.level and not kept:
+                unbacked.append(f"{r.id}.{key}")
+            update[key] = score.model_copy(update={"quotes": kept[:MAX_QUOTES]})
+        grounded[r.id] = r.dimensions.model_copy(update=update)
+    if dropped:
+        log.warning("rerank: dropped quotes the candidate's text does not carry: %s", ", ".join(dropped))
+    if unbacked:
+        log.warning("rerank: scored with no quote to back the level: %s", ", ".join(unbacked))
+    return grounded
+
+
 def rerank(provider: Provider, role: str, candidates: list[RerankCandidate]) -> list[RerankResult]:
     """Score every candidate against the role; returned best first.
 
     The model gives the rubric levels; the score is `rubric.overall` of them,
-    so it can be recomputed from the `dimensions` of any result."""
-    expected = {c.id for c in candidates}
+    so it can be recomputed from the `dimensions` of any result.
+
+    Every quote returned is a passage of that candidate's own text. An answer
+    with a quote that is not is sent back to the model once; what is still not
+    in the text after that is dropped (and logged), never returned.
+
+    The order depends only on the levels: the candidates go to the model
+    sorted by id, whatever order they came in, and equal scores are ordered
+    by id."""
+    texts = {c.id: c.text for c in candidates}
+    expected = set(texts)
 
     def check(out: RerankOutput) -> str | None:
         got = [r.id for r in out.results]
@@ -419,16 +509,20 @@ def rerank(provider: Provider, role: str, candidates: list[RerankCandidate]) -> 
             )
         return None
 
-    rendered = "\n\n".join(f"=== candidate id: {c.id} ===\n{c.text}" for c in candidates)
+    rendered = "\n\n".join(f"=== candidate id: {c.id} ===\n{c.text}" for c in sorted(candidates, key=lambda c: c.id))
     user = f"Role:\n\n{role}\n\nCandidates ({len(candidates)}):\n\n{rendered}"
-    out = llm.complete_json(provider, RERANK_SYSTEM, user, RerankOutput, check=check)
+    out = llm.complete_json(
+        provider, RERANK_SYSTEM, user, RerankOutput, check=check, advise=lambda o: _quote_problems(o, texts)
+    )
+    grounded = _ground_quotes(out, texts)
 
-    def rank(r: RerankJudgement) -> tuple[float, float]:
-        # Candidates held at the same must-have cap are ordered by what they scored before it.
+    def rank(r: RerankJudgement) -> tuple[float, float, str]:
+        # Candidates held at the same must-have cap are ordered by what they scored
+        # before it, and equal candidates by id, never by where the model put them.
         levels = r.dimensions.levels()
-        return rubric.overall(levels), rubric.weighted(levels)
+        return -rubric.overall(levels), -rubric.weighted(levels), r.id
 
     return [
-        RerankResult(id=r.id, score=rubric.overall(r.dimensions.levels()), dimensions=r.dimensions, reasons=r.reasons)
-        for r in sorted(out.results, key=rank, reverse=True)
+        RerankResult(id=r.id, score=rubric.overall(r.dimensions.levels()), dimensions=grounded[r.id], reasons=r.reasons)
+        for r in sorted(out.results, key=rank)
     ]

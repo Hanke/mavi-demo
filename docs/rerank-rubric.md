@@ -3,7 +3,8 @@
 Version 1. This is what `/rerank` scores a candidate on, and how the score of
 a match is arrived at. The model never produces that score. It places the
 candidate on a written level for each of five dimensions, with a sentence of
-evidence for each, and the service computes the score from the levels.
+evidence and quotes from the candidate's text for each, and the service
+computes the score from the levels.
 
 The rubric lives in [`ai/app/rubric.py`](../ai/app/rubric.py). The tables
 below are rendered from it, the `/rerank` system prompt is built from the same
@@ -38,6 +39,16 @@ with no nice-to-haves cannot be failed on them. That is decided by the role,
 so a dimension is null for every candidate in a request or for none (a
 response that mixes the two is sent back to the model). Experience depth is
 always scored.
+
+## Evidence
+
+A level of 1 or higher comes with one to three quotes: short passages copied
+from the candidate's text. The service looks each one up in that candidate's
+text and returns it as the text writes it, so a quote in a response is always
+a literal substring of what was judged. A quote that is not there is sent back
+to the model once and dropped if it is still not there; the level is the
+model's judgement and is left alone, so a scored dimension with no quotes is
+one the model could not back.
 
 <!-- rubric:begin (rendered from ai/app/rubric.py by `make rubric-render`; do not edit) -->
 | Dimension | Key | Weight | Null when |
@@ -124,7 +135,8 @@ Computed by `rubric.overall` from the levels, in three steps:
 3. **Rounding** to three decimals.
 
 The result is between 0 and 1. Results are returned best first; candidates
-held at the same cap are ordered by their score before the cap.
+held at the same cap are ordered by their score before the cap, and candidates
+who are still equal by id, so the same levels always give the same order.
 
 Worked examples:
 
@@ -135,7 +147,7 @@ Worked examples:
 | 1 | 4 | 4 | 4 | 4 | 280 / 400 = 0.700, capped | 0.500 |
 | null | 2 | null | 3 | null | (25×2 + 10×3) / (4 × 35) = 80 / 140 | 0.571 |
 
-Each result carries its `dimensions` (level and evidence) next to the
+Each result carries its `dimensions` (level, evidence and quotes) next to the
 `score`, and the response carries `rubric_version`, so the score of a stored
 match can be recomputed from its breakdown and traced to the weights that
 produced it.

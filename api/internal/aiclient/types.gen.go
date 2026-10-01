@@ -179,6 +179,9 @@ type DimensionScore struct {
 
 	// Level The rubric level, 0 (none) to 4 (full).
 	Level DimensionScoreLevel `json:"level"`
+
+	// Quotes Passages copied verbatim from the candidate's text that back the level, at most 3; empty when the level is 0 or null. In a response, each is a substring of that text.
+	Quotes []string `json:"quotes"`
 }
 
 // DimensionScoreLevel The rubric level, 0 (none) to 4 (full).
@@ -264,6 +267,9 @@ type OptionalDimensionScore struct {
 
 	// Level The rubric level, 0 (none) to 4 (full); null when the dimension does not apply to the role.
 	Level *OptionalDimensionScoreLevel `json:"level"`
+
+	// Quotes Passages copied verbatim from the candidate's text that back the level, at most 3; empty when the level is 0 or null. In a response, each is a substring of that text.
+	Quotes []string `json:"quotes"`
 }
 
 // OptionalDimensionScoreLevel The rubric level, 0 (none) to 4 (full); null when the dimension does not apply to the role.

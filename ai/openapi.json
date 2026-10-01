@@ -200,10 +200,20 @@
             ],
             "title": "Level",
             "type": "integer"
+          },
+          "quotes": {
+            "description": "Passages copied verbatim from the candidate's text that back the level, at most 3; empty when the level is 0 or null. In a response, each is a substring of that text.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Quotes",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
           }
         },
         "required": [
           "evidence",
+          "quotes",
           "level"
         ],
         "title": "DimensionScore",
@@ -437,10 +447,20 @@
             "nullable": true,
             "title": "Level",
             "type": "integer"
+          },
+          "quotes": {
+            "description": "Passages copied verbatim from the candidate's text that back the level, at most 3; empty when the level is 0 or null. In a response, each is a substring of that text.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Quotes",
+            "type": "array",
+            "x-go-type-skip-optional-pointer": true
           }
         },
         "required": [
           "evidence",
+          "quotes",
           "level"
         ],
         "title": "OptionalDimensionScore",

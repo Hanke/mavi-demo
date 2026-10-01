@@ -163,6 +163,28 @@ def test_a_day_of_the_month_does_not_ground_a_year():
     assert not grounding.year_in_text(2030, "joined 2019")
 
 
+def test_find_quote_returns_the_passage_as_the_text_writes_it():
+    text = (
+        "Senior Accountant \u2013 Acme\n"
+        "\u2022 Owner's draw reconciled in QuickBooks,\n   NetSuite and R\n"
+        "\u2022 Named \u201cfinance partner of the year\u201d"
+    )
+    assert grounding.find_quote("senior accountant - acme", text) == "Senior Accountant \u2013 Acme"
+    assert grounding.find_quote("Owner\u2019s draw", text) == "Owner's draw"
+    assert grounding.find_quote("QuickBooks, NetSuite and R", text) == "QuickBooks,\n   NetSuite and R"
+    assert grounding.find_quote("\u2022 Owner's draw", text) == "\u2022 Owner's draw"
+    assert grounding.find_quote('Named "finance partner', text) == "Named \u201cfinance partner"
+    # Whole words only, nothing reworded, nothing joined across a gap.
+    assert grounding.find_quote("Quick", text) is None
+    assert grounding.find_quote("Account", text) is None
+    assert grounding.find_quote("reconciled the owner's draw", text) is None
+    assert grounding.find_quote("Senior Accountant ... NetSuite", text) is None
+    # Punctuation the text does carry is still not a quote.
+    assert grounding.find_quote("\u2022", text) is None
+    assert grounding.find_quote(" , ", text) is None
+    assert grounding.find_quote("  ", text) is None
+
+
 def test_empty_contact_strings_are_null():
     assert Contact.model_validate({"full_name": " ", "email": "", "phone": None}) == Contact()
 

@@ -25,12 +25,13 @@ from datetime import date
 from typing import Any
 
 from app import qualifications, rubric, taxonomy
-from app.grounding import mentions, standards_named
+from app.extract import MAX_QUOTE_CHARS, MAX_QUOTES
+from app.grounding import mention_of, standards_named
 from app.llm import ProviderError
 from app.taxonomy import Kind
 
 # Bump when the answers change, so cached answers from the old rules are not replayed.
-FAKE_MODEL = "fake-5"
+FAKE_MODEL = "fake-6"
 
 _RETRY_MARKER = "\n\nYour previous answer did not match the required schema."
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
@@ -86,9 +87,13 @@ def _named(kind: Kind, text: str) -> list[str]:
     return [t.id for t in taxonomy.load().terms(kind) if _names(text, t)]
 
 
+def _named_as(text: str, term: taxonomy.Term) -> str | None:
+    """`mention_of` by the term's own names only: "CPA" names the ambiguous cpa, not each of its variants."""
+    return mention_of(text, replace(term, inherited=()))
+
+
 def _names(text: str, term: taxonomy.Term) -> bool:
-    """`mentions` by the term's own names only: "CPA" names the ambiguous cpa, not each of its variants."""
-    return mentions(text, replace(term, inherited=()))
+    return _named_as(text, term) is not None
 
 
 _SHORT = 4  # as in app.grounding: short names are matched case-sensitively
@@ -284,8 +289,9 @@ def _level(share: float) -> int:
 
 def _rerank(prompt: str) -> dict[str, Any]:
     """Rubric levels from what can be counted: the share of the role's
-    taxonomy terms a candidate names, and word overlap for experience. The
-    score itself is computed from these by app.rubric, as for a real model."""
+    taxonomy terms a candidate names, and word overlap for experience, each
+    quoting the candidate's text where it found them. The score itself is
+    computed from these by app.rubric, as for a real model."""
     head, *rest = _CANDIDATE.split(prompt)
     role = _after(head, "Role:\n\n")
     candidates = list(zip(rest[0::2], rest[1::2], strict=True))
@@ -297,26 +303,47 @@ def _rerank(prompt: str) -> dict[str, Any]:
 
     def named(text: str, terms: list[taxonomy.Term]) -> dict[str, Any]:
         if not terms:
-            return {"evidence": "the role names none", "level": None}
-        has = [t.label for t in terms if _names(text, t)]
-        lacks = [t.label for t in terms if not _names(text, t)]
+            return {"evidence": "the role names none", "quotes": [], "level": None}
+        found = {t.label: _named_as(text, t) for t in terms}
+        has = [label for label, span in found.items() if span]
+        lacks = [label for label, span in found.items() if not span]
         parts = ([f"names {', '.join(has)}"] if has else []) + ([f"does not name {', '.join(lacks)}"] if lacks else [])
-        return {"evidence": "; ".join(parts), "level": _level(len(has) / len(terms))}
+        level = _level(len(has) / len(terms))
+        # The quotes are the names as the candidate writes them.
+        quotes = list(dict.fromkeys(span for span in found.values() if span))[:MAX_QUOTES] if level else []
+        return {"evidence": "; ".join(parts), "quotes": quotes, "level": level}
+
+    def closest_line(text: str) -> list[str]:
+        """The line of the candidate's text that shares the most words with the role; the first of equals."""
+        lines = [_BULLET.sub("", raw).strip() for raw in text.splitlines()]
+        best = max(lines, key=lambda line: len(role_words & set(_WORD.findall(line.lower()))), default="")
+        if len(best) > MAX_QUOTE_CHARS:
+            best = best[:MAX_QUOTE_CHARS].rsplit(None, 1)[0]
+        return [best] if best else []
 
     results: list[dict[str, Any]] = []
     for cid, text in candidates:
         overlap = len(role_words & set(_WORD.findall(text.lower()))) / len(role_words) if role_words else 0.0
         must = named(text, wanted["certifications"] + wanted["software"])
         shares = f"shares {overlap:.0%} of the role's wording"
+        depth = _level(overlap * OVERLAP_SCALE)
         results.append(
             {
                 "id": cid,
                 "dimensions": {
                     "must_have_coverage": must,
-                    "experience_depth": {"evidence": shares, "level": _level(overlap * OVERLAP_SCALE)},
+                    "experience_depth": {
+                        "evidence": shares,
+                        "quotes": closest_line(text) if depth else [],
+                        "level": depth,
+                    },
                     "software_fluency": named(text, wanted["software"]),
                     "industry_fit": named(text, wanted["industries"]),
-                    "nice_to_haves": {"evidence": "the fake provider does not read nice-to-haves", "level": None},
+                    "nice_to_haves": {
+                        "evidence": "the fake provider does not read nice-to-haves",
+                        "quotes": [],
+                        "level": None,
+                    },
                 },
                 "reasons": [must["evidence"] if must["level"] is not None else shares],
             }

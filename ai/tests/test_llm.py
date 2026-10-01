@@ -70,6 +70,38 @@ def test_check_failures_count_as_invalid_output():
     assert "name must be y" in provider.calls[1][1]
 
 
+def test_advice_is_retried_once_then_the_answer_is_returned_anyway():
+    def prefers_y(a: Answer) -> str | None:
+        return None if a.name == "y" else f"name should be y, got {a.name}"
+
+    x, y = '{"name": "x", "count": 1, "note": null}', '{"name": "y", "count": 1, "note": null}'
+    provider = ScriptedProvider([x, y])
+    assert llm.complete_json(provider, "sys", "user", Answer, advise=prefers_y).name == "y"
+    assert "name should be y" in provider.calls[1][1]
+
+    provider = ScriptedProvider([x, x])
+    assert llm.complete_json(provider, "sys", "user", Answer, advise=prefers_y).name == "x"
+    assert len(provider.calls) == llm.MAX_ATTEMPTS
+
+    # Advice does not excuse a failed check.
+    provider = ScriptedProvider([x, x])
+    with pytest.raises(InvalidOutputError):
+        llm.complete_json(provider, "sys", "user", Answer, check=prefers_y, advise=lambda _: "anything")
+
+
+def test_asking_again_on_advice_never_costs_the_usable_answer():
+    """The retry came back broken: the first answer, which only drew advice, is still returned."""
+
+    def prefers_y(a: Answer) -> str | None:
+        return None if a.name == "y" else "name should be y"
+
+    x = '{"name": "x", "count": 1, "note": null}'
+    for broken in ("not json", '{"name": "z", "count": 99, "note": null}'):
+        provider = ScriptedProvider([x, broken])
+        assert llm.complete_json(provider, "sys", "user", Answer, advise=prefers_y).name == "x"
+        assert len(provider.calls) == llm.MAX_ATTEMPTS
+
+
 def test_provider_errors_are_not_retried():
     provider = ScriptedProvider([ProviderError("rate limited"), '{"name": "a", "count": 1, "note": null}'])
     with pytest.raises(ProviderError):

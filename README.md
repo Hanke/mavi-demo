@@ -110,7 +110,7 @@ five POST endpoints plus `/health`, every request and response a Pydantic model
 | --- | --- | --- |
 | `POST /parse-resume` | `{text, as_of?}` — the resume as plain text; `as_of` is the date `years_experience` counts to (default today) | `{contact, profile, provider}` — `contact` is the header (`full_name`, `email`, `phone`, `location`, each null when the resume does not give it); `profile` is a `CandidateProfile`: `positions` (title, employer, start and end year), `years_experience`, `certifications`, `software`, `industries` (taxonomy ids, already canonical), `qualifications` (each one as written, with its issuing body, jurisdiction and whether it is fully held; see [Qualifications](#qualifications-across-jurisdictions)), `gaap_exposure` (the frameworks and standards the resume names), plus headline, skills, languages, availability and time zone |
 | `POST /parse-jd` | `{text}` | `{company, requirements, provider}` — `requirements` is a `RoleRequirements`, split into must-haves and nice-to-haves in fields that line up with the candidate profile (see [JD requirements](#jd-requirements)); each entry of `required_qualifications` says whether an equivalent is acceptable (`accept_equivalents`) and whether the JD said so (`equivalents_stated`) |
-| `POST /rerank` | `{role, candidates: [{id, text}]}` — the JD (or a rendering of the role) and up to 50 candidates, each an opaque id plus the text to judge | `{results: [{id, score, dimensions, reasons}], rubric_version, provider}` — every id exactly once, best first; `dimensions` is the candidate's level (0 to 4, or null) and evidence on each dimension of the [rerank rubric](#rerank-rubric), and `score` (0..1) is computed from those levels |
+| `POST /rerank` | `{role, candidates: [{id, text}]}` — the JD (or a rendering of the role) and up to 50 candidates, each an opaque id plus the text to judge | `{results: [{id, score, dimensions, reasons}], rubric_version, provider}` — every id exactly once, best first; `dimensions` is the candidate's level (0 to 4, or null), a sentence of evidence and the `quotes` from the candidate's text that back it on each dimension of the [rerank rubric](#rerank-rubric), and `score` (0..1) is computed from those levels. Every quote is a substring of that candidate's `text`; equal scores are ordered by id |
 | `POST /embed` | `{text}` — up to 60,000 characters, like the parsers | `{embedding, dim, provider}` |
 | `POST /embed-batch` | `{inputs: [...]}` — up to 256 inputs, each exactly one of `{text}`, `{profile}` (a `CandidateProfile`) or `{requirements}` (a `RoleRequirements`) | `{embeddings, texts, dim, provider}` — one vector per input in the order given, and the text each was computed from |
 
@@ -229,13 +229,34 @@ level, the weights and the formula are set out in
 | `industry_fit` | 10% | Has the candidate worked in the role's industry? |
 | `nice_to_haves` | 10% | How many of the preferred items does the text show? |
 
-The model gives a level and a sentence of evidence per dimension and never an
-overall score (an answer that carries one fails validation). The service
+The model gives a level, a sentence of evidence and up to three quotes from
+the candidate's text per dimension, and never an overall score (an answer that
+carries one fails validation). The service
 computes `score` in [`ai/app/rubric.py`](ai/app/rubric.py): the weighted mean
 of the levels over the dimensions that apply to the role, capped at 0.30 or
 0.50 when must-have coverage is 0 or 1, rounded to three decimals. The same
 levels always give the same score, so it can be recomputed from the
 `dimensions` of any result.
+
+**Quotes are checked, not trusted.** Each quote is looked up in the text of the
+candidate it is about (`grounding.find_quote`), ignoring only case, line
+breaks and the style of dashes, apostrophes and quotation marks, and is returned as the text writes it, so
+every quote in a response is a literal substring of that candidate's `text`.
+An answer with a quote that is not there (invented, reworded, taken from
+another candidate, or longer than 300 characters), or with a scored dimension
+that quotes nothing, is sent back to the model once. Whatever still fails
+after that is dropped and logged rather than failing the request (and if the
+second answer does not validate at all, the first is used): the level
+stands, and a dimension whose `quotes` came back empty with a level above 0 is
+one the model could not back.
+
+**The order is a function of the levels.** Candidates go to the model sorted
+by id, so the same set gives the same prompt (and the same cached answer, see
+[Response cache](#response-cache)) whatever order the request lists them in.
+Results are sorted by score, then by the score before the must-have cap, then
+by id, never by where the model put them. With a real model the levels
+themselves are repeatable because the answer is replayed from the cache; with
+`AI_CACHE=off` two runs can place a candidate on different levels.
 
 The rubric has one source. The tables in the document are rendered from
 `rubric.py` (`make rubric-render`), the system prompt is built from the same
@@ -744,7 +765,8 @@ same way every time. It finds what can be found mechanically (the email, the
 taxonomy terms a text names, the qualifications and whether the line says
 "part-qualified" or "or equivalent", the bullets under a "Requirements" heading; the
 rerank levels are the share of the role's certifications, software and
-industries a candidate names, and word overlap for experience) and leaves the rest null. Use it for
+industries a candidate names, and word overlap for experience, quoting the names and the
+closest line as the candidate writes them) and leaves the rest null. Use it for
 offline development and for wiring; it is not a parser, and a term that is
 also an ordinary word (the "Monday" in a start date) will fool it.
 

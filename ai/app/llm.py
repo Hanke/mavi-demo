@@ -263,6 +263,7 @@ def complete_json[T: BaseModel](
     model: type[T],
     *,
     check: Callable[[T], str | None] | None = None,
+    advise: Callable[[T], str | None] | None = None,
     max_attempts: int = MAX_ATTEMPTS,
 ) -> T:
     """Ask the provider for a `model` and return the validated instance.
@@ -272,10 +273,17 @@ def complete_json[T: BaseModel](
     instance and returns a problem description (or None) for rules the schema
     cannot express, e.g. "every candidate id must appear exactly once"; a
     problem counts as a failed attempt too. After `max_attempts` the last
-    failure is raised as InvalidOutputError."""
+    failure is raised as InvalidOutputError.
+
+    `advise` is a check worth a retry but not a failure: its problem is sent
+    back like any other, but an answer whose only problem is that one is
+    usable, for the caller to repair. When the attempts run out, the latest
+    such answer is returned rather than raising, so asking again can never
+    cost an answer that was good enough."""
     schema = output_schema(model)
     prompt = user
     last_error = ""
+    usable: T | None = None
     for attempt in range(1, max_attempts + 1):
         text = provider.complete(system, prompt, schema)
         try:
@@ -285,7 +293,10 @@ def complete_json[T: BaseModel](
         else:
             problem = check(parsed) if check else None
             if problem is None:
-                return parsed
+                problem = advise(parsed) if advise else None
+                if problem is None:
+                    return parsed
+                usable = parsed
             last_error = f"- {problem}"
         log.warning(
             "%s: %s output failed validation (attempt %d/%d):\n%s\n--- output ---\n%s",
@@ -302,6 +313,8 @@ def complete_json[T: BaseModel](
             f"Previous answer:\n{text[:RETRY_QUOTE_CHARS]}\n\n"
             "Return a corrected JSON object that satisfies the schema."
         )
+    if usable is not None:
+        return usable
     raise InvalidOutputError(model, max_attempts, last_error)
 
 

@@ -55,6 +55,9 @@ def test_schema_has_one_field_per_dimension_and_no_overall_score():
         assert ref == ("OptionalDimensionScore" if d.null_when else "DimensionScore")
     optional = defs["OptionalDimensionScore"]["properties"]["level"]["anyOf"]
     assert {"type": "null"} in optional
+    for name in ("DimensionScore", "OptionalDimensionScore"):
+        assert defs[name]["properties"]["quotes"]["items"] == {"type": "string"}
+        assert "quotes" in defs[name]["required"]
 
 
 @pytest.mark.parametrize(

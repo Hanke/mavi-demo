@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from app import fixtures, llm, rubric
 from app.fake import FakeProvider
 from app.llm import ProviderError
-from app.main import app
+from app.main import app, get_provider
 from app.settings import Settings, get_settings
 
 
@@ -88,6 +88,30 @@ def test_rerank_with_the_fake_scores_every_candidate_and_ranks_the_match_first(c
     assert results[0]["id"] == jd.hard_filter_matches[0]
     assert all(r["reasons"] for r in results)
     assert all(r["score"] == rubric.overall({k: d["level"] for k, d in r["dimensions"].items()}) for r in results)
+
+
+@pytest.mark.parametrize("slug", fixtures.jd_slugs())
+def test_rerank_with_the_fake_quotes_the_resumes_and_is_repeatable(client: TestClient, slug: str):
+    jd = fixtures.load_jd(slug)
+    resumes = fixtures.load_resumes()
+    texts = {r.slug: r.text for r in resumes}
+    candidates = [{"id": r.slug, "text": r.text} for r in resumes]
+    provider = FakeProvider()
+    app.dependency_overrides[get_provider] = lambda: provider  # no cache: every request reaches the provider
+    try:
+        resp = client.post("/rerank", json={"role": jd.text, "candidates": candidates})
+        again = client.post("/rerank", json={"role": jd.text, "candidates": candidates[::-1]})
+    finally:
+        app.dependency_overrides.pop(get_provider, None)
+    assert resp.status_code == 200, resp.text
+    assert resp.content == again.content
+    quoted = 0
+    for r in resp.json()["results"]:
+        for d in r["dimensions"].values():
+            assert all(q in texts[r["id"]] for q in d["quotes"])
+            assert bool(d["quotes"]) == bool(d["level"])  # every scored dimension is backed, nothing was dropped
+            quoted += len(d["quotes"])
+    assert quoted
 
 
 def test_unknown_schema_is_a_provider_error():

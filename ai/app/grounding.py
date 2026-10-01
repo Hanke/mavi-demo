@@ -38,21 +38,60 @@ def in_text(fragment: str, text: str) -> bool:
     return bool(needle) and re.search(rf"(?<!\w){re.escape(needle)}(?!\w)", normalize(text)) is not None
 
 
+# Characters a model retypes when it copies a passage: any one of a group stands for the others.
+_INTERCHANGEABLE = ("-\u2013\u2014", "'\u2018\u2019", '"\u201c\u201d')
+
+
+def _as_written(char: str) -> str:
+    """A pattern for one character of a quote, however the page writes it."""
+    for group in _INTERCHANGEABLE:
+        if char in group:
+            return f"[{group}]"
+    return re.escape(char)
+
+
+def find_quote(quote: str, text: str) -> str | None:
+    """The passage of the text that the quote reproduces, as the text itself
+    writes it; None when the text has no such passage.
+
+    A quote may differ from the page only in case, line breaks and runs of
+    spaces, and the style of dashes, apostrophes and quotation marks. It must
+    say something (punctuation alone is not a quote) and start and end on
+    whole words ("R" is not a quote from "QuickBooks"). What comes back is
+    cut from the text, so it is always a substring of it."""
+    words = quote.split()
+    if not re.search(r"\w", quote):
+        return None
+    pattern = r"\s+".join("".join(_as_written(c) for c in word) for word in words)
+    if re.match(r"\w", words[0]):
+        pattern = r"(?<!\w)" + pattern
+    if re.search(r"\w$", words[-1]):
+        pattern += r"(?!\w)"
+    found = re.search(pattern, text, re.IGNORECASE)
+    return found.group() if found else None
+
+
 _WORD = r"(?<![A-Za-z0-9]){}(?![A-Za-z0-9])"
 _CASE_SENSITIVE_UP_TO = 4  # "CA", "EA", "SQL": short enough to be an ordinary word in lower case
 
 
-def mentions(text: str, term: taxonomy.Term) -> bool:
-    """True when the text names the term by label or alias. Short aliases
-    ("CA", "EA", "SQL") are matched case-sensitively so "California" does not
-    count as a Chartered Accountant. A body-specific qualification is also
-    named by the letters it shares: "CPA" names a US CPA."""
+def mention_of(text: str, term: taxonomy.Term) -> str | None:
+    """How the text names the term, by label or alias, as the text writes it;
+    None when it does not. Short aliases ("CA", "EA", "SQL") are matched
+    case-sensitively so "California" does not count as a Chartered
+    Accountant. A body-specific qualification is also named by the letters it
+    shares: "CPA" names a US CPA."""
     for name in (term.label, *term.aliases, *term.inherited):
         pattern = _WORD.format(re.escape(name))
         flags = 0 if len(name) <= _CASE_SENSITIVE_UP_TO else re.IGNORECASE
-        if re.search(pattern, text, flags):
-            return True
-    return False
+        if found := re.search(pattern, text, flags):
+            return found.group()
+    return None
+
+
+def mentions(text: str, term: taxonomy.Term) -> bool:
+    """True when the text names the term (see `mention_of`)."""
+    return mention_of(text, term) is not None
 
 
 def line_with(fragment: str, text: str) -> str | None:
