@@ -11,9 +11,9 @@ taxonomy terms a text names, the bullets under a "Requirements" heading) and
 leaves the rest null, so its eval scores are a floor, not a target.
 
 The answer is chosen by the title of the schema the caller sends, and the
-resume, JD and candidate texts are cut out of the user prompts app/extract.py
-builds; tests/test_fake.py runs every fixture through both so a change to
-those prompts that breaks this file fails there.
+resume, JD and candidate texts are read out of the blocks of the user prompts
+app/extract.py builds (app/delimit.py); tests/test_fake.py runs every fixture
+through both so a change to those prompts that breaks this file fails there.
 """
 
 from __future__ import annotations
@@ -24,16 +24,15 @@ from dataclasses import replace
 from datetime import date
 from typing import Any
 
-from app import qualifications, rubric, taxonomy
+from app import delimit, qualifications, rubric, taxonomy
 from app.extract import MAX_QUOTE_CHARS, MAX_QUOTES
 from app.grounding import mention_of, standards_named
 from app.llm import ProviderError
 from app.taxonomy import Kind
 
 # Bump when the answers change, so cached answers from the old rules are not replayed.
-FAKE_MODEL = "fake-6"
+FAKE_MODEL = "fake-7"
 
-_RETRY_MARKER = "\n\nYour previous answer did not match the required schema."
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 _PHONE = re.compile(r"\+?\(?\d[\d\s().-]{8,}\d")
 _PHONE_DIGITS = range(10, 14)
@@ -48,7 +47,6 @@ _MUST_HEADING = re.compile(
 _NICE_HEADING = re.compile(r"^(preferred|nice[- ]to[- ]haves?|bonus|plus(?:es)?|desirable|desired)\b", re.I)
 # "5+ years", "Minimum 5 years", "10 or more years", "1-4 years": the first figure is the floor.
 _MIN_YEARS = re.compile(r"(?<![\d-])(\d{1,2})(?:\s*\+|\s+or more|\s*[-\u2013]\s*\d{1,2})?\s+years?\b", re.I)
-_CANDIDATE = re.compile(r"^=== candidate id: (.+) ===$", re.M)
 _WORD = re.compile(r"[a-z][a-z0-9&+/-]{3,}")
 _AVAILABILITY = (
     (
@@ -71,7 +69,6 @@ class FakeProvider:
     model = FAKE_MODEL
 
     def complete(self, system: str, user: str, schema: dict[str, Any]) -> str:
-        user = user.split(_RETRY_MARKER, 1)[0]
         title = schema.get("title")
         if title == "ResumeExtraction":
             return json.dumps(_resume(user))
@@ -162,8 +159,10 @@ def _qualifications(text: str, header: str = "") -> list[dict[str, Any]]:
     return [{k: v for k, v in r.items() if k != "_held"} for r in records.values()]
 
 
-def _after(prompt: str, marker: str) -> str:
-    return prompt.split(marker, 1)[1] if marker in prompt else prompt
+def _document(prompt: str, tag: str) -> str:
+    """The text of the prompt's one `tag` block; the whole prompt when it has none."""
+    found = delimit.blocks(prompt, tag)
+    return found[0][1] if found else prompt
 
 
 def _first_line(text: str) -> str:
@@ -171,7 +170,7 @@ def _first_line(text: str) -> str:
 
 
 def _resume(prompt: str) -> dict[str, Any]:
-    text = _after(prompt, "Resume:\n\n")
+    text = _document(prompt, "resume")
     today = date.fromisoformat(m.group(1)) if (m := _TODAY.match(prompt)) else date.today()
 
     name = _NAME_END.split(_first_line(text), maxsplit=1)[0].strip()
@@ -214,7 +213,7 @@ def _resume(prompt: str) -> dict[str, Any]:
 
 
 def _jd(prompt: str) -> dict[str, Any]:
-    text = _after(prompt, "Job description:\n\n")
+    text = _document(prompt, "jd")
     # Bullets belong to the nearest heading above them; only the two kinds of
     # heading the schema has a list for are kept.
     section: str | None = None
@@ -292,9 +291,8 @@ def _rerank(prompt: str) -> dict[str, Any]:
     taxonomy terms a candidate names, and word overlap for experience, each
     quoting the candidate's text where it found them. The score itself is
     computed from these by app.rubric, as for a real model."""
-    head, *rest = _CANDIDATE.split(prompt)
-    role = _after(head, "Role:\n\n")
-    candidates = list(zip(rest[0::2], rest[1::2], strict=True))
+    role = _document(prompt, "role")
+    candidates = [(cid or "", text) for cid, text in delimit.blocks(prompt, "candidate")]
     tax = taxonomy.load()
     wanted: dict[str, list[taxonomy.Term]] = {
         kind: [t for t in tax.terms(kind) if _names(role, t)] for kind in ("certifications", "software", "industries")

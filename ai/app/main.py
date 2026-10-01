@@ -1,11 +1,12 @@
 from datetime import date
 from functools import lru_cache
-from typing import Self
+from typing import Any, Self
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app import embeddings, embedtext, extract, llm, rubric
+from app import documents, embeddings, embedtext, extract, llm, rubric
 from app.extract import RerankCandidate, RerankResult
 from app.llm import InvalidOutputError, Provider
 from app.schemas import CandidateProfile, Contact, RoleRequirements
@@ -99,6 +100,12 @@ class EmbedBatchResponse(BaseModel):
     provider: str
 
 
+class ExtractTextResponse(BaseModel):
+    text: str = Field(description="The text of the file, ready for /parse-resume or /parse-jd.")
+    kind: documents.Kind = Field(description="What the file was found to be, from its content.")
+    pages: int | None = Field(description="Pages of a PDF; null for a DOCX.")
+
+
 class ParseResumeRequest(BaseModel):
     text: str = Field(min_length=1, max_length=MAX_TEXT_CHARS, description="The resume as plain text.")
     as_of: date | None = Field(default=None, description="The date years_experience is counted to. Default: today.")
@@ -173,6 +180,44 @@ def embed_batch(req: EmbedBatchRequest, settings: Settings = Depends(get_setting
     return EmbedBatchResponse(
         embeddings=vectors, texts=texts, dim=settings.embedding_dim, provider=settings.embedding_provider
     )
+
+
+_UPLOAD_BODY: dict[str, Any] = {
+    "requestBody": {
+        "required": True,
+        "description": "The file itself as the request body (not multipart): a PDF or a DOCX.",
+        "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}},
+    }
+}
+_UPLOAD_ERRORS: dict[int | str, dict[str, Any]] = {
+    413: {"description": f"The file is larger than {documents.megabytes(documents.MAX_UPLOAD_BYTES)}."},
+    415: {"description": "The file is neither a PDF nor a DOCX."},
+    422: {
+        "description": f"The file is empty, damaged, password-protected or has no text, a PDF has more than "
+        f"{documents.MAX_PDF_PAGES} pages, or the text is longer than {MAX_TEXT_CHARS} characters."
+    },
+}
+
+
+@app.post("/extract-text", response_model=ExtractTextResponse, openapi_extra=_UPLOAD_BODY, responses=_UPLOAD_ERRORS)
+async def extract_text(request: Request) -> ExtractTextResponse:
+    """The text of an uploaded PDF or DOCX. The type is read from the file's
+    content, not its name or Content-Type, and the limits are enforced here:
+    the body is read no further than the size limit, whatever length it claims,
+    and the file is opened in a separate process with a time limit."""
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > documents.MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail=str(documents.too_large()))
+    data = bytearray()
+    async for chunk in request.stream():
+        data += chunk
+        if len(data) > documents.MAX_UPLOAD_BYTES:
+            raise HTTPException(status_code=413, detail=str(documents.too_large()))
+    try:
+        out = await run_in_threadpool(documents.extract_text_isolated, bytes(data), MAX_TEXT_CHARS)
+    except documents.UploadError as e:
+        raise HTTPException(status_code=e.status, detail=str(e)) from e
+    return ExtractTextResponse(text=out.text, kind=out.kind, pages=out.pages)
 
 
 @app.post("/parse-resume", response_model=ParseResumeResponse)

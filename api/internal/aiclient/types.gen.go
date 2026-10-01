@@ -64,6 +64,24 @@ func (e DimensionScoreLevel) Valid() bool {
 	}
 }
 
+// Defines values for ExtractTextResponseKind.
+const (
+	ExtractTextResponseKindDocx ExtractTextResponseKind = "docx"
+	ExtractTextResponseKindPdf  ExtractTextResponseKind = "pdf"
+)
+
+// Valid indicates whether the value is a known member of the ExtractTextResponseKind enum.
+func (e ExtractTextResponseKind) Valid() bool {
+	switch e {
+	case ExtractTextResponseKindDocx:
+		return true
+	case ExtractTextResponseKindPdf:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for OptionalDimensionScoreLevel.
 const (
 	OptionalDimensionScoreLevelN0 OptionalDimensionScoreLevel = 0
@@ -248,6 +266,21 @@ type EmbedResponse struct {
 	Provider  string    `json:"provider"`
 }
 
+// ExtractTextResponse defines model for ExtractTextResponse.
+type ExtractTextResponse struct {
+	// Kind What the file was found to be, from its content.
+	Kind ExtractTextResponseKind `json:"kind"`
+
+	// Pages Pages of a PDF; null for a DOCX.
+	Pages *int `json:"pages"`
+
+	// Text The text of the file, ready for /parse-resume or /parse-jd.
+	Text string `json:"text"`
+}
+
+// ExtractTextResponseKind What the file was found to be, from its content.
+type ExtractTextResponseKind string
+
 // HTTPValidationError defines model for HTTPValidationError.
 type HTTPValidationError struct {
 	Detail []ValidationError `json:"detail,omitempty"`
@@ -384,7 +417,7 @@ type RequiredQualification struct {
 
 // RerankCandidate defines model for RerankCandidate.
 type RerankCandidate struct {
-	// ID Opaque id echoed back in the result.
+	// ID Opaque id echoed back in the result: letters, digits and _ . : - only.
 	ID string `json:"id"`
 
 	// Text Resume text or a rendered profile; whatever the model should judge.

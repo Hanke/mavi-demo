@@ -13,6 +13,13 @@ Layout, all under infra/fixtures:
     jds/<slug>.txt                the job description
     jds/<slug>.expected.json      {"$comment", "company", "requirements": RoleRequirements,
                                    "hard_filter_matches": [resume slugs]}
+    injection/<slug>.txt          a prompt-injection attempt, to be appended to any resume
+
+An injection is only the attempt, never a whole resume: a test builds the
+injected resume from a clean one (`InjectionFixture.into`), so the two differ
+by the attempt and nothing else. The attempts give instructions; none claims
+a qualification or a tool, since a resume that lies about those is a
+different problem from one that tries to give the model orders.
 
 The PDF is a pure function of the text (no timestamps, no ids), so the
 committed file is checked byte for byte against a re-render by the tests and
@@ -35,6 +42,7 @@ from app.schemas import CandidateProfile, Contact, RoleRequirements
 ROOT = Path(__file__).resolve().parents[2] / "infra" / "fixtures"
 RESUMES_DIR = ROOT / "resumes"
 JDS_DIR = ROOT / "jds"
+INJECTIONS_DIR = ROOT / "injection"
 EXPECTED_SUFFIX = ".expected.json"
 
 # The day the expected outputs were written. `years_experience` runs from the
@@ -65,6 +73,16 @@ class JDFixture:
     """Resume slugs whose expected profile satisfies this JD's certification, software and experience requirements."""
     comment: str
     raw: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class InjectionFixture:
+    slug: str
+    payload: str
+
+    def into(self, text: str) -> str:
+        """The resume with the attempt added as its last paragraph."""
+        return f"{text.rstrip()}\n\n{self.payload}"
 
 
 def _read_expected(path: Path) -> dict[str, Any]:
@@ -118,6 +136,11 @@ def load_resumes(root: Path = ROOT) -> list[ResumeFixture]:
 
 def load_jds(root: Path = ROOT) -> list[JDFixture]:
     return [load_jd(slug, root) for slug in jd_slugs(root)]
+
+
+def load_injections(root: Path = ROOT) -> list[InjectionFixture]:
+    directory = root / "injection"
+    return [InjectionFixture(p.stem, p.read_text(encoding="utf-8")) for p in sorted(directory.glob("*.txt"))]
 
 
 def passes_hard_filters(profile: CandidateProfile, req: RoleRequirements) -> bool:

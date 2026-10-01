@@ -389,6 +389,37 @@
         "title": "EmbedResponse",
         "type": "object"
       },
+      "ExtractTextResponse": {
+        "properties": {
+          "kind": {
+            "description": "What the file was found to be, from its content.",
+            "enum": [
+              "pdf",
+              "docx"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "pages": {
+            "description": "Pages of a PDF; null for a DOCX.",
+            "nullable": true,
+            "title": "Pages",
+            "type": "integer"
+          },
+          "text": {
+            "description": "The text of the file, ready for /parse-resume or /parse-jd.",
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "kind",
+          "pages"
+        ],
+        "title": "ExtractTextResponse",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -708,9 +739,10 @@
         "additionalProperties": false,
         "properties": {
           "id": {
-            "description": "Opaque id echoed back in the result.",
+            "description": "Opaque id echoed back in the result: letters, digits and _ . : - only.",
             "maxLength": 200,
             "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
             "title": "Id",
             "type": "string"
           },
@@ -1101,6 +1133,46 @@
           }
         },
         "summary": "Embed Batch"
+      }
+    },
+    "/extract-text": {
+      "post": {
+        "description": "The text of an uploaded PDF or DOCX. The type is read from the file's\ncontent, not its name or Content-Type, and the limits are enforced here:\nthe body is read no further than the size limit, whatever length it claims,\nand the file is opened in a separate process with a time limit.",
+        "operationId": "extract_text",
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          },
+          "description": "The file itself as the request body (not multipart): a PDF or a DOCX.",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractTextResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "413": {
+            "description": "The file is larger than 5.0 MB."
+          },
+          "415": {
+            "description": "The file is neither a PDF nor a DOCX."
+          },
+          "422": {
+            "description": "The file is empty, damaged, password-protected or has no text, a PDF has more than 10 pages, or the text is longer than 60000 characters."
+          }
+        },
+        "summary": "Extract Text"
       }
     },
     "/health": {

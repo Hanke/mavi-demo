@@ -45,9 +45,9 @@ def test_parse_resume_with_the_fake_is_valid_and_repeatable(client: TestClient, 
 
 
 def _complete(provider: FakeProvider, text: str) -> str:
-    from app.extract import ResumeExtraction
+    from app.extract import ResumeExtraction, resume_prompt
 
-    return provider.complete("sys", f"Today is 2026-09-30.\n\nResume:\n\n{text}", llm.output_schema(ResumeExtraction))
+    return provider.complete("sys", resume_prompt(text, fixtures.AS_OF), llm.output_schema(ResumeExtraction))
 
 
 def test_parse_resume_finds_the_taxonomy_terms_the_text_names(client: TestClient):

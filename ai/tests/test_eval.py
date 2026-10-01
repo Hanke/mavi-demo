@@ -26,8 +26,11 @@ def test_second_run_of_the_eval_makes_no_provider_calls(tmp_path: Path):
         "resumes": len(fixtures.resume_slugs()),
         "jds": len(jds),
         "rerank": sum(1 for jd in jds if jd.hard_filter_matches),
+        # Every attempt, and the control, on every pair.
+        "injection": len(evalmod.INJECTION_PAIRS) * (len(fixtures.load_injections()) + 1),
     }
-    expected_calls = sum(counts.values())
+    # One call per case, and one more per injection pair for the resume without the attempt.
+    expected_calls = sum(counts.values()) + len(evalmod.INJECTION_PAIRS)
 
     first, cold = _run(tmp_path)
     assert (cold.calls, cold.hits) == (expected_calls, 0)
@@ -35,6 +38,7 @@ def test_second_run_of_the_eval_makes_no_provider_calls(tmp_path: Path):
     assert (warm.calls, warm.hits) == (0, expected_calls)
     assert second == first
     assert not first.errors
+    assert not first.moved
     assert first.counts == counts
 
 
