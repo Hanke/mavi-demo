@@ -127,6 +127,19 @@ func (s *Store) UpdateCandidate(ctx context.Context, id string, in CandidateInpu
 		id, in.FullName, in.Email, in.Phone, in.Location, in.ResumeText, in.Source, in.Status))
 }
 
+// SetResumeText replaces a candidate's raw resume text, the input to profile
+// extraction, and nothing else on the row.
+func (s *Store) SetResumeText(ctx context.Context, id, text string) error {
+	tag, err := s.pool.Exec(ctx, `UPDATE candidates SET resume_text = $2 WHERE id = $1`, id, text)
+	if err != nil {
+		return mapErr(err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (s *Store) DeleteCandidate(ctx context.Context, id string) error {
 	return s.deleteRow(ctx, `DELETE FROM candidates WHERE id = $1`, id)
 }
@@ -177,13 +190,27 @@ func (s *Store) GetProfile(ctx context.Context, candidateID string) (Profile, er
 // cleared only when the text it was computed from changed, so re-saving an
 // unchanged profile does not cost another provider call.
 func (s *Store) UpsertProfile(ctx context.Context, candidateID string, in ProfileInput) (p Profile, inserted bool, err error) {
+	return s.upsertProfile(ctx, candidateID, in, nil)
+}
+
+// UpsertParsedProfile is UpsertProfile for a profile extracted from
+// resumeText. It writes only while that is still the candidate's resume
+// text and reports ErrNotFound otherwise (the resume was replaced, or the
+// candidate deleted, while the parser ran), so a slow parse of an old upload
+// cannot overwrite the profile of a newer one.
+func (s *Store) UpsertParsedProfile(ctx context.Context, candidateID string, in ProfileInput, resumeText string) (p Profile, inserted bool, err error) {
+	return s.upsertProfile(ctx, candidateID, in, &resumeText)
+}
+
+func (s *Store) upsertProfile(ctx context.Context, candidateID string, in ProfileInput, resumeText *string) (p Profile, inserted bool, err error) {
 	if in.Profile == nil {
 		in.Profile = json.RawMessage(`{}`)
 	}
 	row := s.pool.QueryRow(ctx, `
 		INSERT INTO candidate_profiles AS cp
 			(candidate_id, profile, headline, years_experience, certifications, software, availability, available_from, timezone)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		SELECT $1::uuid, $2::jsonb, $3::text, $4::smallint, $5::text[], $6::text[], $7::text, $8::date, $9::text
+		WHERE $10::text IS NULL OR EXISTS (SELECT 1 FROM candidates WHERE id = $1::uuid AND resume_text = $10::text)
 		ON CONFLICT (candidate_id) DO UPDATE SET
 			profile = EXCLUDED.profile, headline = EXCLUDED.headline, years_experience = EXCLUDED.years_experience,
 			certifications = EXCLUDED.certifications, software = EXCLUDED.software, availability = EXCLUDED.availability,
@@ -193,7 +220,7 @@ func (s *Store) UpsertProfile(ctx context.Context, candidateID string, in Profil
 			embedded_at     = CASE WHEN `+profileTextChanged+` THEN NULL ELSE cp.embedded_at END
 		RETURNING `+profileCols+`, (xmax = 0) AS inserted`,
 		candidateID, in.Profile, in.Headline, in.YearsExperience, nonNil(in.Certifications), nonNil(in.Software),
-		in.Availability, in.AvailableFrom.TimePtr(), in.Timezone)
+		in.Availability, in.AvailableFrom.TimePtr(), in.Timezone, resumeText)
 	p, err = scanProfile(row, &inserted)
 	return p, inserted, err
 }

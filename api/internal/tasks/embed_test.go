@@ -105,7 +105,7 @@ func embedded(t *testing.T, pool *pgxpool.Pool, table, key, id string) (model *s
 func TestEmbedRoleWritesVector(t *testing.T) {
 	pool := dbtest.Pool(t)
 	ai := &fakeAI{}
-	reg := Registry(pool, ai.server(t))
+	reg := Registry(pool, ai.server(t), nil)
 	id := newRole(t, pool, "Owns the monthly close.")
 
 	if err := reg[KindEmbedRole](context.Background(), job(KindEmbedRole, "role_id", id)); err != nil {
@@ -127,7 +127,7 @@ func TestEmbedRoleWritesVector(t *testing.T) {
 func TestEmbedRoleSkipsBlankAndMissingRows(t *testing.T) {
 	pool := dbtest.Pool(t)
 	ai := &fakeAI{}
-	reg := Registry(pool, ai.server(t))
+	reg := Registry(pool, ai.server(t), nil)
 
 	blank := newRole(t, pool, "   ")
 	if err := reg[KindEmbedRole](context.Background(), job(KindEmbedRole, "role_id", blank)); err != nil {
@@ -163,17 +163,17 @@ func TestEmbedErrorsAreClassified(t *testing.T) {
 
 	// 4xx from the AI service: our input is wrong, do not retry.
 	bad := &fakeAI{status: 422}
-	if err := Registry(pool, bad.server(t))[KindEmbedRole](ctx, job(KindEmbedRole, "role_id", id)); !errors.Is(err, jobs.ErrPermanent) {
+	if err := Registry(pool, bad.server(t), nil)[KindEmbedRole](ctx, job(KindEmbedRole, "role_id", id)); !errors.Is(err, jobs.ErrPermanent) {
 		t.Fatalf("4xx: err = %v, want permanent", err)
 	}
 	// 5xx: transient, retry.
 	down := &fakeAI{status: 503}
-	if err := Registry(pool, down.server(t))[KindEmbedRole](ctx, job(KindEmbedRole, "role_id", id)); err == nil || errors.Is(err, jobs.ErrPermanent) {
+	if err := Registry(pool, down.server(t), nil)[KindEmbedRole](ctx, job(KindEmbedRole, "role_id", id)); err == nil || errors.Is(err, jobs.ErrPermanent) {
 		t.Fatalf("503: err = %v, want a retryable error", err)
 	}
 	// Wrong width can never be stored.
 	narrow := &fakeAI{dim: 8}
-	if err := Registry(pool, narrow.server(t))[KindEmbedRole](ctx, job(KindEmbedRole, "role_id", id)); !errors.Is(err, jobs.ErrPermanent) || !strings.Contains(err.Error(), "8-dimension") {
+	if err := Registry(pool, narrow.server(t), nil)[KindEmbedRole](ctx, job(KindEmbedRole, "role_id", id)); !errors.Is(err, jobs.ErrPermanent) || !strings.Contains(err.Error(), "8-dimension") {
 		t.Fatalf("wrong dim: err = %v", err)
 	}
 }
@@ -183,7 +183,7 @@ func TestEmbedErrorsAreClassified(t *testing.T) {
 func TestEmbedProfileFallsBackToTextForFreeFormJSON(t *testing.T) {
 	pool := dbtest.Pool(t)
 	ai := &fakeAI{rejectStructured: true}
-	reg := Registry(pool, ai.server(t))
+	reg := Registry(pool, ai.server(t), nil)
 	ctx := context.Background()
 
 	var cand string
@@ -214,7 +214,7 @@ func TestEmbedProfileFallsBackToTextForFreeFormJSON(t *testing.T) {
 func TestEmbedProfileSendsTheStructuredProfile(t *testing.T) {
 	pool := dbtest.Pool(t)
 	ai := &fakeAI{}
-	reg := Registry(pool, ai.server(t))
+	reg := Registry(pool, ai.server(t), nil)
 	ctx := context.Background()
 
 	var cand string
@@ -259,7 +259,7 @@ func TestEmbedRoleSendsTheStructuredRequirements(t *testing.T) {
 
 	ai := &fakeAI{}
 	id := insert(`{"title":"stale","industries":["healthcare"],"must_haves":["stale"]}`, `["Runs the close"]`)
-	if err := Registry(pool, ai.server(t))[KindEmbedRole](ctx, job(KindEmbedRole, "role_id", id)); err != nil {
+	if err := Registry(pool, ai.server(t), nil)[KindEmbedRole](ctx, job(KindEmbedRole, "role_id", id)); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := embedded(t, pool, "roles", "id", id); !ok {
@@ -274,7 +274,7 @@ func TestEmbedRoleSendsTheStructuredRequirements(t *testing.T) {
 	// Requirements the AI service will not take: the description is embedded instead.
 	ai = &fakeAI{rejectStructured: true}
 	id = insert(`{"not_a_requirements_field":1}`, `[]`)
-	if err := Registry(pool, ai.server(t))[KindEmbedRole](ctx, job(KindEmbedRole, "role_id", id)); err != nil {
+	if err := Registry(pool, ai.server(t), nil)[KindEmbedRole](ctx, job(KindEmbedRole, "role_id", id)); err != nil {
 		t.Fatal(err)
 	}
 	if got := *ai.last.Load(); got != "We are hiring." || ai.calls.Load() != 2 {
@@ -285,7 +285,7 @@ func TestEmbedRoleSendsTheStructuredRequirements(t *testing.T) {
 	if _, err := pool.Exec(ctx, `UPDATE roles SET description = '' WHERE id = $1`, id); err != nil {
 		t.Fatal(err)
 	}
-	if err := Registry(pool, ai.server(t))[KindEmbedRole](ctx, job(KindEmbedRole, "role_id", id)); !errors.Is(err, jobs.ErrPermanent) {
+	if err := Registry(pool, ai.server(t), nil)[KindEmbedRole](ctx, job(KindEmbedRole, "role_id", id)); !errors.Is(err, jobs.ErrPermanent) {
 		t.Fatalf("rejected requirements with no description: err = %v, want permanent", err)
 	}
 
@@ -296,7 +296,7 @@ func TestEmbedRoleSendsTheStructuredRequirements(t *testing.T) {
 			t.Error(err)
 		}
 	}}
-	err := Registry(pool, ai.server(t))[KindEmbedRole](ctx, job(KindEmbedRole, "role_id", edited))
+	err := Registry(pool, ai.server(t), nil)[KindEmbedRole](ctx, job(KindEmbedRole, "role_id", edited))
 	if err == nil || errors.Is(err, jobs.ErrPermanent) || !strings.Contains(err.Error(), "text changed") {
 		t.Fatalf("must-have edit during embedding: err = %v, want a retryable 'text changed' error", err)
 	}
@@ -325,7 +325,7 @@ func TestEmbedWriteGuardsOnTheEmbeddedText(t *testing.T) {
 			t.Error(err)
 		}
 	}}
-	if err := Registry(pool, ai.server(t))[KindEmbedRole](ctx, job(KindEmbedRole, "role_id", statusEdit)); err != nil {
+	if err := Registry(pool, ai.server(t), nil)[KindEmbedRole](ctx, job(KindEmbedRole, "role_id", statusEdit)); err != nil {
 		t.Fatalf("unrelated edit during embedding should not fail the job: %v", err)
 	}
 	if _, ok := embedded(t, pool, "roles", "id", statusEdit); !ok {
@@ -340,7 +340,7 @@ func TestEmbedWriteGuardsOnTheEmbeddedText(t *testing.T) {
 			t.Error(err)
 		}
 	}}
-	err := Registry(pool, ai.server(t))[KindEmbedRole](ctx, job(KindEmbedRole, "role_id", textEdit))
+	err := Registry(pool, ai.server(t), nil)[KindEmbedRole](ctx, job(KindEmbedRole, "role_id", textEdit))
 	if err == nil || errors.Is(err, jobs.ErrPermanent) || !strings.Contains(err.Error(), "text changed") {
 		t.Fatalf("text edit during embedding: err = %v, want a retryable 'text changed' error", err)
 	}
@@ -349,7 +349,7 @@ func TestEmbedWriteGuardsOnTheEmbeddedText(t *testing.T) {
 	}
 	// The retry embeds the current text.
 	ai = &fakeAI{}
-	if err := Registry(pool, ai.server(t))[KindEmbedRole](ctx, job(KindEmbedRole, "role_id", textEdit)); err != nil {
+	if err := Registry(pool, ai.server(t), nil)[KindEmbedRole](ctx, job(KindEmbedRole, "role_id", textEdit)); err != nil {
 		t.Fatal(err)
 	}
 	if got := *ai.last.Load(); got != "Owns the close and the audit." {
@@ -369,7 +369,7 @@ func TestEmbedWriteGuardsOnTheEmbeddedText(t *testing.T) {
 			t.Error(err)
 		}
 	}}
-	if err := Registry(pool, ai.server(t))[KindEmbedProfile](ctx, job(KindEmbedProfile, "candidate_id", cand)); err != nil {
+	if err := Registry(pool, ai.server(t), nil)[KindEmbedProfile](ctx, job(KindEmbedProfile, "candidate_id", cand)); err != nil {
 		t.Fatalf("availability edit during embedding should not fail the job: %v", err)
 	}
 	if _, ok := embedded(t, pool, "candidate_profiles", "candidate_id", cand); !ok {

@@ -27,11 +27,17 @@ import (
 )
 
 // Default per-operation timeouts. Embedding calls out to a provider, so it
-// gets longer than a health probe.
+// gets longer than a health probe; the service gives one file 20s to be read;
+// and a parse is a chat-model call over a whole document, retried once inside
+// the service when the output does not validate. The parse deadline has to
+// stay under the worker's lock timeout (5m by default), which must outlast
+// the slowest job.
 const (
-	DefaultHealthTimeout = 3 * time.Second
-	DefaultEmbedTimeout  = 15 * time.Second
-	maxErrorBody         = 4 << 10
+	DefaultHealthTimeout  = 3 * time.Second
+	DefaultEmbedTimeout   = 15 * time.Second
+	DefaultExtractTimeout = 30 * time.Second
+	DefaultParseTimeout   = 4 * time.Minute
+	maxErrorBody          = 4 << 10
 )
 
 // Sentinel causes an *Error can wrap; test with errors.Is.
@@ -44,7 +50,7 @@ var (
 
 // Error is the failure type for every client call.
 type Error struct {
-	Op         string // "health", "embed", "embed-batch"
+	Op         string // "health", "embed", "embed-batch", "extract-text", "parse-resume"
 	StatusCode int    // 0 when no response was received
 	Detail     string // the service's `detail` field or body excerpt, if any
 	cause      error  // one of the sentinels
@@ -73,10 +79,12 @@ func (e *Error) Unwrap() error { return e.wrapped }
 
 // Client is a thin HTTP client for the Python AI service.
 type Client struct {
-	baseURL       string
-	http          *http.Client
-	healthTimeout time.Duration
-	embedTimeout  time.Duration
+	baseURL        string
+	http           *http.Client
+	healthTimeout  time.Duration
+	embedTimeout   time.Duration
+	extractTimeout time.Duration
+	parseTimeout   time.Duration
 }
 
 // Option configures a Client.
@@ -93,12 +101,17 @@ func WithTimeouts(health, embed time.Duration) Option {
 	}
 }
 
+// WithParseTimeout overrides the deadline of the chat-model calls.
+func WithParseTimeout(d time.Duration) Option { return func(c *Client) { c.parseTimeout = d } }
+
 func New(baseURL string, opts ...Option) *Client {
 	c := &Client{
-		baseURL:       strings.TrimRight(baseURL, "/"),
-		http:          &http.Client{}, // deadlines come from the per-call context
-		healthTimeout: DefaultHealthTimeout,
-		embedTimeout:  DefaultEmbedTimeout,
+		baseURL:        strings.TrimRight(baseURL, "/"),
+		http:           &http.Client{}, // deadlines come from the per-call context
+		healthTimeout:  DefaultHealthTimeout,
+		embedTimeout:   DefaultEmbedTimeout,
+		extractTimeout: DefaultExtractTimeout,
+		parseTimeout:   DefaultParseTimeout,
 	}
 	for _, o := range opts {
 		o(c)
@@ -173,27 +186,78 @@ func (c *Client) Embedding(ctx context.Context, text string) (EmbedResponse, err
 	return out, nil
 }
 
+// ExtractText sends an uploaded file (a PDF or a DOCX, as the request body)
+// and returns its text. The service decides what the file is from its
+// content and enforces the upload limits; a file it will not read comes back
+// as an *Error with its status (413, 415 or 422) and a Detail that says why.
+func (c *Client) ExtractText(ctx context.Context, file []byte) (ExtractTextResponse, error) {
+	var out ExtractTextResponse
+	err := c.send(ctx, "extract-text", http.MethodPost, "/extract-text", "application/octet-stream", bytes.NewReader(file), c.extractTimeout, &out)
+	if err != nil {
+		return ExtractTextResponse{}, err
+	}
+	if strings.TrimSpace(out.Text) == "" {
+		return ExtractTextResponse{}, &Error{Op: "extract-text", StatusCode: http.StatusOK, cause: ErrBadResponse, Detail: "empty text"}
+	}
+	return out, nil
+}
+
+// ParsedResume is the /parse-resume response. ProfileJSON is the profile
+// exactly as the service sent it (what the API stores in JSONB, nulls and
+// empty lists included); Profile is the same document decoded.
+type ParsedResume struct {
+	Contact     Contact
+	Profile     CandidateProfile
+	ProfileJSON json.RawMessage
+	Provider    string
+}
+
+// ParseResume asks the AI service to extract a structured profile from a
+// resume's text.
+func (c *Client) ParseResume(ctx context.Context, text string) (ParsedResume, error) {
+	var wire struct {
+		Contact  Contact         `json:"contact"`
+		Profile  json.RawMessage `json:"profile"`
+		Provider string          `json:"provider"`
+	}
+	if err := c.do(ctx, "parse-resume", http.MethodPost, "/parse-resume", ParseResumeRequest{Text: text}, c.parseTimeout, &wire); err != nil {
+		return ParsedResume{}, err
+	}
+	out := ParsedResume{Contact: wire.Contact, ProfileJSON: wire.Profile, Provider: wire.Provider}
+	if err := json.Unmarshal(wire.Profile, &out.Profile); err != nil || !bytes.HasPrefix(bytes.TrimSpace(wire.Profile), []byte("{")) {
+		return ParsedResume{}, &Error{Op: "parse-resume", StatusCode: http.StatusOK, cause: ErrBadResponse, Detail: "profile is not a CandidateProfile", wrapped: err}
+	}
+	return out, nil
+}
+
 // do performs one JSON round trip. body is marshalled when non-nil; the
 // response is decoded into out when non-nil.
-func (c *Client) do(parent context.Context, op, method, path string, body any, timeout time.Duration, out any) error {
-	ctx, cancel := context.WithTimeout(parent, timeout)
-	defer cancel()
-
+func (c *Client) do(ctx context.Context, op, method, path string, body any, timeout time.Duration, out any) error {
 	var reader io.Reader
+	contentType := ""
 	if body != nil {
 		buf, err := json.Marshal(body)
 		if err != nil {
 			return &Error{Op: op, cause: ErrBadRequest, wrapped: err}
 		}
-		reader = bytes.NewReader(buf)
+		reader, contentType = bytes.NewReader(buf), "application/json"
 	}
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, reader)
+	return c.send(ctx, op, method, path, contentType, reader, timeout, out)
+}
+
+// send performs one round trip with a body that is already encoded (nil for
+// none) and decodes the JSON response into out when non-nil.
+func (c *Client) send(parent context.Context, op, method, path, contentType string, body io.Reader, timeout time.Duration, out any) error {
+	ctx, cancel := context.WithTimeout(parent, timeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
 	if err != nil {
 		return &Error{Op: op, cause: ErrBadRequest, wrapped: err}
 	}
 	req.Header.Set("Accept", "application/json")
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
 	}
 
 	resp, err := c.http.Do(req)

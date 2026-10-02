@@ -8,13 +8,25 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/colehanke/mavi-demo/api/internal/aiclient"
 	"github.com/colehanke/mavi-demo/api/internal/contract"
 )
 
-type stub struct{ err error }
+// stub stands in for Postgres and the AI service. extract, when set, answers
+// ExtractText; without it the file's bytes come back as its text.
+type stub struct {
+	err     error
+	extract func(file []byte) (aiclient.ExtractTextResponse, error)
+}
 
 func (s stub) Ping(context.Context) error   { return s.err }
 func (s stub) Health(context.Context) error { return s.err }
+func (s stub) ExtractText(_ context.Context, file []byte) (aiclient.ExtractTextResponse, error) {
+	if s.extract != nil {
+		return s.extract(file)
+	}
+	return aiclient.ExtractTextResponse{Text: string(file), Kind: "pdf"}, s.err
+}
 
 func TestHealthOK(t *testing.T) {
 	h := New(Config{DB: stub{}, AI: stub{}, CORSOrigin: "*"})

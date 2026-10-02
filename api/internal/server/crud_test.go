@@ -24,14 +24,17 @@ type api struct {
 	pool *pgxpool.Pool
 }
 
-func newAPI(t *testing.T) *api {
+func newAPI(t *testing.T) *api { return newAPIWith(t, stub{}) }
+
+// newAPIWith is newAPI with a particular stand-in for the AI service.
+func newAPIWith(t *testing.T, ai AI) *api {
 	t.Helper()
 	pool := dbtest.Pool(t)
 	tax, err := taxonomy.Load(dbtest.TaxonomyPath())
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := New(Config{DB: pool, AI: stub{}, Store: store.New(pool), Taxonomy: tax, Jobs: jobs.NewQueue(pool), JobKinds: tasks.Registry(pool, nil).Kinds(), CORSOrigin: "*"})
+	h := New(Config{DB: pool, AI: ai, Store: store.New(pool), Taxonomy: tax, Jobs: jobs.NewQueue(pool), JobKinds: tasks.Registry(pool, nil, nil).Kinds(), CORSOrigin: "*"})
 	return &api{t: t, h: h, pool: pool}
 }
 

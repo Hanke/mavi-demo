@@ -29,18 +29,21 @@ type Pinger interface {
 	Ping(ctx context.Context) error
 }
 
-// AIHealth is the subset of *aiclient.Client the server needs.
-type AIHealth interface {
+// AI is the subset of *aiclient.Client the server needs: the health probe,
+// and text extraction for resume uploads. Everything slower goes through the
+// job queue.
+type AI interface {
 	Health(ctx context.Context) error
+	ExtractText(ctx context.Context, file []byte) (aiclient.ExtractTextResponse, error)
 }
 
-var _ AIHealth = (*aiclient.Client)(nil)
+var _ AI = (*aiclient.Client)(nil)
 
 // Config wires the server's dependencies. Store, Taxonomy and Jobs may be
 // nil for a health-only server (every other route then 503s).
 type Config struct {
 	DB         Pinger
-	AI         AIHealth
+	AI         AI
 	Store      *store.Store
 	Taxonomy   *taxonomy.Taxonomy
 	Jobs       *jobs.Queue
@@ -50,7 +53,7 @@ type Config struct {
 
 type Server struct {
 	db         Pinger
-	ai         AIHealth
+	ai         AI
 	store      *store.Store
 	tax        *taxonomy.Taxonomy
 	jobs       *jobs.Queue
@@ -98,6 +101,12 @@ func (s *Server) routes() []routeDef {
 		r("GET /candidates/{id}/profile", s.getProfile, talent, ops),
 		r("PUT /candidates/{id}/profile", s.putProfile, talent, ops),
 		r("DELETE /candidates/{id}/profile", s.deleteProfile, ops),
+
+		// Resume intake: the upload stores the file's text and queues the parse
+		// that fills the profile above; the job route is how talent, who cannot
+		// read /jobs, follows it.
+		r("POST /candidates/{id}/resume", s.uploadResume, talent, ops),
+		r("GET /candidates/{id}/resume/job", s.getResumeJob, talent, ops),
 
 		// Roles: employers and ops write; talent reads open roles.
 		r("POST /roles", s.createRole, employer, ops),

@@ -50,6 +50,7 @@ not use is a `403`.
 | `DELETE /candidates/{id}` | | | yes |
 | `GET` / `PUT /candidates/{id}/profile` | own record only | | yes |
 | `DELETE /candidates/{id}/profile` | | | yes |
+| `POST /candidates/{id}/resume`, `GET /candidates/{id}/resume/job` | own record only | | yes |
 | `POST` / `PUT` / `DELETE /roles…` | | yes | yes |
 | `GET /roles`, `GET /roles/{id}` | open roles only | yes | yes |
 | `POST` / `PUT` / `DELETE /matches…` | | | yes |
@@ -378,8 +379,8 @@ table and a worker picks it up; there is no broker to run. Today the kinds
 are `embed_role` and `embed_profile`: creating or editing a role, or saving a
 profile, leaves the row's embedding `NULL` and queues the job that fills it
 through the AI service's `/embed-batch` (see [Embeddings](#embeddings) for
-what is sent). (Profile
-extraction and matching runs will be further kinds.)
+what is sent); and `parse_resume`, which a resume upload queues (see
+[Resume intake](#resume-intake)). (Matching runs will be a further kind.)
 
 How it works (`api/internal/jobs`, handlers in `api/internal/tasks`):
 
@@ -432,6 +433,48 @@ curl -s localhost:8080/jobs/1 -H 'X-Role: ops'                       # {"status"
 curl -s -X POST localhost:8080/jobs -H 'X-Role: ops' -H 'Content-Type: application/json' \
   -d '{"kind":"embed_role","payload":{"role_id":"<role id>"},"priority":5,"max_attempts":5}'
 curl -s 'localhost:8080/jobs?status=failed' -H 'X-Role: ops'          # last_error says why
+```
+
+### Resume intake
+
+`POST /candidates/{id}/resume` takes the resume file itself as the request
+body (a PDF, or a DOCX; not multipart) from the candidate (`X-Role: talent`,
+`X-Actor` = the id) or from ops:
+
+1. **In the request**, the API sends the file to the AI service's
+   `/extract-text`, which decides what it is from its content and enforces the
+   [upload limits](#untrusted-documents). A file it refuses comes back with
+   the same status and reason (`413` too large, `415` not a PDF or DOCX, `422`
+   unreadable, no text, too many pages); nothing is stored. Otherwise the text
+   becomes the candidate's `resume_text` and a `parse_resume` job is queued.
+   The answer is `202` with that job; its `id` is the job id.
+2. **In the worker**, `parse_resume` sends the text to `/parse-resume`, writes
+   the result to `candidate_profiles` (the whole extraction in `profile`, the
+   hard-filter fields in their columns, replacing any profile already there)
+   and embeds it the way `embed_profile` does, through `/embed-batch` with the
+   structured profile. Certification and software ids the API's taxonomy does
+   not have fail the job rather than land in a column no role can match. If
+   only the embedding fails, the profile stays and an `embed_profile` job
+   takes over, so the parse is not paid for twice.
+3. **Poll** `GET /candidates/{id}/resume/job`, the candidate's newest
+   `parse_resume` job (talent cannot read `/jobs`; ops can use either). On
+   `succeeded` the profile is at `GET /candidates/{id}/profile`; on `failed`,
+   `last_error` says why.
+
+The job's payload is only the candidate id, and it parses whatever text the
+row holds when it runs. Uploading again while the job waits replaces the text
+and returns the same job; a resume that changes while the parser is running
+makes that attempt stale, so it is retried on the new text instead of written.
+The parser's `contact` block (name, email, phone, location) is not copied onto
+the candidate: those stay what the candidate or ops entered.
+
+```sh
+id=$(curl -s -X POST localhost:8080/candidates -H 'X-Role: talent' -H 'Content-Type: application/json' \
+  -d '{"full_name":"Ada Okafor"}' | jq -r .id)
+curl -s -X POST localhost:8080/candidates/$id/resume -H 'X-Role: talent' -H "X-Actor: $id" \
+  --data-binary @infra/fixtures/resumes/senior_accountant_cpa_netsuite.pdf   # 202 {"id":218,"kind":"parse_resume","status":"queued",...}
+curl -s localhost:8080/candidates/$id/resume/job -H 'X-Role: talent' -H "X-Actor: $id"   # {"status":"succeeded",...}
+curl -s localhost:8080/candidates/$id/profile -H 'X-Role: talent' -H "X-Actor: $id"      # headline, certifications, embedded_at, ...
 ```
 
 `make test-db` runs the queue's tests against the compose database: a job is

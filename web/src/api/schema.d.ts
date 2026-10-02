@@ -95,6 +95,65 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/candidates/{id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a resume and queue its parsing
+         * @description Talent intake. The request body is the file itself (not multipart): a
+         *     PDF, or a DOCX. What the file is is read from its content, not from
+         *     `Content-Type`. Its text is extracted in the request and stored as the
+         *     candidate's `resume_text`, and a `parse_resume` job is queued; the
+         *     response is that job, whose `id` is what to poll. The worker sends the
+         *     text to the AI service's `/parse-resume`, writes the result as the
+         *     candidate's profile (replacing any profile already there) and embeds
+         *     it. Poll `GET /candidates/{id}/resume/job` (or, as ops,
+         *     `GET /jobs/{id}`) until `status` is `succeeded`, then read
+         *     `GET /candidates/{id}/profile`.
+         *
+         *     Uploading again while the job is still queued replaces the text and
+         *     returns the same job. Talent may only upload to their own record.
+         */
+        post: operations["uploadResume"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/candidates/{id}/resume/job": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Status of the candidate's most recent resume parse
+         * @description The newest `parse_resume` job for the candidate: the same object
+         *     `GET /jobs/{id}` returns, readable by the talent who uploaded. The
+         *     profile is ready when `status` is `succeeded`; on `failed`,
+         *     `last_error` says why. A 404 when no resume was ever uploaded.
+         */
+        get: operations["getResumeJob"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/roles": {
         parameters: {
             query?: never;
@@ -253,7 +312,7 @@ export interface paths {
         /**
          * Enqueue a background job
          * @description Adds a job to the Postgres-backed queue. `kind` must be one the worker
-         *     has a handler for (`embed_role`, `embed_profile`); anything else is a
+         *     has a handler for (`embed_role`, `embed_profile`, `parse_resume`); anything else is a
          *     422 naming the known kinds. If an identical job (same `kind` and
          *     `payload`) is already queued, that job is returned with a 200 instead
          *     of adding a duplicate. The worker picks the job up within its poll
@@ -520,7 +579,7 @@ export interface components {
          */
         Job: {
             id: components["schemas"]["JobId"];
-            /** @description Names the handler that runs it, e.g. `embed_role`. */
+            /** @description Names the handler that runs it, e.g. `embed_role` or `parse_resume`. */
             kind: string;
             /** @description Handler-specific input, e.g. `{"role_id": "…"}`. */
             payload: components["schemas"]["JSONObject"];
@@ -890,6 +949,99 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    uploadResume: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** @description The file itself, at most 5 MB and 10 pages. */
+        requestBody: {
+            content: {
+                "application/pdf": string;
+                "application/octet-stream": string;
+            };
+        };
+        responses: {
+            /** @description Text extracted and stored; the parse is queued. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description The file is larger than 5 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description The file is neither a PDF nor a DOCX. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description The file is empty, damaged, password-protected, has no text, or has too many pages or too much text; `error` says which. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description The AI service, which reads the file, is unavailable. Nothing was stored; try again. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    getResumeJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The job. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Job"];
+                };
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];

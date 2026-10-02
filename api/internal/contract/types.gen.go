@@ -248,7 +248,7 @@ type Job struct {
 	// ID A job's id. Jobs are numbered from a sequence, not UUIDs.
 	ID JobID `json:"id"`
 
-	// Kind Names the handler that runs it, e.g. `embed_role`.
+	// Kind Names the handler that runs it, e.g. `embed_role` or `parse_resume`.
 	Kind string `json:"kind"`
 
 	// LastError The most recent failed attempt's error; kept on a `failed` job, cleared on success.

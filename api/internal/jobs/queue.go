@@ -165,6 +165,15 @@ func (q *Queue) Get(ctx context.Context, id int64) (Job, error) {
 	return scanJob(q.pool.QueryRow(ctx, `SELECT `+jobCols+` FROM jobs WHERE id = $1`, id))
 }
 
+// Latest returns the newest job of a kind with exactly this payload, whatever
+// its status, or store.ErrNotFound. A handler whose payload names one row
+// (a candidate, a role) has at most one queued job for it, so this is "how
+// is the work for that row going".
+func (q *Queue) Latest(ctx context.Context, kind string, payload json.RawMessage) (Job, error) {
+	return scanJob(q.pool.QueryRow(ctx, `
+		SELECT `+jobCols+` FROM jobs WHERE kind = $1 AND payload = $2 ORDER BY id DESC LIMIT 1`, kind, payload))
+}
+
 // Filter narrows List; empty fields match anything.
 type Filter struct {
 	Status string

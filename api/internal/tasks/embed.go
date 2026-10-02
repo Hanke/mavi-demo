@@ -1,7 +1,8 @@
 // Package tasks holds the job handlers the worker runs: the slow work the
 // API hands to the queue instead of doing inside a request. Today that is
-// embedding roles and candidate profiles through the AI service; profile
-// extraction and matching runs will register here too.
+// embedding roles and candidate profiles through the AI service (this file)
+// and extracting a profile from an uploaded resume (resume.go); matching runs
+// will register here too.
 package tasks
 
 import (
@@ -15,6 +16,8 @@ import (
 
 	"github.com/colehanke/mavi-demo/api/internal/aiclient"
 	"github.com/colehanke/mavi-demo/api/internal/jobs"
+	"github.com/colehanke/mavi-demo/api/internal/store"
+	"github.com/colehanke/mavi-demo/api/internal/taxonomy"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -25,30 +28,38 @@ const (
 	KindEmbedRole = "embed_role"
 	// KindEmbedProfile embeds a candidate profile. Payload: {"candidate_id": uuid}.
 	KindEmbedProfile = "embed_profile"
+	// KindParseResume extracts a candidate's profile from their resume text,
+	// stores it and embeds it. Payload: {"candidate_id": uuid}.
+	KindParseResume = "parse_resume"
 )
 
 // EmbeddingDim is the width of the vector columns (see 0002_core_tables).
 const EmbeddingDim = 1536
 
-// Embedder is the subset of *aiclient.Client the handlers use.
-type Embedder interface {
+// AI is the subset of *aiclient.Client the handlers use.
+type AI interface {
 	EmbedBatch(ctx context.Context, items []aiclient.EmbedItem) (aiclient.EmbedBatchResponse, error)
+	ParseResume(ctx context.Context, text string) (aiclient.ParsedResume, error)
 }
 
-var _ Embedder = (*aiclient.Client)(nil)
+var _ AI = (*aiclient.Client)(nil)
 
-// Registry returns every handler, keyed by kind.
-func Registry(pool *pgxpool.Pool, ai Embedder) jobs.Registry {
+// Registry returns every handler, keyed by kind. tax is what parse_resume
+// checks the parser's certification and software ids against; the embedding
+// handlers do not use it.
+func Registry(pool *pgxpool.Pool, ai AI, tax *taxonomy.Taxonomy) jobs.Registry {
 	e := &embedder{pool: pool, ai: ai}
+	r := &resumeParser{pool: pool, ai: ai, tax: tax, store: store.New(pool), queue: jobs.NewQueue(pool), embed: e}
 	return jobs.Registry{
 		KindEmbedRole:    e.role,
 		KindEmbedProfile: e.profile,
+		KindParseResume:  r.parse,
 	}
 }
 
 type embedder struct {
 	pool *pgxpool.Pool
-	ai   Embedder
+	ai   AI
 }
 
 // role embeds a role. A role with structured requirements is sent as those

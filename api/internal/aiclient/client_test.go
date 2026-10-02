@@ -160,3 +160,77 @@ func TestCallerContextIsNotAServiceError(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractTextSendsTheFileAsTheBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		if r.URL.Path != "/extract-text" || r.Method != http.MethodPost || r.Header.Get("Content-Type") != "application/octet-stream" {
+			t.Errorf("unexpected request %s %s (%s)", r.Method, r.URL.Path, r.Header.Get("Content-Type"))
+		}
+		switch string(raw) {
+		case "%PDF-1.7 resume":
+			_, _ = w.Write([]byte(`{"text":"Ada Okafor\nCPA","kind":"pdf","pages":2}`))
+		case "%PDF-1.7 scanned":
+			_, _ = w.Write([]byte(`{"text":"  ","kind":"pdf","pages":1}`))
+		default:
+			w.WriteHeader(http.StatusUnsupportedMediaType)
+			_, _ = w.Write([]byte(`{"detail":"unsupported file type: only PDF and DOCX files are accepted"}`))
+		}
+	}))
+	defer srv.Close()
+	c := New(srv.URL)
+
+	got, err := c.ExtractText(context.Background(), []byte("%PDF-1.7 resume"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Text != "Ada Okafor\nCPA" || got.Kind != "pdf" || got.Pages == nil || *got.Pages != 2 {
+		t.Fatalf("response = %+v", got)
+	}
+	// The service's refusal keeps its status and its reason.
+	_, err = c.ExtractText(context.Background(), []byte("GIF89a"))
+	var e *Error
+	if !errors.As(err, &e) || e.StatusCode != http.StatusUnsupportedMediaType || !strings.Contains(e.Detail, "only PDF and DOCX") {
+		t.Fatalf("err = %v, want the 415 with its detail", err)
+	}
+	if _, err = c.ExtractText(context.Background(), []byte("%PDF-1.7 scanned")); !errors.Is(err, ErrBadResponse) {
+		t.Fatalf("blank text: err = %v, want ErrBadResponse", err)
+	}
+}
+
+func TestParseResumeKeepsTheProfileAsSent(t *testing.T) {
+	profile := `{"headline":"Senior Accountant","years_experience":8,"certifications":["cpa_us"],"other_software":[],"timezone":null}`
+	answer := `{"contact":{"full_name":"Ada Okafor","email":null},"profile":` + profile + `,"provider":"fake"}`
+	var body string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		body = string(raw)
+		if r.URL.Path != "/parse-resume" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(answer))
+	}))
+	defer srv.Close()
+
+	got, err := New(srv.URL).ParseResume(context.Background(), "Ada Okafor, CPA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body != `{"text":"Ada Okafor, CPA"}` {
+		t.Fatalf("request body = %s", body)
+	}
+	// The raw document keeps the nulls and empty lists the typed one drops.
+	if string(got.ProfileJSON) != profile {
+		t.Fatalf("ProfileJSON = %s", got.ProfileJSON)
+	}
+	if got.Profile.Headline == nil || *got.Profile.Headline != "Senior Accountant" || *got.Profile.YearsExperience != 8 ||
+		len(got.Profile.Certifications) != 1 || got.Profile.Timezone != nil || got.Provider != "fake" || *got.Contact.FullName != "Ada Okafor" {
+		t.Fatalf("decoded = %+v", got)
+	}
+
+	for _, answer = range []string{`{"contact":{},"provider":"fake"}`, `{"contact":{},"profile":["cpa"],"provider":"fake"}`} {
+		if _, err := New(srv.URL).ParseResume(context.Background(), "x"); !errors.Is(err, ErrBadResponse) {
+			t.Fatalf("answer %s: err = %v, want ErrBadResponse", answer, err)
+		}
+	}
+}

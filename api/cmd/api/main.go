@@ -46,8 +46,6 @@ func run() error {
 	//                             columns against the shared taxonomy
 	//   api worker                run only the background job worker (no HTTP);
 	//                             for extra workers next to the API process
-	ai := aiclient.New(envOr("AI_SERVICE_URL", "http://localhost:8000"))
-	handlers := tasks.Registry(pool, ai)
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "migrate":
@@ -55,7 +53,6 @@ func run() error {
 		case "seed":
 			return runSeed(ctx, pool)
 		case "worker":
-			return newWorker(pool, handlers, envInt("WORKER_CONCURRENCY", 2)).Run(ctx)
 		default:
 			return fmt.Errorf("unknown command %q", os.Args[1])
 		}
@@ -64,6 +61,11 @@ func run() error {
 	tax, err := taxonomy.Load(taxonomyPath())
 	if err != nil {
 		return err
+	}
+	ai := aiclient.New(envOr("AI_SERVICE_URL", "http://localhost:8000"))
+	handlers := tasks.Registry(pool, ai, tax)
+	if len(os.Args) > 1 { // worker
+		return newWorker(pool, handlers, envInt("WORKER_CONCURRENCY", 2)).Run(ctx)
 	}
 	srv := &http.Server{
 		Addr: ":" + envOr("PORT", "8080"),
