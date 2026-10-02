@@ -33,7 +33,7 @@ const intakeEmbedTimeout = 2*aiclient.DefaultEmbedTimeout + 5*time.Second
 // description. It is parsed in the request, because the answer is what the
 // parser understood, for the employer to check; the role is stored with the
 // raw text, the whole extraction and the promoted must-haves; it is embedded;
-// and a match_role job is queued for it. A parse that fails stores nothing.
+// and a match_role job (the matching run) is queued for it. A parse that fails stores nothing.
 // An embedding that fails does not undo the role: an embed_role job takes
 // over, as it would after POST /roles.
 func (s *Server) intakeRole(w http.ResponseWriter, r *http.Request) {

@@ -222,7 +222,10 @@ export interface paths {
          *     fields, so the response shows the employer what was understood. The
          *     role is embedded before the answer (from the structured requirements,
          *     through `/embed-batch`, as an `embed_role` job would), and a
-         *     `match_role` job is queued for it.
+         *     `match_role` job is queued for it: the matching run, which reranks the
+         *     candidates who pass the role's filters and writes them to the role's
+         *     matches, the best of them as `pending_review` for ops. None of them is
+         *     visible to the employer until ops releases it.
          *
          *     The parse is a chat-model call, so the request can take a while. If
          *     only the embedding fails the role is still created: `embedded_at` is
@@ -524,8 +527,11 @@ export interface components {
         CandidateStatus: "active" | "archived";
         /** @enum {string} */
         RoleStatus: "open" | "filled" | "closed";
-        /** @enum {string} */
-        MatchStatus: "proposed" | "approved" | "rejected" | "swapped";
+        /**
+         * @description `pending_review` is the review queue: the top of a matching run's ranking, waiting for an ops decision. `proposed` is a match nobody has decided on that is not in the queue: the rest of what a run scored, or one ops wrote by hand. Neither says anything about what the employer sees; that is `released_at`.
+         * @enum {string}
+         */
+        MatchStatus: "proposed" | "pending_review" | "approved" | "rejected" | "swapped";
         /**
          * @description `queued` → `running` → `succeeded`, or `running` → `queued` (retry) → … → `failed`.
          * @enum {string}
@@ -713,6 +719,11 @@ export interface components {
             unranked_ids: components["schemas"]["Id"][];
             /** @description Whether the role had an embedding to compare with. When false, everyone who passed is in `unranked_ids`: the run is not ready, not empty. */
             role_embedded: boolean;
+            /**
+             * Format: date-time
+             * @description When a `match_role` job reranked this run's shortlist and wrote it to the role's matches. `null` for a run of the filters alone, or one whose rerank did not finish.
+             */
+            matched_at: string | null;
             /** Format: date-time */
             created_at: string;
         };
@@ -793,7 +804,7 @@ export interface components {
             /** Format: double */
             score: number;
             explanation: string;
-            /** @description Per-criterion scoring detail. */
+            /** @description Scoring detail. On a match a `match_role` job wrote: `filter_run_id` (the run it came from), `rank` (the candidate's place in that run's ranking, 1 first), `similarity` (embedding similarity to the role), `rubric_version`, `provider`, `reasons`, and `dimensions`: for each dimension of the rerank rubric the `level` (0 to 4, or null), a sentence of `evidence` and the `quotes` from the candidate's text that back it. */
             breakdown: components["schemas"]["JSONObject"];
             status: components["schemas"]["MatchStatus"];
             /**

@@ -64,6 +64,7 @@ services:
       # WORKER_ID is left to its default (container hostname + pid) so scaled replicas stay distinct.
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
       MATCH_RETRIEVAL_SIZE: ${MATCH_RETRIEVAL_SIZE:-20}
+      MATCH_REVIEW_SIZE: ${MATCH_REVIEW_SIZE:-5}
     ports:
       - "${API_PORT:-8080}:8080"
     volumes:

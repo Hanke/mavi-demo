@@ -1,9 +1,8 @@
 // Package tasks holds the job handlers the worker runs: the slow work the
-// API hands to the queue instead of doing inside a request. Today that is
-// embedding roles and candidate profiles through the AI service (this file)
-// and extracting a profile from an uploaded resume (resume.go). Matching runs
-// will register here too; their kind is already named (KindMatchRole) because
-// role intake queues one.
+// API hands to the queue instead of doing inside a request. That is
+// embedding roles and candidate profiles through the AI service (this file),
+// extracting a profile from an uploaded resume (resume.go), and the matching
+// run for a role (match.go).
 package tasks
 
 import (
@@ -32,16 +31,10 @@ const (
 	// KindParseResume extracts a candidate's profile from their resume text,
 	// stores it and embeds it. Payload: {"candidate_id": uuid}.
 	KindParseResume = "parse_resume"
-	// KindMatchRole is a matching run for a role: shortlist, rerank, write the
-	// matches. Payload: {"role_id": uuid}. Role intake (POST /roles/intake)
-	// queues it, but it has no handler in Registry yet, so no worker claims
-	// it and the job waits until the handler lands. Its first two stages
-	// exist (HardFilter: the hard filters and the retrieval by embedding);
-	// the rest takes its candidates from that run's Retrieved and from
-	// nowhere else. That handler must treat a role whose embedding is still
-	// NULL (the run's RoleEmbedded is false) as not ready and retry:
-	// intake embeds before it queues the run, but a failed embedding is
-	// handed to an embed_role job that may finish later.
+	// KindMatchRole is a matching run for a role: hard filters, retrieval,
+	// rerank, and the result written to matches with the top of it queued for
+	// review (match.go). Payload: {"role_id": uuid}. Role intake
+	// (POST /roles/intake) queues it; POST /jobs runs a role again.
 	KindMatchRole = "match_role"
 )
 
@@ -51,21 +44,27 @@ const EmbeddingDim = 1536
 // AI is the subset of *aiclient.Client the handlers use.
 type AI interface {
 	Embedder
+	Reranker
 	ParseResume(ctx context.Context, text string) (aiclient.ParsedResume, error)
 }
 
 var _ AI = (*aiclient.Client)(nil)
 
 // Registry returns every handler, keyed by kind. tax is what parse_resume
-// checks the parser's certification and software ids against; the embedding
-// handlers do not use it.
-func Registry(pool *pgxpool.Pool, ai AI, tax *taxonomy.Taxonomy) jobs.Registry {
+// checks the parser's certification and software ids against and what
+// match_role reads the acceptable equivalents of a qualification from; the
+// embedding handlers do not use it. match sizes the matching run; its zero
+// value is the defaults.
+func Registry(pool *pgxpool.Pool, ai AI, tax *taxonomy.Taxonomy, match MatchConfig) jobs.Registry {
 	e := &embedder{pool: pool, ai: ai}
-	r := &resumeParser{pool: pool, ai: ai, tax: tax, store: store.New(pool), queue: jobs.NewQueue(pool), embed: e}
+	st := store.New(pool)
+	r := &resumeParser{pool: pool, ai: ai, tax: tax, store: st, queue: jobs.NewQueue(pool), embed: e}
+	m := &matcher{pool: pool, ai: ai, tax: tax, store: st, queue: jobs.NewQueue(pool), cfg: match}
 	return jobs.Registry{
 		KindEmbedRole:    e.role,
 		KindEmbedProfile: e.profile,
 		KindParseResume:  r.parse,
+		KindMatchRole:    m.run,
 	}
 }
 

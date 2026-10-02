@@ -272,3 +272,46 @@ func TestParseJDKeepsTheRequirementsAsSent(t *testing.T) {
 		}
 	}
 }
+
+func TestRerankChecksEveryCandidateIsAnsweredOnce(t *testing.T) {
+	result := func(id string) string {
+		dim := `{"level":3,"evidence":"e","quotes":["q"]}`
+		return `{"id":"` + id + `","score":0.75,"reasons":["r"],"dimensions":{"must_have_coverage":` + dim + `,"experience_depth":` + dim +
+			`,"software_fluency":{"level":null,"evidence":"none named","quotes":[]},"industry_fit":` + dim + `,"nice_to_haves":` + dim + `}}`
+	}
+	answer := `{"results":[` + result("b") + `,` + result("a") + `],"rubric_version":"1","provider":"fake"}`
+	var body string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		body = string(raw)
+		if r.URL.Path != "/rerank" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(answer))
+	}))
+	defer srv.Close()
+	candidates := []RerankCandidate{{ID: "a", Text: "resume a"}, {ID: "b", Text: "resume b"}}
+
+	got, err := New(srv.URL).Rerank(context.Background(), "Controller", candidates)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body != `{"candidates":[{"id":"a","text":"resume a"},{"id":"b","text":"resume b"}],"role":"Controller"}` {
+		t.Fatalf("request body = %s", body)
+	}
+	if len(got.Results) != 2 || got.Results[0].ID != "b" || got.Results[0].Dimensions.SoftwareFluency.Level != nil ||
+		got.Results[0].Dimensions.ExperienceDepth.Level != 3 || got.RubricVersion != "1" || got.Provider != "fake" {
+		t.Fatalf("decoded = %+v", got)
+	}
+
+	// Somebody missing, somebody twice, somebody who was never sent.
+	for _, answer = range []string{
+		`{"results":[` + result("a") + `],"rubric_version":"1","provider":"fake"}`,
+		`{"results":[` + result("a") + `,` + result("a") + `],"rubric_version":"1","provider":"fake"}`,
+		`{"results":[` + result("a") + `,` + result("c") + `],"rubric_version":"1","provider":"fake"}`,
+	} {
+		if _, err := New(srv.URL).Rerank(context.Background(), "Controller", candidates); !errors.Is(err, ErrBadResponse) {
+			t.Fatalf("answer %s: err = %v, want ErrBadResponse", answer, err)
+		}
+	}
+}

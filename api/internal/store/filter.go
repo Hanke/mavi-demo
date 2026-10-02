@@ -30,7 +30,7 @@ var filterOrder = []contract.FilterName{
 
 const filterRunCols = `id::text, role_id::text, overlap_on, pool, after_profile, after_certifications, after_software,
 	after_experience, after_availability, after_timezone_overlap, candidate_ids::text[], created_at,
-	retrieval_limit, retrieved_ids::text[], retrieved_similarities, unranked_ids::text[], role_embedded`
+	retrieval_limit, retrieved_ids::text[], retrieved_similarities, unranked_ids::text[], role_embedded, matched_at`
 
 func scanFilterRun(row pgx.Row) (FilterRun, error) {
 	var run FilterRun
@@ -42,7 +42,7 @@ func scanFilterRun(row pgx.Row) (FilterRun, error) {
 	}
 	var retrieved []string
 	var similarities []float64
-	dest = append(dest, &run.CandidateIds, &run.CreatedAt, &run.RetrievalLimit, &retrieved, &similarities, &run.UnrankedIds, &run.RoleEmbedded)
+	dest = append(dest, &run.CandidateIds, &run.CreatedAt, &run.RetrievalLimit, &retrieved, &similarities, &run.UnrankedIds, &run.RoleEmbedded, &run.MatchedAt)
 	if err := row.Scan(dest...); err != nil {
 		return run, mapErr(err)
 	}

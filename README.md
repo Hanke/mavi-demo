@@ -402,10 +402,10 @@ table and a worker picks it up; there is no broker to run. Today the kinds
 are `embed_role` and `embed_profile`: creating or editing a role, or saving a
 profile, leaves the row's embedding `NULL` and queues the job that fills it
 through the AI service's `/embed-batch` (see [Embeddings](#embeddings) for
-what is sent); and `parse_resume`, which a resume upload queues (see
-[Resume intake](#resume-intake)). [Role intake](#role-intake) queues a
-fourth, `match_role`, which has no handler yet: the job waits in the queue
-until the matching run is written.
+what is sent); `parse_resume`, which a resume upload queues (see
+[Resume intake](#resume-intake)); and `match_role`, the
+[matching run](#matching-run) for a role, which [role intake](#role-intake)
+queues.
 
 How it works (`api/internal/jobs`, handlers in `api/internal/tasks`):
 
@@ -530,7 +530,7 @@ win over what the parser finds:
    fails the role stays, `embedded_at` is `null` in the response and an
    `embed_role` job takes over.
 4. **Queue the matching run.** A `match_role` job with `{"role_id": ...}` is
-   queued. Nothing runs it yet (see [Background jobs](#background-jobs)).
+   queued; the worker runs it (see [Matching run](#matching-run)).
 
 The answer is `201` with `{role, matching_job}`: the role as stored, so the
 employer sees the extracted requirements, and the queued job. Anything the
@@ -661,9 +661,9 @@ are included as components even though no endpoint returns them yet, with
 the taxonomy id enums stripped so a taxonomy edit is not a schema change
 (their never-null list fields are marked so Go gets plain slices).
 The Go API stores those as free-form JSON (`profile`, `requirements`); the
-match `breakdown` is free-form too; the `dimensions` and `rubric_version` of a
-rerank result ([Rerank rubric](#rerank-rubric)) are what belongs in it once the
-matching run is a job.
+match `breakdown` is free-form too; a [matching run](#matching-run) writes
+the `dimensions` and `rubric_version` of the rerank result
+([Rerank rubric](#rerank-rubric)) into it.
 
 ## Make targets
 
@@ -698,10 +698,10 @@ the API writes.
 | `candidate_profiles` | One structured profile per candidate: `profile` JSONB, `embedding` (pgvector, HNSW index), the hard-filter columns `certifications[]`, `software[]`, `years_experience`, and what the resume suggests about `availability`, `available_from`, `timezone` |
 | `candidate_availability` | What the candidate said, at most one row each: `timezone`, `work_start`, `work_end`, `hours_per_week`, `available_from`. No row means not answered, and excluded from matching |
 | `roles` | Raw JD plus `must_haves` / `nice_to_haves` JSONB, promoted `required_certifications[]`, `required_software[]`, `min_years_experience`, `timezone`, `min_overlap_hours`, `hours_per_week`, `starts_on`, and an embedding |
-| `matches` | One row per (role, candidate): `score`, `explanation`, `breakdown`, `status` (proposed / approved / rejected / swapped), `released_at` (set when ops releases it to the employer) |
+| `matches` | One row per (role, candidate): `score`, `explanation`, `breakdown`, `status` (proposed / pending_review / approved / rejected / swapped; `pending_review` is the review queue a [matching run](#matching-run) fills), `released_at` (set when ops releases it to the employer) |
 | `review_events` | Append-only audit of ops approve / reject / swap / release / unrelease actions on a match |
 | `jobs` | Postgres-backed background queue: `kind`, `payload`, `status` (queued / running / succeeded / failed), `priority`, `run_at`, `attempts` / `max_attempts`, `last_error`, `locked_by` / `locked_at`; claimed with `FOR UPDATE SKIP LOCKED` on the partial `jobs_dequeue_idx` (see [Background jobs](#background-jobs)) |
-| `filter_runs` | One row per run of a role's [hard filters](#hard-filters): the size of the pool, the number of candidates left after each filter (`after_profile` … `after_timezone_overlap`), the ids that passed and the day the time-zone overlap was worked out for; then the [shortlist](#retrieval) retrieved from those who passed (`retrieval_limit`, `retrieved_ids`, `retrieved_similarities`), who could not be compared (`unranked_ids`) and whether the role had an embedding (`role_embedded`); deleted with the role |
+| `filter_runs` | One row per run of a role's [hard filters](#hard-filters): the size of the pool, the number of candidates left after each filter (`after_profile` … `after_timezone_overlap`), the ids that passed and the day the time-zone overlap was worked out for; then the [shortlist](#retrieval) retrieved from those who passed (`retrieval_limit`, `retrieved_ids`, `retrieved_similarities`), who could not be compared (`unranked_ids`) and whether the role had an embedding (`role_embedded`); `matched_at` is set when a [matching run](#matching-run) wrote the run's reranked shortlist to `matches`; deleted with the role |
 
 The hard-filter fields are real, indexed columns rather than JSON keys, so
 the pool is filtered directly in SQL (each must-have the JD parser returns has
@@ -769,8 +769,9 @@ nearest first, cut to `MATCH_RETRIEVAL_SIZE` (default 20; 1 to 50, since
 each with its `similarity` (1 minus the distance), and `retrieval_limit` is
 the size it ran with (0 on a run recorded before retrieval existed; a size
 above 50 is cut to 50). They are the only candidates a later stage may take:
-the `match_role` handler, when it lands, calls `tasks.HardFilter` and reranks
-`Retrieved`. Until then the two stages are run by hand with the `POST` above.
+the `match_role` job calls `tasks.HardFilter` and reranks `Retrieved` (see
+[Matching run](#matching-run)). The `POST` above runs these two stages on
+their own, without the rerank and without writing a match.
 
 - **Fewer pass than the limit**: all of them are retrieved, still in order of
   similarity; nobody who failed a filter is brought back to fill the list.
@@ -789,6 +790,87 @@ the `match_role` handler, when it lands, calls `tasks.HardFilter` and reranks
 [`api/internal/server/retrieval_test.go`](api/internal/server/retrieval_test.go)
 covers the order, the limit, a pool smaller than the limit and the
 unembedded cases.
+
+### Matching run
+
+The `match_role` job ([`api/internal/tasks/match.go`](api/internal/tasks/match.go))
+is the whole pipeline for one role, as a background job:
+
+1. **Filters and retrieval.** `tasks.HardFilter`, exactly as above: one
+   `filter_runs` row, and the shortlist in `retrieved`.
+2. **Rerank.** The shortlist goes to the AI service's `/rerank`: the role as
+   its title, the JD and the requirements the row holds now, and each
+   candidate as their resume text (or, with no resume, the stored profile),
+   cut to the service's limits. Nobody outside `retrieved` is sent. It is
+   sent in batches of at most 10 candidates and 100,000 characters, all at
+   once, and the results are merged by score, so no prompt grows with
+   `MATCH_RETRIEVAL_SIZE` and the run takes as long as its slowest call.
+3. **Persist.** Every candidate reranked becomes a `matches` row: `score` is
+   the rerank's; `explanation` is its reasons followed by one line per
+   dimension of the [rubric](#rerank-rubric) with the level and the sentence
+   of evidence; `breakdown` is `{filter_run_id, rank, similarity,
+   rubric_version, provider, dimensions, reasons}`, where `dimensions` is the
+   rerank's own output, including the `quotes` from the candidate's text
+   behind each level.
+4. **Review queue.** The first `MATCH_REVIEW_SIZE` (default 5) of the ranking
+   are written with status `pending_review`, the rest `proposed`.
+   `GET /matches?status=pending_review` (ops) is the queue. A run never sets
+   `released_at`, so employers and talent see none of it until ops releases a
+   match.
+
+Role intake queues the job; to run a role again, queue another:
+
+```sh
+curl -s -X POST localhost:8080/jobs -H 'X-Role: ops' -H 'Content-Type: application/json' \
+  -d '{"kind": "match_role", "payload": {"role_id": "<role id>"}}'
+curl -s 'localhost:8080/matches?role_id=<role id>&status=pending_review' -H 'X-Role: ops'
+```
+
+- **Running again replaces, never duplicates.** There is one row per (role,
+  candidate), and the write is a single transaction
+  (`Store.ReplaceRunMatches`): candidates ranked again get the new score,
+  explanation and place in the queue, and an undecided match from an earlier
+  run is deleted when this run had no place for its candidate (they failed a
+  filter or fell below the retrieval limit). `breakdown.filter_run_id` says
+  which run a match came from, and that run's `matched_at` when it was
+  written.
+- **What ops did is kept.** A match that is approved, rejected, swapped or
+  released is not rewritten by a later run, and still counts towards the top
+  N, so a rejected candidate is not replaced in the queue by re-running. A
+  match ops wrote by hand (`POST /matches`) is treated the same way: a run
+  neither rewrites nor removes it. An undecided match with review history
+  (released, then taken back) cannot be deleted, so when its candidate drops
+  out it goes back to `proposed`. `PUT /matches/{id}` writes only the fields
+  sent, so an edit and a run landing together do not undo each other.
+- **Only open roles.** A job for a role that was filled or closed while it
+  waited does nothing.
+- **Waiting for embeddings.** A role with no embedding, or a pool where nobody
+  who passed has one, is never written as an empty result. While an
+  `embed_role` job (or, for candidates, `embed_profile` / `parse_resume`) is
+  queued or running for what is missing, the job ends and queues another
+  `match_role` 30 seconds ahead, for as long as the embedding takes; no
+  filter run is recorded for a role that is not ready. With no such job on
+  its way the attempt fails with that as `last_error`.
+- **Some still being embedded.** When only some of those who passed are
+  waiting (`unranked_ids`), the rest are matched now, the waiting keep
+  whatever match they had, and a run is queued 5 minutes ahead to pick them
+  up.
+- **Nobody passes** is a result: the run writes no matches and clears the
+  earlier run's. A shortlist whose candidates were all deleted or have no
+  text to read is not: the attempt is retried against the pool as it is now.
+- **Failures.** A `/rerank` the service refuses (4xx) fails the job at once;
+  anything else (the service down, a model output that did not validate) is
+  retried. Nothing is written unless every batch answered for every
+  candidate, so a failed run leaves the previous matches as they were.
+- **Two runs at once.** The write locks the role, and a run that started
+  before one already written is dropped (logged, job `succeeded`), so a slow
+  rerank cannot overwrite a newer ranking.
+- **Time.** Each rerank call has a 4 minute deadline and the batches run
+  together, which keeps the job under `WORKER_LOCK_TIMEOUT` (see
+  [Background jobs](#background-jobs)).
+
+[`api/internal/tasks/match_test.go`](api/internal/tasks/match_test.go) covers
+each of these against a real database and a stub `/rerank`.
 
 ## Seed data
 

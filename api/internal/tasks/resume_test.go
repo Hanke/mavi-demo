@@ -78,7 +78,7 @@ func intake(t *testing.T, pool *pgxpool.Pool, ai *intakeAI) jobs.Handler {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return Registry(pool, ai.client(t), tax)[KindParseResume]
+	return Registry(pool, ai.client(t), tax, MatchConfig{})[KindParseResume]
 }
 
 func newCandidate(t *testing.T, pool *pgxpool.Pool, resume string) string {

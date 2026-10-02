@@ -532,21 +532,29 @@ func (s *Store) ListMatches(ctx context.Context, f MatchFilter, p Page) ([]Match
 	return collect(rows, err, scanMatch)
 }
 
-// MatchUpdate is the ops-editable part of a match.
+// MatchUpdate is the ops-editable part of a match. A nil field keeps its
+// value.
 type MatchUpdate struct {
-	Score       float64
-	Explanation string
+	Score       *float64
+	Explanation *string
 	Breakdown   json.RawMessage
-	Status      string
+	Status      *string
 }
 
+// UpdateMatch writes the fields that are set and no others, in one
+// statement: a matching run that rewrites the row at the same moment
+// (ReplaceRunMatches) is not undone by an edit of something else.
 func (s *Store) UpdateMatch(ctx context.Context, id string, in MatchUpdate) (Match, error) {
-	if in.Breakdown == nil {
-		in.Breakdown = json.RawMessage(`{}`)
+	var breakdown *string
+	if in.Breakdown != nil {
+		b := string(in.Breakdown)
+		breakdown = &b
 	}
 	tag, err := s.pool.Exec(ctx, `
-		UPDATE matches SET score = $2, explanation = $3, breakdown = $4, status = $5 WHERE id = $1`,
-		id, in.Score, in.Explanation, in.Breakdown, in.Status)
+		UPDATE matches SET score = coalesce($2, score), explanation = coalesce($3, explanation),
+			breakdown = coalesce($4::jsonb, breakdown), status = coalesce($5, status)
+		WHERE id = $1`,
+		id, in.Score, in.Explanation, breakdown, in.Status)
 	if err != nil {
 		return Match{}, mapErr(err)
 	}

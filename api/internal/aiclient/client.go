@@ -50,7 +50,7 @@ var (
 
 // Error is the failure type for every client call.
 type Error struct {
-	Op         string // "health", "embed", "embed-batch", "extract-text", "parse-resume", "parse-jd"
+	Op         string // "health", "embed", "embed-batch", "extract-text", "parse-resume", "parse-jd", "rerank"
 	StatusCode int    // 0 when no response was received
 	Detail     string // the service's `detail` field or body excerpt, if any
 	cause      error  // one of the sentinels
@@ -254,6 +254,34 @@ func (c *Client) ParseJD(ctx context.Context, text string) (ParsedJD, error) {
 	out := ParsedJD{Company: wire.Company, RequirementsJSON: wire.Requirements, Provider: wire.Provider}
 	if err := json.Unmarshal(wire.Requirements, &out.Requirements); err != nil || !bytes.HasPrefix(bytes.TrimSpace(wire.Requirements), []byte("{")) {
 		return ParsedJD{}, &Error{Op: "parse-jd", StatusCode: http.StatusOK, cause: ErrBadResponse, Detail: "requirements is not a RoleRequirements", wrapped: err}
+	}
+	return out, nil
+}
+
+// Rerank asks the AI service to score candidates against a role on the
+// rerank rubric (docs/rerank-rubric.md). The response has every candidate
+// exactly once, best first; one that does not is ErrBadResponse, so a caller
+// never stores a ranking with somebody missing or invented. It is a
+// chat-model call over every candidate's text, so it gets the parse deadline.
+func (c *Client) Rerank(ctx context.Context, role string, candidates []RerankCandidate) (RerankResponse, error) {
+	var out RerankResponse
+	if err := c.do(ctx, "rerank", http.MethodPost, "/rerank", RerankRequest{Role: role, Candidates: candidates}, c.parseTimeout, &out); err != nil {
+		return RerankResponse{}, err
+	}
+	sent := make(map[string]bool, len(candidates))
+	for _, cand := range candidates {
+		sent[cand.ID] = true
+	}
+	for _, r := range out.Results {
+		if !sent[r.ID] {
+			return RerankResponse{}, &Error{Op: "rerank", StatusCode: http.StatusOK, cause: ErrBadResponse,
+				Detail: fmt.Sprintf("result for %q, which was not sent or is there twice", r.ID)}
+		}
+		delete(sent, r.ID)
+	}
+	if len(sent) > 0 {
+		return RerankResponse{}, &Error{Op: "rerank", StatusCode: http.StatusOK, cause: ErrBadResponse,
+			Detail: fmt.Sprintf("%d results for %d candidates", len(out.Results), len(candidates))}
 	}
 	return out, nil
 }

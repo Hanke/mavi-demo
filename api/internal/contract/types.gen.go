@@ -130,16 +130,19 @@ func (e JobStatus) Valid() bool {
 
 // Defines values for MatchStatus.
 const (
-	MatchStatusApproved MatchStatus = "approved"
-	MatchStatusProposed MatchStatus = "proposed"
-	MatchStatusRejected MatchStatus = "rejected"
-	MatchStatusSwapped  MatchStatus = "swapped"
+	MatchStatusApproved      MatchStatus = "approved"
+	MatchStatusPendingReview MatchStatus = "pending_review"
+	MatchStatusProposed      MatchStatus = "proposed"
+	MatchStatusRejected      MatchStatus = "rejected"
+	MatchStatusSwapped       MatchStatus = "swapped"
 )
 
 // Valid indicates whether the value is a known member of the MatchStatus enum.
 func (e MatchStatus) Valid() bool {
 	switch e {
 	case MatchStatusApproved:
+		return true
+	case MatchStatusPendingReview:
 		return true
 	case MatchStatusProposed:
 		return true
@@ -275,6 +278,9 @@ type FilterRun struct {
 	// ID A UUID, as text.
 	ID ID `json:"id"`
 
+	// MatchedAt When a `match_role` job reranked this run's shortlist and wrote it to the role's matches. `null` for a run of the filters alone, or one whose rerank did not finish.
+	MatchedAt *time.Time `json:"matched_at"`
+
 	// OverlapOn The day the time-zone overlap was worked out for; the role's `starts_on`, or the day of the run when it has none.
 	OverlapOn CalendarDate `json:"overlap_on"`
 
@@ -398,7 +404,7 @@ type JobStatus string
 
 // Match defines model for Match.
 type Match struct {
-	// Breakdown Per-criterion scoring detail.
+	// Breakdown Scoring detail. On a match a `match_role` job wrote: `filter_run_id` (the run it came from), `rank` (the candidate's place in that run's ranking, 1 first), `similarity` (embedding similarity to the role), `rubric_version`, `provider`, `reasons`, and `dimensions`: for each dimension of the rerank rubric the `level` (0 to 4, or null), a sentence of `evidence` and the `quotes` from the candidate's text that back it.
 	Breakdown JSONObject `json:"breakdown"`
 
 	// CandidateID A UUID, as text.
@@ -419,8 +425,10 @@ type Match struct {
 	RoleID ID `json:"role_id"`
 
 	// RoleTitle Denormalised from the role so a shortlist needs one request.
-	RoleTitle string      `json:"role_title"`
-	Score     float64     `json:"score"`
+	RoleTitle string  `json:"role_title"`
+	Score     float64 `json:"score"`
+
+	// Status `pending_review` is the review queue: the top of a matching run's ranking, waiting for an ops decision. `proposed` is a match nobody has decided on that is not in the queue: the rest of what a run scored, or one ops wrote by hand. Neither says anything about what the employer sees; that is `released_at`.
 	Status    MatchStatus `json:"status"`
 	UpdatedAt time.Time   `json:"updated_at"`
 }
@@ -441,7 +449,7 @@ type MatchCreate struct {
 	Status *MatchStatus `json:"status,omitempty"`
 }
 
-// MatchStatus defines model for MatchStatus.
+// MatchStatus `pending_review` is the review queue: the top of a matching run's ranking, waiting for an ops decision. `proposed` is a match nobody has decided on that is not in the queue: the rest of what a run scored, or one ops wrote by hand. Neither says anything about what the employer sees; that is `released_at`.
 type MatchStatus string
 
 // MatchUpdate The ops-editable part of a match. Fields not sent keep their value.
@@ -449,9 +457,11 @@ type MatchUpdate struct {
 	Breakdown JSONObject `json:"breakdown,omitempty"`
 
 	// Explanation `null` clears it to an empty string.
-	Explanation *string      `json:"explanation,omitempty"`
-	Score       *float64     `json:"score,omitempty"`
-	Status      *MatchStatus `json:"status,omitempty"`
+	Explanation *string  `json:"explanation,omitempty"`
+	Score       *float64 `json:"score,omitempty"`
+
+	// Status `pending_review` is the review queue: the top of a matching run's ranking, waiting for an ops decision. `proposed` is a match nobody has decided on that is not in the queue: the rest of what a run scored, or one ops wrote by hand. Neither says anything about what the employer sees; that is `released_at`.
+	Status *MatchStatus `json:"status,omitempty"`
 }
 
 // Persona The value of the `X-Role` header. Each operation's `x-roles` lists the personas that may call it.

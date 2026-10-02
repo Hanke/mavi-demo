@@ -151,21 +151,22 @@ func (s *Server) updateMatch(w http.ResponseWriter, r *http.Request) {
 		fail(w, &validationError{Fields: map[string]string{"role_id": "cannot change the pair; delete and recreate the match"}})
 		return
 	}
-	cur, err := s.store.GetMatch(r.Context(), id, false)
-	if err != nil {
-		fail(w, err)
-		return
-	}
+	// Only what was sent is written (store.UpdateMatch), so an edit of one
+	// field does not put back the others as they were read a moment ago,
+	// over what a matching run has written since.
 	v := &validationError{}
-	in := store.MatchUpdate{Score: cur.Score, Explanation: cur.Explanation, Breakdown: cur.Breakdown, Status: string(cur.Status)}
-	if b.Score != nil {
-		in.Score = *b.Score
+	in := store.MatchUpdate{Score: b.Score}
+	if b.Score != nil && (*b.Score < 0 || *b.Score > 1) {
+		v.add("score", "must be between 0 and 1")
 	}
 	if sent.has("explanation") {
-		in.Explanation = strOr(b.Explanation, "")
+		explanation := strOr(b.Explanation, "")
+		in.Explanation = &explanation
 	}
 	if b.Status != nil {
-		in.Status = string(*b.Status)
+		status := string(*b.Status)
+		validEnum[contract.MatchStatus](v, "status", status)
+		in.Status = &status
 	}
 	if sent.has("breakdown") {
 		in.Breakdown = jsonObject(v, "breakdown", b.Breakdown)
@@ -173,7 +174,6 @@ func (s *Server) updateMatch(w http.ResponseWriter, r *http.Request) {
 			in.Breakdown = json.RawMessage(`{}`)
 		}
 	}
-	validateMatchFields(v, in.Score, in.Status)
 	if err := v.err(); err != nil {
 		fail(w, err)
 		return

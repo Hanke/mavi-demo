@@ -41,7 +41,7 @@ func newAPIOn(t *testing.T, pool *pgxpool.Pool, ai stub, retrieve int) *api {
 		t.Fatal(err)
 	}
 	embedRole := func(ctx context.Context, roleID string) error { return tasks.EmbedRole(ctx, pool, ai, roleID) }
-	h := New(Config{DB: pool, AI: ai, Store: store.New(pool), Taxonomy: tax, Jobs: jobs.NewQueue(pool), JobKinds: tasks.Registry(pool, nil, nil).Kinds(), EmbedRole: embedRole, RetrievalSize: retrieve, CORSOrigin: "*"})
+	h := New(Config{DB: pool, AI: ai, Store: store.New(pool), Taxonomy: tax, Jobs: jobs.NewQueue(pool), JobKinds: tasks.Registry(pool, nil, nil, tasks.MatchConfig{}).Kinds(), EmbedRole: embedRole, RetrievalSize: retrieve, CORSOrigin: "*"})
 	return &api{t: t, h: h, pool: pool}
 }
 
