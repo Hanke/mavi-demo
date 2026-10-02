@@ -29,13 +29,19 @@ func newAPI(t *testing.T) *api { return newAPIWith(t, stub{}) }
 // newAPIWith is newAPI with a particular stand-in for the AI service.
 func newAPIWith(t *testing.T, ai stub) *api {
 	t.Helper()
-	pool := dbtest.Pool(t)
+	return newAPIOn(t, dbtest.Pool(t), ai, 0)
+}
+
+// newAPIOn is a server over an existing database that retrieves up to
+// retrieve candidates per filter run (0 for the default).
+func newAPIOn(t *testing.T, pool *pgxpool.Pool, ai stub, retrieve int) *api {
+	t.Helper()
 	tax, err := taxonomy.Load(dbtest.TaxonomyPath())
 	if err != nil {
 		t.Fatal(err)
 	}
 	embedRole := func(ctx context.Context, roleID string) error { return tasks.EmbedRole(ctx, pool, ai, roleID) }
-	h := New(Config{DB: pool, AI: ai, Store: store.New(pool), Taxonomy: tax, Jobs: jobs.NewQueue(pool), JobKinds: tasks.Registry(pool, nil, nil).Kinds(), EmbedRole: embedRole, CORSOrigin: "*"})
+	h := New(Config{DB: pool, AI: ai, Store: store.New(pool), Taxonomy: tax, Jobs: jobs.NewQueue(pool), JobKinds: tasks.Registry(pool, nil, nil).Kinds(), EmbedRole: embedRole, RetrievalSize: retrieve, CORSOrigin: "*"})
 	return &api{t: t, h: h, pool: pool}
 }
 

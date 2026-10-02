@@ -264,7 +264,8 @@ func TestHardFilters(t *testing.T) {
 func TestHardFiltersOnAnEmptyPool(t *testing.T) {
 	a := newAPI(t)
 	r := a.want(a.do("POST", "/roles/"+a.role("Controller")+"/filter-runs", "ops", "", nil), 201, "run")
-	if r.Body["pool"] != float64(0) || r.Body["passed"] != float64(0) || fmt.Sprint(r.Body["candidate_ids"]) != "[]" {
+	if r.Body["pool"] != float64(0) || r.Body["passed"] != float64(0) || fmt.Sprint(r.Body["candidate_ids"]) != "[]" ||
+		fmt.Sprint(r.Body["retrieved"]) != "[]" || fmt.Sprint(r.Body["unranked_ids"]) != "[]" {
 		t.Fatalf("want an empty run: %s", r.Raw)
 	}
 }
@@ -277,7 +278,7 @@ func TestHardFilterLogsTheFunnel(t *testing.T) {
 	log.SetOutput(&out)
 	defer log.SetOutput(os.Stderr)
 	p.runRole(role)
-	want := `("Controller"): pool 12 -> profile 11 -> certifications 11 -> software 11 -> experience 11 -> availability 10 -> timezone_overlap 10`
+	want := `("Controller"): pool 12 -> profile 11 -> certifications 11 -> software 11 -> experience 11 -> availability 10 -> timezone_overlap 10 -> retrieved 0 of 20, 10 unranked (role not embedded)`
 	if got := out.String(); strings.Count(got, "hard filter: ") != 1 || !strings.Contains(got, want) || !strings.Contains(got, role) {
 		t.Fatalf("log = %q, want one line for the role with %q", got, want)
 	}

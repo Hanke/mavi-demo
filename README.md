@@ -701,7 +701,7 @@ the API writes.
 | `matches` | One row per (role, candidate): `score`, `explanation`, `breakdown`, `status` (proposed / approved / rejected / swapped), `released_at` (set when ops releases it to the employer) |
 | `review_events` | Append-only audit of ops approve / reject / swap / release / unrelease actions on a match |
 | `jobs` | Postgres-backed background queue: `kind`, `payload`, `status` (queued / running / succeeded / failed), `priority`, `run_at`, `attempts` / `max_attempts`, `last_error`, `locked_by` / `locked_at`; claimed with `FOR UPDATE SKIP LOCKED` on the partial `jobs_dequeue_idx` (see [Background jobs](#background-jobs)) |
-| `filter_runs` | One row per run of a role's [hard filters](#hard-filters): the size of the pool, the number of candidates left after each filter (`after_profile` … `after_timezone_overlap`), the ids that passed and the day the time-zone overlap was worked out for; deleted with the role |
+| `filter_runs` | One row per run of a role's [hard filters](#hard-filters): the size of the pool, the number of candidates left after each filter (`after_profile` … `after_timezone_overlap`), the ids that passed and the day the time-zone overlap was worked out for; then the [shortlist](#retrieval) retrieved from those who passed (`retrieval_limit`, `retrieved_ids`, `retrieved_similarities`), who could not be compared (`unranked_ids`) and whether the role had an embedding (`role_embedded`); deleted with the role |
 
 The hard-filter fields are real, indexed columns rather than JSON keys, so
 the pool is filtered directly in SQL (each must-have the JD parser returns has
@@ -746,22 +746,49 @@ Every run is recorded in `filter_runs` and logged, with the number of
 candidates left after each filter, so the narrowing can be shown:
 
 ```
-hard filter: role 2222… (Senior Accountant): pool 190 -> profile 190 -> certifications 69 -> software 21 -> experience 19 -> availability 7 -> timezone_overlap 4
+hard filter: role 2222… (Senior Accountant): pool 190 -> profile 190 -> certifications 69 -> software 21 -> experience 19 -> availability 7 -> timezone_overlap 4 -> retrieved 4 of 20
 ```
 
 ```sh
-curl -s -X POST localhost:8080/roles/$role/filter-runs -H 'X-Role: ops' | jq '{pool, stages, passed}'
+curl -s -X POST localhost:8080/roles/$role/filter-runs -H 'X-Role: ops' | jq '{pool, stages, passed, retrieved}'
 curl -s localhost:8080/roles/$role/filter-runs -H 'X-Role: ops'    # the recorded runs, newest first
 ```
 
-The run's `candidate_ids` are who passed, and are the only candidates a later
-stage may take: the `match_role` handler, when it lands, calls
-`tasks.HardFilter` and ranks within that set
-(`WHERE p.candidate_id = ANY($ids) ORDER BY p.embedding <=> r.embedding`).
-Until then the stage is run by hand with the `POST` above.
+The run's `candidate_ids` are who passed.
 [`api/internal/server/filter_test.go`](api/internal/server/filter_test.go)
 covers each filter against a pool in which every candidate misses exactly one
 thing, and checks `overlap_minutes` against the Go calculation case by case.
+
+### Retrieval
+
+The same statement then picks the shortlist for the rerank: those who passed
+every filter, ordered by the cosine distance of the profile's embedding to
+the role's (`p.embedding <=> r.embedding`, see [Embeddings](#embeddings)),
+nearest first, cut to `MATCH_RETRIEVAL_SIZE` (default 20; 1 to 50, since
+`/rerank` takes at most 50). The run's `retrieved` lists them in that order,
+each with its `similarity` (1 minus the distance), and `retrieval_limit` is
+the size it ran with (0 on a run recorded before retrieval existed; a size
+above 50 is cut to 50). They are the only candidates a later stage may take:
+the `match_role` handler, when it lands, calls `tasks.HardFilter` and reranks
+`Retrieved`. Until then the two stages are run by hand with the `POST` above.
+
+- **Fewer pass than the limit**: all of them are retrieved, still in order of
+  similarity; nobody who failed a filter is brought back to fill the list.
+- **No embedding, no place.** A candidate who passed but whose profile is not
+  embedded yet (its job is still queued), or was embedded by a different
+  provider than the role (`embedding_model` differs, so the vectors are not in
+  the same space), has no distance, is left out of `retrieved` and is listed
+  in `unranked_ids`, so a later run can pick them up. While the role itself is
+  not embedded that is everyone who passed, and `role_embedded` is false,
+  which is how `match_role` can tell "not ready, retry" from a short list.
+- **The order is exact.** The statement sorts the survivors rather than
+  walking the HNSW index: an index scan filtered afterwards can come back
+  with fewer than the limit when more passed, and the survivors of the hard
+  filters are few. Equal distances are ordered by name.
+
+[`api/internal/server/retrieval_test.go`](api/internal/server/retrieval_test.go)
+covers the order, the limit, a pool smaller than the limit and the
+unembedded cases.
 
 ## Seed data
 

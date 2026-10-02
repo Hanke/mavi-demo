@@ -25,6 +25,7 @@ export type AvailabilityCheck = Schemas["AvailabilityCheck"];
 export type FilterName = Schemas["FilterName"];
 export type FilterStage = Schemas["FilterStage"];
 export type FilterRun = Schemas["FilterRun"];
+export type RetrievedCandidate = Schemas["RetrievedCandidate"];
 
 export type Role = Schemas["Role"];
 export type RoleInput = Schemas["RoleInput"];

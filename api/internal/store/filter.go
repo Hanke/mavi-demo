@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/colehanke/mavi-demo/api/internal/contract"
@@ -10,7 +11,8 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// Hard filters (the first stage of a matching run; one filter_runs row each)
+// Hard filters and retrieval (the first two stages of a matching run, as one
+// statement; one filter_runs row each)
 // ---------------------------------------------------------------------------
 
 type FilterRun = contract.FilterRun
@@ -27,7 +29,8 @@ var filterOrder = []contract.FilterName{
 }
 
 const filterRunCols = `id::text, role_id::text, overlap_on, pool, after_profile, after_certifications, after_software,
-	after_experience, after_availability, after_timezone_overlap, candidate_ids::text[], created_at`
+	after_experience, after_availability, after_timezone_overlap, candidate_ids::text[], created_at,
+	retrieval_limit, retrieved_ids::text[], retrieved_similarities, unranked_ids::text[], role_embedded`
 
 func scanFilterRun(row pgx.Row) (FilterRun, error) {
 	var run FilterRun
@@ -37,8 +40,19 @@ func scanFilterRun(row pgx.Row) (FilterRun, error) {
 	for i := range after {
 		dest = append(dest, &after[i])
 	}
-	if err := row.Scan(append(dest, &run.CandidateIds, &run.CreatedAt)...); err != nil {
+	var retrieved []string
+	var similarities []float64
+	dest = append(dest, &run.CandidateIds, &run.CreatedAt, &run.RetrievalLimit, &retrieved, &similarities, &run.UnrankedIds, &run.RoleEmbedded)
+	if err := row.Scan(dest...); err != nil {
 		return run, mapErr(err)
+	}
+	if len(retrieved) != len(similarities) {
+		return run, fmt.Errorf("filter run %s: %d retrieved ids but %d similarities", run.ID, len(retrieved), len(similarities))
+	}
+	run.UnrankedIds = nonNil(run.UnrankedIds)
+	run.Retrieved = make([]contract.RetrievedCandidate, len(retrieved))
+	for i, id := range retrieved {
+		run.Retrieved[i] = contract.RetrievedCandidate{CandidateID: id, Similarity: similarities[i]}
 	}
 	run.OverlapOn = contract.Date(on)
 	run.CandidateIds = nonNil(run.CandidateIds)
@@ -52,11 +66,33 @@ func scanFilterRun(row pgx.Row) (FilterRun, error) {
 	return run, nil
 }
 
+// DefaultRetrievalLimit is how many candidates a run retrieves when the
+// caller does not say.
+const DefaultRetrievalLimit = 20
+
+// MaxRetrievalLimit is the most candidates a run retrieves: what the rerank
+// takes in one call. A larger limit is cut to it.
+const MaxRetrievalLimit = 50
+
 // RunHardFilter narrows the active candidates to those who meet every
-// must-have of the role, in one statement, and records the run: who passed
-// (FilterRun.CandidateIds, by name) and how many were left after each filter.
-// A later stage of a matching run takes its candidates from the result and
-// from nowhere else, so a candidate missing a must-have never reaches it.
+// must-have of the role and, in the same statement, retrieves the closest of
+// them to the role. It records the run: who passed (FilterRun.CandidateIds,
+// by name), how many were left after each filter, and the shortlist
+// (FilterRun.Retrieved). A later stage of a matching run takes its candidates
+// from the result and from nowhere else, so a candidate missing a must-have
+// never reaches it.
+//
+// The shortlist is those who passed, ordered by the cosine distance of the
+// profile's embedding to the role's, nearest first (ties by name), cut to
+// limit; a limit below 1 is DefaultRetrievalLimit. Fewer passing than the
+// limit is all of them. A candidate with no distance (their profile or the
+// role is not embedded yet, a vector is all zeros, or the two were embedded
+// by different providers, whose vectors do not compare) is not retrieved but
+// listed in FilterRun.UnrankedIds, and FilterRun.RoleEmbedded says whether
+// the role had a vector at all, so a caller can tell a short list from a
+// role that is not ready and knows who was left out. The order is exact: it sorts the survivors rather than
+// walking the HNSW index, which, filtered afterwards, can return fewer than
+// limit when more passed.
 //
 // acceptable is asked, for the role as stored, for one entry per required
 // qualification: the certification ids that satisfy it (taxonomy.Acceptable).
@@ -75,7 +111,11 @@ func scanFilterRun(row pgx.Row) (FilterRun, error) {
 // between zones Postgres lists by that exact name (`zones`): AT TIME ZONE
 // also takes abbreviations, POSIX strings such as "XYZ5" and names in the
 // wrong case, none of which the API accepts as a zone.
-func (s *Store) RunHardFilter(ctx context.Context, roleID string, today time.Time, acceptable func(Role) [][]string) (FilterRun, error) {
+func (s *Store) RunHardFilter(ctx context.Context, roleID string, today time.Time, limit int, acceptable func(Role) [][]string) (FilterRun, error) {
+	if limit < 1 {
+		limit = DefaultRetrievalLimit
+	}
+	limit = min(limit, MaxRetrievalLimit)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return FilterRun{}, err
@@ -97,7 +137,9 @@ func (s *Store) RunHardFilter(ctx context.Context, roleID string, today time.Tim
 	y, m, d := today.Date()
 	run, err := scanFilterRun(tx.QueryRow(ctx, `
 		WITH role AS (
-			SELECT *, coalesce(starts_on, $2::date) AS on_day FROM roles WHERE id = $1
+			SELECT *, coalesce(starts_on, $2::date) AS on_day,
+			       coalesce(vector_norm(embedding) > 0, false) AS embedded
+			FROM roles WHERE id = $1
 		),
 		zones AS MATERIALIZED (
 			SELECT name FROM pg_timezone_names
@@ -150,19 +192,48 @@ func (s *Store) RunHardFilter(ctx context.Context, roleID string, today time.Tim
 			            ELSE 6
 			       END AS cleared
 			FROM checked
+		),
+		ranked AS (
+			-- Only those who passed are compared. Vectors from different
+			-- providers have no distance, and <=> is NaN for a zero vector.
+			SELECT k.id, k.full_name,
+			       CASE WHEN p.embedding_model IS NOT DISTINCT FROM r.embedding_model
+			            THEN nullif(p.embedding <=> r.embedding, 'NaN')
+			       END AS distance
+			FROM staged k
+			JOIN candidate_profiles p ON p.candidate_id = k.id
+			CROSS JOIN role r
+			WHERE k.cleared >= 6
+		),
+		retrieved AS (
+			SELECT id, distance, row_number() OVER (ORDER BY distance, full_name, id) AS rank
+			FROM ranked
+			WHERE distance IS NOT NULL
+			ORDER BY rank
+			LIMIT $4
+		),
+		shortlist AS (
+			SELECT coalesce(array_agg(id ORDER BY rank), '{}') AS ids,
+			       coalesce(array_agg(1 - distance ORDER BY rank), '{}') AS similarities
+			FROM retrieved
 		)
 		INSERT INTO filter_runs (role_id, overlap_on, pool, after_profile, after_certifications, after_software,
-			after_experience, after_availability, after_timezone_overlap, candidate_ids)
+			after_experience, after_availability, after_timezone_overlap, candidate_ids,
+			retrieval_limit, retrieved_ids, retrieved_similarities, unranked_ids, role_embedded)
 		SELECT r.id, r.on_day, count(k.id),
 		       count(*) FILTER (WHERE k.cleared >= 1), count(*) FILTER (WHERE k.cleared >= 2),
 		       count(*) FILTER (WHERE k.cleared >= 3), count(*) FILTER (WHERE k.cleared >= 4),
 		       count(*) FILTER (WHERE k.cleared >= 5), count(*) FILTER (WHERE k.cleared >= 6),
-		       coalesce(array_agg(k.id ORDER BY k.full_name, k.id) FILTER (WHERE k.cleared >= 6), '{}')
+		       coalesce(array_agg(k.id ORDER BY k.full_name, k.id) FILTER (WHERE k.cleared >= 6), '{}'),
+		       $4,
+		       (SELECT ids FROM shortlist), (SELECT similarities FROM shortlist),
+		       (SELECT coalesce(array_agg(id ORDER BY full_name, id), '{}') FROM ranked WHERE distance IS NULL),
+		       r.embedded
 		FROM role r
 		LEFT JOIN staged k ON true
-		GROUP BY r.id, r.on_day
+		GROUP BY r.id, r.on_day, r.embedded
 		RETURNING `+filterRunCols,
-		role.ID, time.Date(y, m, d, 0, 0, 0, 0, time.UTC), string(setsJSON)))
+		role.ID, time.Date(y, m, d, 0, 0, 0, 0, time.UTC), string(setsJSON), limit))
 	if err != nil {
 		return FilterRun{}, err
 	}

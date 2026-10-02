@@ -67,6 +67,12 @@ func run() error {
 	if len(os.Args) > 1 { // worker
 		return newWorker(pool, handlers, envInt("WORKER_CONCURRENCY", 2)).Run(ctx)
 	}
+	// MATCH_RETRIEVAL_SIZE is how many of the candidates who pass a role's
+	// hard filters go on to the rerank, which takes at most 50.
+	retrieve := envInt("MATCH_RETRIEVAL_SIZE", store.DefaultRetrievalLimit)
+	if retrieve < 1 || retrieve > store.MaxRetrievalLimit {
+		return fmt.Errorf("MATCH_RETRIEVAL_SIZE: want 1 to %d, got %d", store.MaxRetrievalLimit, retrieve)
+	}
 	srv := &http.Server{
 		Addr: ":" + envOr("PORT", "8080"),
 		Handler: server.New(server.Config{
@@ -79,7 +85,8 @@ func run() error {
 			EmbedRole: func(ctx context.Context, roleID string) error {
 				return tasks.EmbedRole(ctx, pool, ai, roleID)
 			},
-			CORSOrigin: envOr("CORS_ORIGIN", "http://localhost:5173"),
+			RetrievalSize: retrieve,
+			CORSOrigin:    envOr("CORS_ORIGIN", "http://localhost:5173"),
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}

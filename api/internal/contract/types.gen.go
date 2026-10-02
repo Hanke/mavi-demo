@@ -266,7 +266,7 @@ type Error struct {
 // FilterName A hard filter, in the order they are applied.
 type FilterName string
 
-// FilterRun One run of a role's hard filters over the active candidates.
+// FilterRun One run of a role's hard filters over the active candidates, and the shortlist retrieved from those who passed.
 type FilterRun struct {
 	// CandidateIds Who passed every filter, by name. A record of the run; a candidate deleted since stays listed.
 	CandidateIds []ID      `json:"candidate_ids"`
@@ -284,11 +284,23 @@ type FilterRun struct {
 	// Pool Active candidates when the run started.
 	Pool int `json:"pool"`
 
+	// RetrievalLimit The most candidates the run could retrieve (`MATCH_RETRIEVAL_SIZE` when it ran). 0 on a run recorded before retrieval existed, which retrieved nothing.
+	RetrievalLimit int `json:"retrieval_limit"`
+
+	// Retrieved The shortlist: of those who passed, the most similar to the role, most similar first, at most `retrieval_limit`. Every entry is in `candidate_ids`.
+	Retrieved []RetrievedCandidate `json:"retrieved"`
+
+	// RoleEmbedded Whether the role had an embedding to compare with. When false, everyone who passed is in `unranked_ids`: the run is not ready, not empty.
+	RoleEmbedded bool `json:"role_embedded"`
+
 	// RoleID A UUID, as text.
 	RoleID ID `json:"role_id"`
 
 	// Stages Every filter, in the order applied; each `remaining` is at most the one before it.
 	Stages []FilterStage `json:"stages"`
+
+	// UnrankedIds Who passed but could not be compared, by name: their profile or the role had no usable embedding, or the two were embedded by different providers. None of them is in `retrieved`.
+	UnrankedIds []ID `json:"unranked_ids"`
 }
 
 // FilterStage One filter of a run and what it did to the pool.
@@ -495,6 +507,15 @@ type ProfileInput struct {
 type ReleaseInput struct {
 	// Reason Recorded on the review event.
 	Reason *string `json:"reason,omitempty"`
+}
+
+// RetrievedCandidate One candidate of a run's shortlist.
+type RetrievedCandidate struct {
+	// CandidateID A UUID, as text.
+	CandidateID ID `json:"candidate_id"`
+
+	// Similarity Cosine similarity of the profile's embedding to the role's; 1 is the same direction.
+	Similarity float64 `json:"similarity"`
 }
 
 // Role defines model for Role.

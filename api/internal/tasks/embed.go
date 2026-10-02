@@ -35,12 +35,13 @@ const (
 	// KindMatchRole is a matching run for a role: shortlist, rerank, write the
 	// matches. Payload: {"role_id": uuid}. Role intake (POST /roles/intake)
 	// queues it, but it has no handler in Registry yet, so no worker claims
-	// it and the job waits until the handler lands. Its first stage exists
-	// (HardFilter); the rest takes its candidates from that run and from
+	// it and the job waits until the handler lands. Its first two stages
+	// exist (HardFilter: the hard filters and the retrieval by embedding);
+	// the rest takes its candidates from that run's Retrieved and from
 	// nowhere else. That handler must treat a role whose embedding is still
-	// NULL as not ready and retry: intake embeds before it queues the run,
-	// but a failed embedding is handed to an embed_role job that may finish
-	// later.
+	// NULL (the run's RoleEmbedded is false) as not ready and retry:
+	// intake embeds before it queues the run, but a failed embedding is
+	// handed to an embed_role job that may finish later.
 	KindMatchRole = "match_role"
 )
 

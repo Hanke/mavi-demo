@@ -330,6 +330,15 @@ export interface paths {
          *     a candidate with no profile or no availability never passes. The run
          *     is stored and logged, with the number of candidates left after each
          *     filter.
+         *
+         *     The same statement then retrieves the shortlist for the rerank: those
+         *     who passed, ordered by the cosine similarity of their profile's
+         *     embedding to the role's, nearest first, cut to `retrieval_limit`
+         *     (`retrieved`). When fewer passed than the limit, all of them are
+         *     retrieved. A candidate whose profile is not embedded yet, or was
+         *     embedded by a different provider than the role, cannot be compared and
+         *     is listed in `unranked_ids` instead. While the role itself has no
+         *     embedding (`role_embedded` is false) that is everyone who passed.
          */
         post: operations["runRoleFilters"];
         delete?: never;
@@ -673,7 +682,16 @@ export interface components {
             /** @description Candidates this filter dropped, of those who reached it. */
             excluded: number;
         };
-        /** @description One run of a role's hard filters over the active candidates. */
+        /** @description One candidate of a run's shortlist. */
+        RetrievedCandidate: {
+            candidate_id: components["schemas"]["Id"];
+            /**
+             * Format: double
+             * @description Cosine similarity of the profile's embedding to the role's; 1 is the same direction.
+             */
+            similarity: number;
+        };
+        /** @description One run of a role's hard filters over the active candidates, and the shortlist retrieved from those who passed. */
         FilterRun: {
             id: components["schemas"]["Id"];
             role_id: components["schemas"]["Id"];
@@ -687,6 +705,14 @@ export interface components {
             passed: number;
             /** @description Who passed every filter, by name. A record of the run; a candidate deleted since stays listed. */
             candidate_ids: components["schemas"]["Id"][];
+            /** @description The most candidates the run could retrieve (`MATCH_RETRIEVAL_SIZE` when it ran). 0 on a run recorded before retrieval existed, which retrieved nothing. */
+            retrieval_limit: number;
+            /** @description The shortlist: of those who passed, the most similar to the role, most similar first, at most `retrieval_limit`. Every entry is in `candidate_ids`. */
+            retrieved: components["schemas"]["RetrievedCandidate"][];
+            /** @description Who passed but could not be compared, by name: their profile or the role had no usable embedding, or the two were embedded by different providers. None of them is in `retrieved`. */
+            unranked_ids: components["schemas"]["Id"][];
+            /** @description Whether the role had an embedding to compare with. When false, everyone who passed is in `unranked_ids`: the run is not ready, not empty. */
+            role_embedded: boolean;
             /** Format: date-time */
             created_at: string;
         };

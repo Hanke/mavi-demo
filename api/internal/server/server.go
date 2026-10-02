@@ -51,25 +51,30 @@ type Config struct {
 	JobKinds []string // kinds POST /jobs accepts: what the worker has handlers for
 	// EmbedRole embeds a stored role now (tasks.EmbedRole), for role intake.
 	// Nil leaves every embedding to the embed_role job.
-	EmbedRole  func(ctx context.Context, roleID string) error
-	CORSOrigin string
+	EmbedRole func(ctx context.Context, roleID string) error
+	// RetrievalSize is how many of the candidates who pass a role's hard
+	// filters a run retrieves by embedding similarity. Below 1 is
+	// store.DefaultRetrievalLimit.
+	RetrievalSize int
+	CORSOrigin    string
 }
 
 type Server struct {
-	db           Pinger
-	ai           AI
-	store        *store.Store
-	tax          *taxonomy.Taxonomy
-	jobs         *jobs.Queue
-	jobKinds     []string
-	embedRoleNow func(ctx context.Context, roleID string) error
-	corsOrigin   string
+	db            Pinger
+	ai            AI
+	store         *store.Store
+	tax           *taxonomy.Taxonomy
+	jobs          *jobs.Queue
+	jobKinds      []string
+	embedRoleNow  func(ctx context.Context, roleID string) error
+	retrievalSize int
+	corsOrigin    string
 }
 
 const maxBody = 1 << 20
 
 func New(cfg Config) http.Handler {
-	s := &Server{db: cfg.DB, ai: cfg.AI, store: cfg.Store, tax: cfg.Taxonomy, jobs: cfg.Jobs, jobKinds: cfg.JobKinds, embedRoleNow: cfg.EmbedRole, corsOrigin: cfg.CORSOrigin}
+	s := &Server{db: cfg.DB, ai: cfg.AI, store: cfg.Store, tax: cfg.Taxonomy, jobs: cfg.Jobs, jobKinds: cfg.JobKinds, embedRoleNow: cfg.EmbedRole, retrievalSize: cfg.RetrievalSize, corsOrigin: cfg.CORSOrigin}
 	mux := http.NewServeMux()
 	mux.HandleFunc(healthRoute, s.handleHealth)
 	for _, rt := range s.routes() {

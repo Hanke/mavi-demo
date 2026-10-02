@@ -11,15 +11,17 @@ import (
 	"github.com/colehanke/mavi-demo/api/internal/taxonomy"
 )
 
-// HardFilter is the first stage of a matching run: the active candidates
-// narrowed, in SQL, to those who meet every must-have of the role
-// (Store.RunHardFilter). The run is recorded in filter_runs and logged with
-// the count left after each filter. The candidates a later stage may look at
-// are the run's CandidateIds and no others. today is the day the time-zone
-// overlap is worked out for when the role has no start date.
-func HardFilter(ctx context.Context, st *store.Store, tax *taxonomy.Taxonomy, roleID string, today time.Time) (store.FilterRun, error) {
+// HardFilter is the first two stages of a matching run, in one SQL statement
+// (Store.RunHardFilter): the active candidates narrowed to those who meet
+// every must-have of the role, and of those the retrieve closest to the role
+// by embedding (store.DefaultRetrievalLimit when retrieve is below 1). The
+// run is recorded in filter_runs and logged with the count left after each
+// filter. The candidates the rerank may look at are the run's Retrieved and
+// no others. today is the day the time-zone overlap is worked out for when
+// the role has no start date.
+func HardFilter(ctx context.Context, st *store.Store, tax *taxonomy.Taxonomy, roleID string, today time.Time, retrieve int) (store.FilterRun, error) {
 	var role store.Role
-	run, err := st.RunHardFilter(ctx, roleID, today, func(r store.Role) [][]string {
+	run, err := st.RunHardFilter(ctx, roleID, today, retrieve, func(r store.Role) [][]string {
 		role = r
 		return AcceptableCertifications(tax, r)
 	})
@@ -65,12 +67,21 @@ func AcceptableCertifications(tax *taxonomy.Taxonomy, role store.Role) [][]strin
 	return out
 }
 
-// funnel writes a run as "pool 212 -> profile 200 -> ... -> timezone_overlap 6".
+// funnel writes a run as "pool 212 -> profile 200 -> ... -> timezone_overlap 31
+// -> retrieved 20 of 20", with ", 3 unranked" when some could not be compared
+// and "(role not embedded)" when the role had no vector to compare with.
 func funnel(run store.FilterRun) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "pool %d", run.Pool)
 	for _, s := range run.Stages {
 		fmt.Fprintf(&b, " -> %s %d", s.Filter, s.Remaining)
+	}
+	fmt.Fprintf(&b, " -> retrieved %d of %d", len(run.Retrieved), run.RetrievalLimit)
+	if n := len(run.UnrankedIds); n > 0 {
+		fmt.Fprintf(&b, ", %d unranked", n)
+	}
+	if !run.RoleEmbedded {
+		b.WriteString(" (role not embedded)")
 	}
 	return b.String()
 }

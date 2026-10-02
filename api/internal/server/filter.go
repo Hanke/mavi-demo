@@ -8,10 +8,10 @@ import (
 )
 
 // runRoleFilters runs the role's hard filters over the active candidates
-// and answers with the recorded run: who passed, and how many were left
-// after each filter.
+// and answers with the recorded run: who passed, how many were left after
+// each filter, and the shortlist retrieved from those who passed.
 func (s *Server) runRoleFilters(w http.ResponseWriter, r *http.Request) {
-	run, err := tasks.HardFilter(r.Context(), s.store, s.tax, r.PathValue("id"), time.Now())
+	run, err := tasks.HardFilter(r.Context(), s.store, s.tax, r.PathValue("id"), time.Now(), s.retrievalSize)
 	if err != nil {
 		fail(w, err)
 		return
