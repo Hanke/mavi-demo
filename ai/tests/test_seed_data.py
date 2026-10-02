@@ -12,8 +12,10 @@ from __future__ import annotations
 import json
 from collections import Counter
 from collections.abc import Callable
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any, cast
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -81,6 +83,12 @@ def test_candidates_are_well_formed(candidates: list[dict[str, Any]], profiles: 
         else:
             assert isinstance(days, int), c["id"]
             assert days >= 0, c["id"]
+        # When and where they can work is answered in full or not at all.
+        answers = (days, c["work_start"], c["work_end"], c["hours_per_week"])
+        assert all(a is None for a in answers) or all(a is not None for a in answers), c["id"]
+        if c["work_start"] is not None:
+            assert render.clock(c["work_start"]) != render.clock(c["work_end"]), c["id"]
+            assert 1 <= c["hours_per_week"] <= 80, c["id"]
         # The stored JSON is exactly the parser's shape, nothing extra.
         assert set(c["profile"]) == set(CandidateProfile.model_fields), c["id"]
         assert len(p.positions) >= generate.MIN_POSITIONS, c["id"]
@@ -196,15 +204,71 @@ def test_roles_are_well_formed(roles: list[dict[str, Any]]):
         assert req.must_haves
         assert r["description"].strip()
         assert set(r["requirements"]) == set(RoleRequirements.model_fields) - {"starts_on"}, r["id"]
+        # What the employer answered at intake fills only what the JD left out.
+        for field, hours in r.get("intake", {}).items():
+            assert getattr(req, field) is None, f"{r['id']}: {field} is both parsed and asked"
+            assert hours > 0, r["id"]
+        # A number the parse carries is one the JD writes.
+        for field in ("min_overlap_hours", "hours_per_week"):
+            if (hours := getattr(req, field)) is not None:
+                assert str(hours) in r["description"], f"{r['id']}: {field}"
+    assert any(RoleRequirements.model_validate(r["requirements"]).hours_per_week for r in roles)
+    assert any("intake" in r for r in roles)
 
 
-def _passes_hard_filters(
-    profile: CandidateProfile, days: int | None, active: bool, req: RoleRequirements, starts_in: int | None
-) -> bool:
-    """The README shortlist query's WHERE clause, in Python."""
-    if not active or not fixtures.passes_hard_filters(profile, req):
+# Any weekday will do: the overlap only shifts on the few days a year when two
+# zones have changed their clocks and the other has not.
+OVERLAP_ON = date(2026, 10, 5)
+
+
+def _overlap_minutes(role_zone: str, zone: str, work_start: str, work_end: str) -> int:
+    """api/internal/availability.OverlapMinutes, in Python: the minutes of
+    the role's 09:00 to 17:00 day that the candidate's daily hours cover."""
+    role_tz, tz = ZoneInfo(role_zone), ZoneInfo(zone)
+    day_start = datetime.combine(OVERLAP_ON, time(9), role_tz)
+    day_end = datetime.combine(OVERLAP_ON, time(17), role_tz)
+    start, end = time.fromisoformat(work_start), time.fromisoformat(work_end)
+    total = timedelta()
+    for offset in (-1, 0, 1):
+        local_day = day_start.astimezone(tz).date() + timedelta(days=offset)
+        begins = datetime.combine(local_day, start, tz)
+        ends = datetime.combine(local_day + timedelta(days=1 if end <= start else 0), end, tz)
+        total += max(min(ends, day_end) - max(begins, day_start), timedelta())
+    return int(total.total_seconds() // 60)
+
+
+def test_overlap_is_worked_out_as_the_api_does():
+    # The cases of api/internal/availability/availability_test.go that hold in October.
+    assert _overlap_minutes("America/Chicago", "America/Chicago", "09:00", "17:00") == 480
+    assert _overlap_minutes("America/New_York", "America/Los_Angeles", "09:00", "17:00") == 300
+    assert _overlap_minutes("America/New_York", "Europe/London", "09:00", "17:00") == 180
+    assert _overlap_minutes("America/New_York", "Asia/Manila", "09:00", "17:00") == 0
+    assert _overlap_minutes("America/New_York", "Asia/Manila", "21:00", "06:00") == 480
+    assert _overlap_minutes("America/Chicago", "America/Chicago", "08:00", "12:00") == 180
+
+
+def _passes_hard_filters(profile: CandidateProfile, c: dict[str, Any], role: dict[str, Any]) -> bool:
+    """The shortlist's hard filters, in Python: the README query's WHERE
+    clause, then the availability filter of api/internal/availability on what
+    the candidate supplied. A candidate who supplied nothing never passes."""
+    req = RoleRequirements.model_validate(role["requirements"])
+    if c["status"] != "active" or not fixtures.passes_hard_filters(profile, req):
         return False
-    return starts_in is None or (days is not None and days <= starts_in)
+    if c["work_start"] is None:
+        return False
+    intake = cast(dict[str, int], role.get("intake", {}))
+    starts_in = role.get("starts_in_days")
+    per_week = req.hours_per_week or intake.get("hours_per_week")
+    overlap = req.min_overlap_hours or intake.get("min_overlap_hours")
+    if starts_in is not None and c["available_in_days"] > starts_in:
+        return False
+    if per_week is not None and c["hours_per_week"] < per_week:
+        return False
+    if overlap is None:
+        return True
+    assert req.timezone
+    assert profile.timezone
+    return _overlap_minutes(req.timezone, profile.timezone, c["work_start"], c["work_end"]) >= overlap * 60
 
 
 def test_each_role_selects_a_strict_subset(
@@ -213,11 +277,7 @@ def test_each_role_selects_a_strict_subset(
     n = len(candidates)
     counts: dict[str, int] = {}
     for r in roles:
-        req = RoleRequirements.model_validate(r["requirements"])
-        counts[r["title"]] = sum(
-            _passes_hard_filters(p, c["available_in_days"], c["status"] == "active", req, r.get("starts_in_days"))
-            for c, p in zip(candidates, profiles, strict=True)
-        )
+        counts[r["title"]] = sum(_passes_hard_filters(p, c, r) for c, p in zip(candidates, profiles, strict=True))
     for title, k in counts.items():
         assert 1 <= k <= 0.9 * n, f"{title}: {k} of {n} candidates pass the hard filters"
     # Different roles must land on different shortlists.

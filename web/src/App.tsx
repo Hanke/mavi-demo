@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { API_URL, fetchHealth, type HealthResponse } from "./api";
+import { TalentView } from "./TalentView";
 
 type State =
   | { kind: "loading" }
@@ -24,6 +25,7 @@ export function App() {
         API: <code>{API_URL}</code>
       </p>
       <HealthPanel state={state} />
+      <TalentView />
     </main>
   );
 }

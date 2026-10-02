@@ -29,6 +29,8 @@
       "Experience working with a UK parent company"
     ],
     "timezone": "America/New_York",
+    "min_overlap_hours": null,
+    "hours_per_week": null,
     "starts_on": null
   },
   "hard_filter_matches": ["financial_controller_aca_uk", "fpa_manager_london", "fractional_cfo"]

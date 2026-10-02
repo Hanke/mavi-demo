@@ -47,6 +47,11 @@ _MUST_HEADING = re.compile(
 _NICE_HEADING = re.compile(r"^(preferred|nice[- ]to[- ]haves?|bonus|plus(?:es)?|desirable|desired)\b", re.I)
 # "5+ years", "Minimum 5 years", "10 or more years", "1-4 years": the first figure is the floor.
 _MIN_YEARS = re.compile(r"(?<![\d-])(\d{1,2})(?:\s*\+|\s+or more|\s*[-\u2013]\s*\d{1,2})?\s+years?\b", re.I)
+# "about 20 hours a week", "15 to 20 hours per week" (the lower figure), "4 hours of overlap".
+_HOURS_PER_WEEK = re.compile(
+    r"(?<![\d-])(\d{1,2})(?:\s*(?:to|[-\u2013])\s*\d{1,2})?\s+hours\s+(?:a|per|each)\s+week\b", re.I
+)
+_OVERLAP_HOURS = re.compile(r"(?<![\d-])(\d)\+?\s+(?:or more\s+)?hours?\s+(?:of\s+)?overlap", re.I)
 _WORD = re.compile(r"[a-z][a-z0-9&+/-]{3,}")
 _AVAILABILITY = (
     (
@@ -237,6 +242,8 @@ def _jd(prompt: str) -> dict[str, Any]:
     # The overall figure leads its bullet ("10 or more years ..., at least 5 in ...");
     # the first bullet with one decides.
     years = next((int(m.group(1)) for item in must if (m := _MIN_YEARS.search(item))), None)
+    # Hours are as often in the opening paragraph as in a bullet.
+    weekly, overlap = _HOURS_PER_WEEK.search(text), _OVERLAP_HOURS.search(text)
     title = re.split(rf"\s+[(|{_DASHES}]", _first_line(text), maxsplit=1)[0].strip()
     return {
         "company": None,
@@ -266,6 +273,8 @@ def _jd(prompt: str) -> dict[str, Any]:
             "must_haves": must,
             "nice_to_haves": nice,
             "timezone": None,
+            "min_overlap_hours": int(overlap.group(1)) if overlap else None,
+            "hours_per_week": int(weekly.group(1)) if weekly else None,
             "starts_on": None,
         },
     }

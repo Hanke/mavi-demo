@@ -18,6 +18,10 @@ export type Profile = Schemas["Profile"];
 export type ProfileInput = Schemas["ProfileInput"];
 export type Availability = Schemas["Availability"];
 
+export type WorkAvailability = Schemas["WorkAvailability"];
+export type WorkAvailabilityInput = Schemas["WorkAvailabilityInput"];
+export type AvailabilityCheck = Schemas["AvailabilityCheck"];
+
 export type Role = Schemas["Role"];
 export type RoleInput = Schemas["RoleInput"];
 export type RoleStatus = Schemas["RoleStatus"];

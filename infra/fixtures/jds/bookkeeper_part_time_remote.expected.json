@@ -1,5 +1,5 @@
 {
-  "$comment": "A required certification that is a product certification (QuickBooks ProAdvisor), two required taxonomy products, and one required product outside the taxonomy (Dext) that must land in other_required_software verbatim rather than be dropped. Xero, Toast and Square are bonuses. Title drops the location and hours qualifiers.",
+  "$comment": "A required certification that is a product certification (QuickBooks ProAdvisor), two required taxonomy products, and one required product outside the taxonomy (Dext) that must land in other_required_software verbatim rather than be dropped. Xero, Toast and Square are bonuses. Title drops the location and hours qualifiers. \"roughly 15 to 20 hours a week\" is in the opening paragraph, not a bullet: hours_per_week is the lower figure, 15. \"at least two mornings a week during Pacific time\" gives no number of hours of overlap, so min_overlap_hours is null.",
   "company": "Sunfish Hospitality",
   "requirements": {
     "title": "Part-Time Bookkeeper",
@@ -30,6 +30,8 @@
       "Comfortable talking to chefs and managers about invoices"
     ],
     "timezone": "America/Los_Angeles",
+    "min_overlap_hours": null,
+    "hours_per_week": 15,
     "starts_on": null
   },
   "hard_filter_matches": ["bookkeeper_part_time"]

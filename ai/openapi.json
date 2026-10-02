@@ -853,8 +853,17 @@
       },
       "RoleRequirements": {
         "additionalProperties": false,
-        "description": "What the JD parser extracts. Maps onto roles.\n\nRequirements come in two tiers that mirror the candidate profile. The\nmust-haves (`required_*`, `min_years_experience`, `starts_on`, `timezone`)\nare the hard filters, see HARD_FILTER_COLUMNS. The nice-to-haves\n(`preferred_*`) never exclude anyone: holding any one of them counts in a\ncandidate's favour, so \"CPP or FPC\" is simply both ids.",
+        "description": "What the JD parser extracts. Maps onto roles.\n\nRequirements come in two tiers that mirror the candidate profile. The\nmust-haves (`required_*`, `min_years_experience`, `starts_on`, `timezone`,\n`min_overlap_hours`, `hours_per_week`) are the hard filters, see HARD_FILTER_COLUMNS. The nice-to-haves\n(`preferred_*`) never exclude anyone: holding any one of them counts in a\ncandidate's favour, so \"CPP or FPC\" is simply both ids.",
         "properties": {
+          "hours_per_week": {
+            "default": null,
+            "description": "Fewest hours a week the JD accepts, when it gives a number; null if it gives none.",
+            "maximum": 80,
+            "minimum": 0,
+            "nullable": true,
+            "title": "Hours Per Week",
+            "type": "integer"
+          },
           "industries": {
             "description": "Industry context of the role, as taxonomy ids.",
             "items": {
@@ -864,6 +873,15 @@
             "title": "Industries",
             "type": "array",
             "x-go-type-skip-optional-pointer": true
+          },
+          "min_overlap_hours": {
+            "default": null,
+            "description": "Hours a day the candidate's working hours must overlap the role's working day, when the JD gives a number; null if it gives none.",
+            "maximum": 8,
+            "minimum": 0,
+            "nullable": true,
+            "title": "Min Overlap Hours",
+            "type": "integer"
           },
           "min_years_experience": {
             "default": null,

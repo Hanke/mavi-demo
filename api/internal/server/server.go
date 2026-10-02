@@ -108,6 +108,12 @@ func (s *Server) routes() []routeDef {
 		r("POST /candidates/{id}/resume", s.uploadResume, talent, ops),
 		r("GET /candidates/{id}/resume/job", s.getResumeJob, talent, ops),
 
+		// Availability: the hard-filter answers a resume cannot give, supplied
+		// by the candidate; and, for ops, who passes a role's filters on them.
+		r("GET /candidates/{id}/availability", s.getAvailability, talent, ops),
+		r("PUT /candidates/{id}/availability", s.putAvailability, talent, ops),
+		r("GET /roles/{id}/availability", s.listRoleAvailability, ops),
+
 		// Roles: employers and ops write; talent reads open roles.
 		r("POST /roles", s.createRole, employer, ops),
 		r("GET /roles", s.listRoles, talent, employer, ops),

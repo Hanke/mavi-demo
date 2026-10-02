@@ -128,8 +128,11 @@ func (a *api) role(title string) string {
 	return r.str("id")
 }
 
+// match proposes a match, first giving the candidate the availability
+// without which they cannot be matched.
 func (a *api) match(roleID, candID string, score float64) string {
 	a.t.Helper()
+	a.do("PUT", "/candidates/"+candID+"/availability", "ops", "", workHours("America/Chicago", "09:00", "17:00", 40, "2020-01-01"))
 	r := a.want(a.do("POST", "/matches", "ops", "", map[string]any{"role_id": roleID, "candidate_id": candID, "score": score}), 201, "create match")
 	return r.str("id")
 }

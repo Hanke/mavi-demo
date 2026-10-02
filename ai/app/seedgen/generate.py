@@ -133,6 +133,9 @@ class Generated:
             "source": self.slot.source,
             "status": self.slot.status,
             "available_in_days": self.slot.available_in_days,
+            "work_start": self.slot.work_start,
+            "work_end": self.slot.work_end,
+            "hours_per_week": self.slot.hours_per_week,
             "resume_text": self.resume_text,
             "profile": profile,
         }

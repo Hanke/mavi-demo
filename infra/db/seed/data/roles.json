@@ -1,5 +1,5 @@
 {
-  "$comment": "Sample job descriptions for the demo seed. Hand-written; every company is fictional. `requirements` is the JD parser's RoleRequirements shape (starts_on is filled at seed time from starts_in_days) and its hard-filter lists are promoted to the roles columns by `make seed-render`. Each role's required certifications / software / timezone / start date is chosen so that it matches a different slice of infra/db/seed/data/candidates.json. A required qualification carries accept_equivalents: the US roles that just say 'CPA' accept an ACA, ACCA or CA by default, the London role says so, and the Tax Manager needs the US licence itself.",
+  "$comment": "Sample job descriptions for the demo seed. Hand-written; every company is fictional. `requirements` is the JD parser's RoleRequirements shape (starts_on is filled at seed time from starts_in_days) and its hard-filter lists are promoted to the roles columns by `make seed-render`. Each role's required certifications / software / timezone / start date is chosen so that it matches a different slice of infra/db/seed/data/candidates.json. A required qualification carries accept_equivalents: the US roles that just say 'CPA' accept an ACA, ACCA or CA by default, the London role says so, and the Tax Manager needs the US licence itself. Hours a week and hours of time-zone overlap are in `requirements` only where the JD gives a number (the part-time bookkeeper); for the rest `intake` holds what the employer answered when asked, and `make seed-render` writes whichever there is to the roles columns.",
   "roles": [
     {
       "id": "22222222-0000-0000-0000-000000000001",
@@ -7,6 +7,10 @@
       "company": "Northwind Foods",
       "status": "open",
       "starts_in_days": 7,
+      "intake": {
+        "min_overlap_hours": 6,
+        "hours_per_week": 40
+      },
       "description": "Northwind Foods is a $40M consumer packaged goods business (frozen and shelf-stable snacks sold through grocery and club channels) based in Chicago. We are hiring a Senior Accountant to own the month-end close.\n\nWhat you will do\n- Own the monthly close across three legal entities in NetSuite: journal entries, accruals, prepaids, fixed assets, intercompany eliminations and the consolidated trial balance.\n- Prepare balance sheet reconciliations and drive the close from 12 business days down to 7.\n- Support trade-spend and broker-commission accruals with the sales finance team.\n- Prepare PBC schedules for the annual audit and respond to auditor requests.\n- Document close procedures and help train a staff accountant.\n\nWhat we need\n- Active CPA.\n- 5+ years of accounting experience with at least 2 years running a month-end close.\n- Hands-on NetSuite experience (saved searches, journal imports, multi-subsidiary).\n- Strong US GAAP fundamentals, including accruals and fixed-asset accounting.\n- Available to work Central time hours; hybrid, 2 days a week in our Chicago office.\n- Able to start within two weeks.\n\nNice to have\n- QuickBooks experience (our acquired brand still runs on it during migration).\n- CPG or food and beverage industry experience.\n- Exposure to trade promotion accounting.",
       "requirements": {
         "title": "Senior Accountant",
@@ -52,7 +56,9 @@
           "CPG or food and beverage industry experience",
           "Exposure to trade promotion accounting"
         ],
-        "timezone": "America/Chicago"
+        "timezone": "America/Chicago",
+        "min_overlap_hours": null,
+        "hours_per_week": null
       }
     },
     {
@@ -61,6 +67,10 @@
       "company": "Brightline Analytics",
       "status": "open",
       "starts_in_days": 21,
+      "intake": {
+        "min_overlap_hours": 5,
+        "hours_per_week": 40
+      },
       "description": "Brightline Analytics is a 60-person Series A SaaS company in San Francisco. This is our first in-house accounting hire; until now the books have been kept by an outsourced firm in QuickBooks Online.\n\nResponsibilities\n- Run the day-to-day books in QuickBooks Online: AP through Bill.com, expense reports, customer invoicing and cash application.\n- Prepare the monthly close package: bank reconciliations, accruals, prepaid amortisation and deferred revenue schedules.\n- Reconcile Stripe payouts to invoices.\n- Help the outsourced firm with quarterly sales-tax filings and the year-end 1099 run.\n- Take part in our planned move from QuickBooks to NetSuite next year.\n\nRequirements\n- 1-4 years of accounting experience, ideally at a startup or a small firm.\n- Proficient in QuickBooks Online.\n- Comfortable in Excel (lookups, pivots).\n- Working knowledge of accrual accounting under US GAAP.\n- Based in the Pacific time zone; remote-friendly.\n\nPreferred\n- Bill.com and Expensify experience.\n- Exposure to ASC 606 or SaaS deferred revenue.\n- CPA track.",
       "requirements": {
         "title": "Staff Accountant",
@@ -95,7 +105,9 @@
           "Exposure to ASC 606 or SaaS deferred revenue",
           "CPA track"
         ],
-        "timezone": "America/Los_Angeles"
+        "timezone": "America/Los_Angeles",
+        "min_overlap_hours": null,
+        "hours_per_week": null
       }
     },
     {
@@ -104,6 +116,9 @@
       "company": "Cascade Precision Manufacturing",
       "status": "open",
       "starts_in_days": 45,
+      "intake": {
+        "hours_per_week": 40
+      },
       "description": "Cascade Precision Manufacturing machines aerospace and medical components at two plants in Colorado and Utah ($85M revenue, 300 employees, private-equity owned). We are replacing a retiring Controller.\n\nThe role\n- Lead a team of six (AP, AR, payroll, two staff accountants, a cost accountant).\n- Own the monthly close and consolidated reporting for two operating entities and a holding company in Microsoft Dynamics 365 Business Central.\n- Own inventory and standard-cost accounting, including annual cost roll and physical inventory.\n- Run the annual audit with our Big 4 auditors and the quarterly lender reporting package.\n- Maintain the internal control framework the PE sponsor expects (SOX-style, not SEC-registered).\n- Partner with the CFO on the budget and on integrating acquisitions.\n\nMust have\n- CPA.\n- 5+ years of progressive accounting experience, at least 3 as a Controller or Assistant Controller in a manufacturing business.\n- Experience with Microsoft Dynamics 365 (Business Central or Finance).\n- Standard costing and inventory valuation under US GAAP.\n- Mountain time; on-site in Denver 3 days a week.\n\nPreferred\n- CMA.\n- Purchase accounting / acquisition integration experience.\n- Power BI for management reporting.",
       "requirements": {
         "title": "Controller",
@@ -149,7 +164,9 @@
           "Purchase accounting / acquisition integration experience",
           "Power BI for management reporting"
         ],
-        "timezone": "America/Denver"
+        "timezone": "America/Denver",
+        "min_overlap_hours": null,
+        "hours_per_week": null
       }
     },
     {
@@ -158,6 +175,10 @@
       "company": "Harbor & Vine",
       "status": "open",
       "starts_in_days": 30,
+      "intake": {
+        "min_overlap_hours": 4,
+        "hours_per_week": 40
+      },
       "description": "Harbor & Vine is a direct-to-consumer home goods brand ($120M revenue) headquartered in New York. We are hiring an FP&A Manager to own the operating plan.\n\nYou will\n- Own the annual budget and the monthly rolling forecast in Workday Adaptive Planning.\n- Build and maintain the three-statement model and the weekly cash forecast.\n- Deliver the monthly variance analysis and the board reporting pack.\n- Partner with marketing on CAC/LTV and with operations on inventory and freight forecasts.\n- Manage one senior financial analyst.\n\nRequirements\n- 5+ years in FP&A or corporate finance, including at least 1 year managing a planning tool.\n- Advanced Excel modelling.\n- Experience administering Workday Adaptive Planning (or a comparable tool with a willingness to learn ours).\n- Eastern time; hybrid in New York.\n\nPreferred\n- E-commerce or consumer brand experience.\n- SQL or Looker for self-serve reporting.\n- NetSuite as the source ledger.\n- CFA or CPA.",
       "requirements": {
         "title": "FP&A Manager",
@@ -198,7 +219,9 @@
           "NetSuite as the source ledger",
           "CFA or CPA"
         ],
-        "timezone": "America/New_York"
+        "timezone": "America/New_York",
+        "min_overlap_hours": null,
+        "hours_per_week": null
       }
     },
     {
@@ -207,6 +230,9 @@
       "company": "Ridgeline Advisory Group",
       "status": "open",
       "starts_in_days": 60,
+      "intake": {
+        "hours_per_week": 40
+      },
       "description": "Ridgeline Advisory Group is a 45-person CPA firm in Atlanta serving closely held businesses, real estate partnerships and their owners. We are adding a Tax Manager ahead of the 2027 filing season.\n\nResponsibilities\n- Review federal and multi-state returns for partnerships, S-corporations and C-corporations, plus the related individual returns.\n- Manage a portfolio of 60-80 clients and their quarterly estimates.\n- Handle IRS and state notices and represent clients in examinations.\n- Prepare and review ASC 740 provisions for our handful of audited corporate clients.\n- Supervise and develop two tax seniors and a seasonal associate.\n\nRequirements\n- Active US CPA license; you will sign client returns (an EA with a strong review background will be considered for a Senior title).\n- 7+ years of public accounting tax experience, 2+ reviewing.\n- Deep experience with partnership taxation and real estate.\n- Comfortable in QuickBooks for client books cleanup.\n- Eastern time zone; hybrid in Atlanta during busy season.\n\nPreferred\n- CCH Axcess or similar tax software.\n- Experience with R&D credit studies.\n- Master of Taxation.",
       "requirements": {
         "title": "Tax Manager",
@@ -251,7 +277,9 @@
           "Experience with R&D credit studies",
           "Master of Taxation"
         ],
-        "timezone": "America/New_York"
+        "timezone": "America/New_York",
+        "min_overlap_hours": null,
+        "hours_per_week": null
       }
     },
     {
@@ -260,6 +288,10 @@
       "company": "Summit Ridge Health",
       "status": "open",
       "starts_in_days": 14,
+      "intake": {
+        "min_overlap_hours": 4,
+        "hours_per_week": 40
+      },
       "description": "Summit Ridge Health operates 14 outpatient clinics across Colorado and New Mexico with 1,100 employees, many of them hourly and some on multi-state schedules. We are hiring a Payroll Manager.\n\nWhat you will own\n- Bi-weekly payroll for 1,100 employees in ADP Workforce Now, including shift differentials, on-call pay and retro adjustments.\n- Multi-state payroll tax registrations, filings and reconciliations.\n- Payroll journal entries and accruals for the accounting team, and the monthly benefits reconciliation.\n- Year-end: W-2s, ACA reporting, 401(k) audit support.\n- Two payroll specialists report to you.\n\nRequirements\n- CPP (Certified Payroll Professional).\n- 6+ years of payroll experience, 2+ supervising.\n- ADP Workforce Now administration.\n- Multi-state payroll tax expertise.\n- Mountain time; on-site in Denver.\n\nPreferred\n- Healthcare or other 24/7 hourly workforce experience.\n- Excel for reconciliations and audit schedules.\n- SHRM-CP.",
       "requirements": {
         "title": "Payroll Manager",
@@ -305,7 +337,9 @@
           "Excel for reconciliations and audit schedules",
           "SHRM-CP"
         ],
-        "timezone": "America/Denver"
+        "timezone": "America/Denver",
+        "min_overlap_hours": null,
+        "hours_per_week": null
       }
     },
     {
@@ -314,7 +348,7 @@
       "company": "Lantern House Community Foundation",
       "status": "open",
       "starts_in_days": 3,
-      "description": "Lantern House Community Foundation is a $3M nonprofit running housing and after-school programs in Houston. Our bookkeeper is leaving at the end of the month and we need someone who can start right away, about 20 hours a week, fully remote.\n\nResponsibilities\n- Keep the books in QuickBooks Online: AP through Bill.com, deposits, credit-card coding, monthly bank reconciliations.\n- Track restricted vs unrestricted funds by class and prepare grant expense reports.\n- Run payroll journal entries from Gusto and reconcile to the ledger.\n- Prepare the monthly financial package for the executive director and the board treasurer.\n- Support the annual audit and Form 990 with our outside CPA.\n\nRequirements\n- 3+ years of bookkeeping experience, nonprofit preferred.\n- QuickBooks Online and Bill.com.\n- Available to start immediately.\n- Overlap with Central time business hours.\n\nPreferred\n- Certified Public Bookkeeper or QuickBooks ProAdvisor.\n- Experience with fund accounting and grant reporting.\n- Gusto.",
+      "description": "Lantern House Community Foundation is a $3M nonprofit running housing and after-school programs in Houston. Our bookkeeper is leaving at the end of the month and we need someone who can start right away, about 20 hours a week, fully remote.\n\nResponsibilities\n- Keep the books in QuickBooks Online: AP through Bill.com, deposits, credit-card coding, monthly bank reconciliations.\n- Track restricted vs unrestricted funds by class and prepare grant expense reports.\n- Run payroll journal entries from Gusto and reconcile to the ledger.\n- Prepare the monthly financial package for the executive director and the board treasurer.\n- Support the annual audit and Form 990 with our outside CPA.\n\nRequirements\n- 3+ years of bookkeeping experience, nonprofit preferred.\n- QuickBooks Online and Bill.com.\n- Available to start immediately.\n- At least 4 hours of overlap with Central time business hours.\n\nPreferred\n- Certified Public Bookkeeper or QuickBooks ProAdvisor.\n- Experience with fund accounting and grant reporting.\n- Gusto.",
       "requirements": {
         "title": "Bookkeeper (part-time, remote)",
         "required_certifications": [],
@@ -343,14 +377,16 @@
           "3+ years of bookkeeping experience, nonprofit preferred",
           "QuickBooks Online and Bill.com",
           "Available to start immediately",
-          "Overlap with Central time business hours"
+          "At least 4 hours of overlap with Central time business hours"
         ],
         "nice_to_haves": [
           "Certified Public Bookkeeper or QuickBooks ProAdvisor",
           "Experience with fund accounting and grant reporting",
           "Gusto"
         ],
-        "timezone": "America/Chicago"
+        "timezone": "America/Chicago",
+        "min_overlap_hours": 4,
+        "hours_per_week": 20
       }
     },
     {
@@ -359,6 +395,10 @@
       "company": "Tessellate Software",
       "status": "open",
       "starts_in_days": 30,
+      "intake": {
+        "min_overlap_hours": 6,
+        "hours_per_week": 40
+      },
       "description": "Tessellate Software sells workflow software to mid-market logistics companies ($45M ARR, Series C, Austin). We are hiring a Revenue Accountant as we prepare for our first Big 4 audit.\n\nYou will\n- Own revenue recognition under ASC 606 for subscription, implementation and usage-based contracts: contract review, SSP allocation, modifications.\n- Maintain the deferred revenue and unbilled schedules in NetSuite (Advanced Revenue Management) and reconcile them to Salesforce bookings.\n- Own commission capitalisation and amortisation under ASC 340-40.\n- Build the revenue section of the audit PBC list and write technical memos for non-standard deals.\n- Report ARR, bookings and churn to FP&A monthly.\n\nRequirements\n- 4+ years of accounting experience, 2+ in revenue recognition at a SaaS company.\n- NetSuite (ARM preferred).\n- Salesforce as the CRM system of record.\n- Working knowledge of ASC 606 and ASC 340-40.\n- Central time hours; remote within the US.\n\nPreferred\n- CPA.\n- Stripe billing.\n- Experience preparing for a first audit.",
       "requirements": {
         "title": "Revenue Accountant",
@@ -395,7 +435,9 @@
           "Stripe billing",
           "Experience preparing for a first audit"
         ],
-        "timezone": "America/Chicago"
+        "timezone": "America/Chicago",
+        "min_overlap_hours": null,
+        "hours_per_week": null
       }
     },
     {
@@ -404,6 +446,10 @@
       "company": "Kestrel Payments Ltd",
       "status": "open",
       "starts_in_days": 30,
+      "intake": {
+        "min_overlap_hours": 3,
+        "hours_per_week": 35
+      },
       "description": "Kestrel Payments is a London fintech (FCA-regulated payments institution, 180 staff) with a US parent. We are hiring a Financial Accountant to own the UK statutory and group reporting.\n\nResponsibilities\n- Prepare monthly management accounts for the UK entity in Xero and the group reporting pack for the US parent (US GAAP conversion adjustments).\n- Prepare the annual statutory accounts under IFRS / FRS 102 and manage the audit.\n- Quarterly VAT returns and the FCA safeguarding reconciliations.\n- Balance sheet reconciliations, intercompany recharges and transfer pricing entries.\n- Support the migration from Xero to NetSuite next year.\n\nRequirements\n- ACCA qualified (or ACA / CA).\n- 4+ years post-qualification experience with statutory accounts.\n- Xero.\n- IFRS and UK GAAP; exposure to US GAAP group reporting.\n- Based in the UK or Ireland; hybrid in London.\n\nPreferred\n- Fintech or regulated-entity experience.\n- NetSuite.\n- Power BI.",
       "requirements": {
         "title": "Financial Accountant (IFRS)",
@@ -448,7 +494,9 @@
           "NetSuite",
           "Power BI"
         ],
-        "timezone": "Europe/London"
+        "timezone": "Europe/London",
+        "min_overlap_hours": null,
+        "hours_per_week": null
       }
     },
     {
@@ -457,6 +505,10 @@
       "company": "Pinecrest Logistics",
       "status": "open",
       "starts_in_days": 21,
+      "intake": {
+        "min_overlap_hours": 4,
+        "hours_per_week": 40
+      },
       "description": "Pinecrest Logistics is a third-party logistics provider with 12 warehouses in the Midwest ($300M revenue). Our shared-services AP team in Chicago is adding a specialist.\n\nWhat you will do\n- Process 2,500+ vendor invoices a month in SAP with three-way match against purchase orders and goods receipts.\n- Manage the expense-report queue in SAP Concur and enforce policy.\n- Resolve vendor statement discrepancies and own the weekly payment run.\n- Support month-end AP accruals and the AP ageing review.\n\nRequirements\n- 2+ years of high-volume accounts payable experience.\n- SAP (any module with AP transactions).\n- Central time; on-site in Chicago, start within three weeks.\n\nPreferred\n- SAP Concur.\n- Logistics, distribution or manufacturing background.\n- Excel for reconciliations.\n- Experience with an OCR / invoice automation tool.",
       "requirements": {
         "title": "Accounts Payable Specialist",
@@ -490,7 +542,9 @@
           "Excel for reconciliations",
           "Experience with an OCR / invoice automation tool"
         ],
-        "timezone": "America/Chicago"
+        "timezone": "America/Chicago",
+        "min_overlap_hours": null,
+        "hours_per_week": null
       }
     },
     {
@@ -499,6 +553,9 @@
       "company": "Granite Peak Bank",
       "status": "open",
       "starts_in_days": 45,
+      "intake": {
+        "hours_per_week": 40
+      },
       "description": "Granite Peak Bank is a $6B community bank holding company in Minneapolis. Internal Audit is a team of nine reporting to the Audit Committee; we are adding an auditor with a financial-reporting focus.\n\nResponsibilities\n- Plan and execute financial, operational and SOX 404 audits across lending, deposits and finance.\n- Test internal controls over financial reporting and coordinate with the external auditors on reliance.\n- Write clear findings and follow remediation through to closure.\n- Use data analytics (Alteryx, Power BI) to build full-population tests.\n\nRequirements\n- CIA, or CPA with 3+ years in internal audit.\n- 3+ years of internal or external audit experience, banking preferred.\n- Working knowledge of SOX 404 and COSO.\n- Central time; hybrid in Minneapolis.\n\nPreferred\n- CISA or CFE.\n- Alteryx or SQL.\n- Experience auditing an Oracle or SAP general ledger.",
       "requirements": {
         "title": "Internal Auditor",
@@ -543,7 +600,9 @@
           "Alteryx or SQL",
           "Experience auditing an Oracle or SAP general ledger"
         ],
-        "timezone": "America/Chicago"
+        "timezone": "America/Chicago",
+        "min_overlap_hours": null,
+        "hours_per_week": null
       }
     },
     {
@@ -552,6 +611,10 @@
       "company": "Juniper Robotics",
       "status": "open",
       "starts_in_days": 14,
+      "intake": {
+        "min_overlap_hours": 3,
+        "hours_per_week": 15
+      },
       "description": "Juniper Robotics builds warehouse picking robots (Series B, $18M ARR, 90 employees, Seattle). We are looking for a fractional CFO for roughly two days a week ahead of a Series C next year.\n\nScope\n- Own the financial model, the board deck and investor reporting.\n- Lead diligence readiness: clean up the NetSuite ledger, first-year audit, GAAP conversion of legacy cash-basis periods.\n- Manage the cap table in Carta, option grants and 409A timing.\n- Stand up FP&A discipline: annual plan, monthly variance review, headcount planning.\n- Oversee the controller and the outsourced tax provider.\n\nRequirements\n- CPA.\n- 15+ years of finance experience with at least one venture-backed company through a priced round.\n- NetSuite.\n- Comfortable with cap-table and equity accounting.\n- Pacific time; on-site in Seattle one day a week.\n\nPreferred\n- Carta administration.\n- Hardware or robotics experience (inventory, capitalised R&D).\n- Prior fractional or interim work.",
       "requirements": {
         "title": "Fractional CFO",
@@ -595,7 +658,9 @@
           "Hardware or robotics experience (inventory, capitalised R&D)",
           "Prior fractional or interim work"
         ],
-        "timezone": "America/Los_Angeles"
+        "timezone": "America/Los_Angeles",
+        "min_overlap_hours": null,
+        "hours_per_week": null
       }
     }
   ]

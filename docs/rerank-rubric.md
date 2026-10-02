@@ -14,9 +14,9 @@ that module, bump `VERSION`, and run `make rubric-render generate`.
 
 ## What is scored
 
-The rerank sees candidates that already passed the hard filters in SQL
-(certifications, required software, minimum years, start date; see the
-README). It reads the role and each candidate's text and judges what a filter
+The rerank sees candidates that already passed the hard filters
+(certifications, required software, minimum years, and the start date, hours
+a week and time-zone overlap the candidate supplied; see the README). It reads the role and each candidate's text and judges what a filter
 cannot: the must-haves that are only prose, how deep the experience is, and
 whether a named tool was actually used.
 

@@ -26,6 +26,8 @@
       "Interest in eventually building out a finance function"
     ],
     "timezone": null,
+    "min_overlap_hours": null,
+    "hours_per_week": null,
     "starts_on": null
   },
   "hard_filter_matches": [

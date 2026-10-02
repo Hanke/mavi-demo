@@ -322,8 +322,8 @@ type ParseJDResponse struct {
 	// Requirements What the JD parser extracts. Maps onto roles.
 	//
 	// Requirements come in two tiers that mirror the candidate profile. The
-	// must-haves (`required_*`, `min_years_experience`, `starts_on`, `timezone`)
-	// are the hard filters, see HARD_FILTER_COLUMNS. The nice-to-haves
+	// must-haves (`required_*`, `min_years_experience`, `starts_on`, `timezone`,
+	// `min_overlap_hours`, `hours_per_week`) are the hard filters, see HARD_FILTER_COLUMNS. The nice-to-haves
 	// (`preferred_*`) never exclude anyone: holding any one of them counts in a
 	// candidate's favour, so "CPP or FPC" is simply both ids.
 	Requirements RoleRequirements `json:"requirements"`
@@ -457,13 +457,19 @@ type RerankResult struct {
 // RoleRequirements What the JD parser extracts. Maps onto roles.
 //
 // Requirements come in two tiers that mirror the candidate profile. The
-// must-haves (`required_*`, `min_years_experience`, `starts_on`, `timezone`)
-// are the hard filters, see HARD_FILTER_COLUMNS. The nice-to-haves
+// must-haves (`required_*`, `min_years_experience`, `starts_on`, `timezone`,
+// `min_overlap_hours`, `hours_per_week`) are the hard filters, see HARD_FILTER_COLUMNS. The nice-to-haves
 // (`preferred_*`) never exclude anyone: holding any one of them counts in a
 // candidate's favour, so "CPP or FPC" is simply both ids.
 type RoleRequirements struct {
+	// HoursPerWeek Fewest hours a week the JD accepts, when it gives a number; null if it gives none.
+	HoursPerWeek *int `json:"hours_per_week,omitempty"`
+
 	// Industries Industry context of the role, as taxonomy ids.
 	Industries []string `json:"industries,omitempty"`
+
+	// MinOverlapHours Hours a day the candidate's working hours must overlap the role's working day, when the JD gives a number; null if it gives none.
+	MinOverlapHours *int `json:"min_overlap_hours,omitempty"`
 
 	// MinYearsExperience Fewest total years of professional experience the JD accepts; null if it gives no number.
 	MinYearsExperience *int `json:"min_years_experience,omitempty"`

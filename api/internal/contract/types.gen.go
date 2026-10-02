@@ -164,8 +164,22 @@ func (e RoleStatus) Valid() bool {
 	}
 }
 
-// Availability defines model for Availability.
+// Availability What the resume suggests. The filters use `WorkAvailability`, which the candidate supplies.
 type Availability string
+
+// AvailabilityCheck One candidate against one role's availability and time-zone filters.
+type AvailabilityCheck struct {
+	// CandidateID A UUID, as text.
+	CandidateID   ID     `json:"candidate_id"`
+	CandidateName string `json:"candidate_name"`
+
+	// OverlapHours Hours of the role's working day the candidate's working hours cover; null when the role has no time zone or the candidate no availability.
+	OverlapHours *float64 `json:"overlap_hours"`
+	Passed       bool     `json:"passed"`
+
+	// Reasons Why the candidate does not pass, in words; empty when they do.
+	Reasons []string `json:"reasons"`
+}
 
 // CalendarDate A calendar day, `YYYY-MM-DD`.
 type CalendarDate = Date
@@ -207,6 +221,9 @@ type CandidateInput struct {
 
 // CandidateStatus defines model for CandidateStatus.
 type CandidateStatus string
+
+// ClockTime A time of day on a 24-hour clock, `HH:MM`.
+type ClockTime = string
 
 // Error defines model for Error.
 type Error struct {
@@ -360,6 +377,7 @@ type Persona string
 
 // Profile One structured profile per candidate, with the hard-filter columns promoted out of the JSON.
 type Profile struct {
+	// Availability What the resume suggests. The filters use `WorkAvailability`, which the candidate supplies.
 	Availability  Availability  `json:"availability"`
 	AvailableFrom *CalendarDate `json:"available_from"`
 
@@ -419,8 +437,14 @@ type Role struct {
 	EmbeddedAt     *time.Time `json:"embedded_at"`
 	EmbeddingModel *string    `json:"embedding_model"`
 
+	// HoursPerWeek Hours a week the role needs; a candidate must offer at least as many. `null` when the role does not ask.
+	HoursPerWeek *int `json:"hours_per_week"`
+
 	// ID A UUID, as text.
 	ID ID `json:"id"`
+
+	// MinOverlapHours Hours of the role's working day a candidate's working hours must cover; `null` when the role does not ask.
+	MinOverlapHours *int `json:"min_overlap_hours"`
 
 	// MinYearsExperience Fewest years of experience the role accepts; `null` when the JD gives no number (a `0` sent in is stored as `null`).
 	MinYearsExperience *int     `json:"min_years_experience"`
@@ -437,9 +461,11 @@ type Role struct {
 	Requirements JSONObject    `json:"requirements"`
 	StartsOn     *CalendarDate `json:"starts_on"`
 	Status       RoleStatus    `json:"status"`
-	Timezone     *string       `json:"timezone"`
-	Title        string        `json:"title"`
-	UpdatedAt    time.Time     `json:"updated_at"`
+
+	// Timezone IANA zone the role operates in. Its working day is 09:00 to 17:00 there.
+	Timezone  *string   `json:"timezone"`
+	Title     string    `json:"title"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // RoleInput Body for creating or updating a role. Every field is optional on the
@@ -449,7 +475,13 @@ type RoleInput struct {
 	Company *string `json:"company,omitempty"`
 
 	// Description `null` clears it to an empty string.
-	Description            *string       `json:"description,omitempty"`
+	Description *string `json:"description,omitempty"`
+
+	// HoursPerWeek Supply it at intake when the JD does not state it; a `0` is stored as `null`.
+	HoursPerWeek *int `json:"hours_per_week,omitempty"`
+
+	// MinOverlapHours Needs `timezone`. Supply it at intake when the JD does not state it; a `0` is stored as `null`.
+	MinOverlapHours        *int          `json:"min_overlap_hours,omitempty"`
 	MinYearsExperience     *int          `json:"min_years_experience,omitempty"`
 	MustHaves              []string      `json:"must_haves,omitempty"`
 	NiceToHaves            []string      `json:"nice_to_haves,omitempty"`
@@ -466,6 +498,41 @@ type RoleInput struct {
 
 // RoleStatus defines model for RoleStatus.
 type RoleStatus string
+
+// WorkAvailability When and where the candidate can work, as the candidate gave it. All four answers or none.
+type WorkAvailability struct {
+	// AvailableFrom The earliest day the candidate can start.
+	AvailableFrom CalendarDate `json:"available_from"`
+
+	// CandidateID A UUID, as text.
+	CandidateID  ID        `json:"candidate_id"`
+	CreatedAt    time.Time `json:"created_at"`
+	HoursPerWeek int       `json:"hours_per_week"`
+
+	// Timezone IANA zone name, e.g. `America/Chicago`.
+	Timezone  string    `json:"timezone"`
+	UpdatedAt time.Time `json:"updated_at"`
+
+	// WorkEnd End of the working hours. At or before `work_start` means they run past midnight.
+	WorkEnd ClockTime `json:"work_end"`
+
+	// WorkStart Start of the candidate's working hours, in their own time zone.
+	WorkStart ClockTime `json:"work_start"`
+}
+
+// WorkAvailabilityInput Body for `PUT …/availability`. Every field is required; they are optional on the wire so a missing one is a 422 naming it.
+type WorkAvailabilityInput struct {
+	// AvailableFrom A calendar day, `YYYY-MM-DD`.
+	AvailableFrom *CalendarDate `json:"available_from,omitempty"`
+	HoursPerWeek  *int          `json:"hours_per_week,omitempty"`
+	Timezone      *string       `json:"timezone,omitempty"`
+
+	// WorkEnd A time of day on a 24-hour clock, `HH:MM`.
+	WorkEnd *ClockTime `json:"work_end,omitempty"`
+
+	// WorkStart A time of day on a 24-hour clock, `HH:MM`.
+	WorkStart *ClockTime `json:"work_start,omitempty"`
+}
 
 // Limit defines model for Limit.
 type Limit = int
@@ -539,11 +606,21 @@ type ListRolesParams struct {
 	Offset *Offset `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// ListRoleAvailabilityParams defines parameters for ListRoleAvailability.
+type ListRoleAvailabilityParams struct {
+	// Limit Page size; default 50, max 200.
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *Offset `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // CreateCandidateJSONRequestBody defines body for CreateCandidate for application/json ContentType.
 type CreateCandidateJSONRequestBody = CandidateInput
 
 // UpdateCandidateJSONRequestBody defines body for UpdateCandidate for application/json ContentType.
 type UpdateCandidateJSONRequestBody = CandidateInput
+
+// PutAvailabilityJSONRequestBody defines body for PutAvailability for application/json ContentType.
+type PutAvailabilityJSONRequestBody = WorkAvailabilityInput
 
 // PutProfileJSONRequestBody defines body for PutProfile for application/json ContentType.
 type PutProfileJSONRequestBody = ProfileInput

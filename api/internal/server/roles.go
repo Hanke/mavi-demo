@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -50,6 +51,13 @@ func (s *Server) applyRole(b contract.RoleInput, base store.RoleInput, sent body
 	if sent.has("timezone") {
 		base.Timezone = strPtr(b.Timezone)
 	}
+	// As with the minimum years, 0 is "does not ask" and is stored as NULL.
+	if sent.has("min_overlap_hours") {
+		base.MinOverlapHours = positive(b.MinOverlapHours)
+	}
+	if sent.has("hours_per_week") {
+		base.HoursPerWeek = positive(b.HoursPerWeek)
+	}
 	if sent.has("starts_on") {
 		base.StartsOn = b.StartsOn
 	}
@@ -66,7 +74,24 @@ func (s *Server) applyRole(b contract.RoleInput, base store.RoleInput, sent body
 		v.add("min_years_experience", "must be between 0 and 70")
 	}
 	validTimezone(v, "timezone", base.Timezone)
+	if h := base.MinOverlapHours; h != nil && (*h < 0 || *h > maxOverlapHours) {
+		v.add("min_overlap_hours", fmt.Sprintf("must be between 0 and %d, the length of the role's working day", maxOverlapHours))
+	} else if h != nil && base.Timezone == nil {
+		// An overlap is with the role's working day, which needs a zone to be in.
+		v.add("timezone", "required when min_overlap_hours is set")
+	}
+	if h := base.HoursPerWeek; h != nil && (*h < 0 || *h > maxHoursPerWeek) {
+		v.add("hours_per_week", fmt.Sprintf("must be between 0 and %d", maxHoursPerWeek))
+	}
 	return base, v.err()
+}
+
+// positive is nil for a missing or zero value.
+func positive(p *int) *int {
+	if p == nil || *p == 0 {
+		return nil
+	}
+	return p
 }
 
 func (s *Server) createRole(w http.ResponseWriter, r *http.Request) {
@@ -156,7 +181,8 @@ func (s *Server) updateRole(w http.ResponseWriter, r *http.Request) {
 		MustHaves: cur.MustHaves, NiceToHaves: cur.NiceToHaves,
 		RequiredCertifications: cur.RequiredCertifications, RequiredSoftware: cur.RequiredSoftware,
 		MinYearsExperience: cur.MinYearsExperience,
-		Timezone:           cur.Timezone, StartsOn: cur.StartsOn, Status: string(cur.Status),
+		Timezone:           cur.Timezone, MinOverlapHours: cur.MinOverlapHours, HoursPerWeek: cur.HoursPerWeek,
+		StartsOn: cur.StartsOn, Status: string(cur.Status),
 	}, sent)
 	if err != nil {
 		fail(w, err)

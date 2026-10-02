@@ -111,7 +111,7 @@ func TestMigrateRoundTrip(t *testing.T) {
 	if err := Migrate(ctx, pool, dir); err != nil {
 		t.Fatalf("up: %v", err)
 	}
-	wantTables := []string{"documents", "candidates", "candidate_profiles", "roles", "matches", "review_events", "jobs"}
+	wantTables := []string{"documents", "candidates", "candidate_profiles", "candidate_availability", "roles", "matches", "review_events", "jobs"}
 	for _, tbl := range wantTables {
 		if !tableExists(t, pool, tbl) {
 			t.Errorf("after up: table %s missing", tbl)
@@ -478,17 +478,33 @@ func TestSeedIsVariedAndQueuesEmbeddings(t *testing.T) {
 		t.Errorf("seed wrote %d embeddings directly; they come from the embed jobs", n)
 	}
 
+	// Most candidates have said when and where they can work; some have not,
+	// and those are the ones the availability filter must exclude.
+	answered := queryInt(t, pool, `SELECT count(*) FROM candidate_availability`)
+	if answered < candidates*7/10 || answered > candidates*19/20 {
+		t.Errorf("%d of %d candidates have supplied their availability; want most, not all", answered, candidates)
+	}
+	if n := queryInt(t, pool, `SELECT count(*) FROM roles WHERE min_overlap_hours IS NOT NULL`); n < 3 {
+		t.Errorf("only %d roles require a time-zone overlap", n)
+	}
+	if n := queryInt(t, pool, `SELECT count(DISTINCT hours_per_week) FROM roles WHERE hours_per_week IS NOT NULL`); n < 2 {
+		t.Errorf("roles ask for %d distinct hours a week; want part-time and full-time", n)
+	}
+
 	// Every sample role's hard filters (the README shortlist query) select
-	// some, but not nearly all, candidates.
+	// some, but not nearly all, candidates. The inner join on
+	// candidate_availability is what drops a candidate who has not answered.
 	rows, err := pool.Query(ctx, `
-		SELECT r.title, count(p.id)
+		SELECT r.title, count(c.id)
 		FROM roles r
-		LEFT JOIN candidate_profiles p
+		LEFT JOIN (candidate_profiles p
+			JOIN candidate_availability a ON a.candidate_id = p.candidate_id
+			JOIN candidates c ON c.id = p.candidate_id AND c.status = 'active')
 		  ON p.certifications @> r.required_certifications
 		 AND p.software       @> r.required_software
 		 AND (r.min_years_experience IS NULL OR p.years_experience >= r.min_years_experience)
-		 AND (r.starts_on IS NULL OR p.available_from <= r.starts_on)
-		LEFT JOIN candidates c ON c.id = p.candidate_id AND c.status = 'active'
+		 AND (r.starts_on IS NULL OR a.available_from <= r.starts_on)
+		 AND (r.hours_per_week IS NULL OR a.hours_per_week >= r.hours_per_week)
 		GROUP BY r.id, r.title`)
 	if err != nil {
 		t.Fatal(err)

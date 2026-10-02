@@ -32,6 +32,8 @@
       "Healthcare technology background"
     ],
     "timezone": "America/Los_Angeles",
+    "min_overlap_hours": null,
+    "hours_per_week": null,
     "starts_on": "2026-11-02"
   },
   "hard_filter_matches": ["senior_accountant_cpa_netsuite"]

@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -36,6 +37,17 @@ func (s *Server) createMatch(w http.ResponseWriter, r *http.Request) {
 	in.Breakdown = jsonObject(v, "breakdown", b.Breakdown)
 	validateMatchFields(v, in.Score, in.Status)
 	if err := v.err(); err != nil {
+		fail(w, err)
+		return
+	}
+	// A candidate who has not said when and where they can work is excluded
+	// from matching, whoever proposes the match. Whether the answers fit the
+	// role is ops' call here: GET /roles/{id}/availability shows it.
+	if _, err := s.store.GetAvailability(r.Context(), in.CandidateID); errors.Is(err, store.ErrNotFound) {
+		v.add("candidate_id", "has not given their time zone, working hours, hours per week and start date, so cannot be matched")
+		fail(w, v.err())
+		return
+	} else if err != nil {
 		fail(w, err)
 		return
 	}

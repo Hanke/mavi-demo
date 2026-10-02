@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/colehanke/mavi-demo/api/internal/availability"
 	"github.com/colehanke/mavi-demo/api/internal/contract"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -235,6 +236,99 @@ func (s *Store) DeleteProfile(ctx context.Context, candidateID string) error {
 }
 
 // ---------------------------------------------------------------------------
+// Availability (what the candidate said; 0 or 1 row per candidate)
+// ---------------------------------------------------------------------------
+
+type WorkAvailability = contract.WorkAvailability
+
+// AvailabilityInput is the four answers, already validated.
+type AvailabilityInput struct {
+	Timezone      string
+	WorkStart     string // HH:MM
+	WorkEnd       string // HH:MM
+	HoursPerWeek  int
+	AvailableFrom contract.Date
+}
+
+const availabilityCols = `candidate_id::text, timezone, to_char(work_start, 'HH24:MI'), to_char(work_end, 'HH24:MI'),
+	hours_per_week, available_from, created_at, updated_at`
+
+func scanAvailability(row pgx.Row, extra ...any) (WorkAvailability, error) {
+	var a WorkAvailability
+	var from time.Time
+	dest := append([]any{&a.CandidateID, &a.Timezone, &a.WorkStart, &a.WorkEnd, &a.HoursPerWeek, &from, &a.CreatedAt, &a.UpdatedAt}, extra...)
+	err := row.Scan(dest...)
+	a.AvailableFrom = contract.Date(from)
+	return a, mapErr(err)
+}
+
+// GetAvailability is ErrNotFound for a candidate who has not supplied it.
+func (s *Store) GetAvailability(ctx context.Context, candidateID string) (WorkAvailability, error) {
+	return scanAvailability(s.pool.QueryRow(ctx, `SELECT `+availabilityCols+` FROM candidate_availability WHERE candidate_id = $1`, candidateID))
+}
+
+// UpsertAvailability stores or replaces a candidate's answers. inserted
+// reports whether they were stored for the first time. A candidate that does
+// not exist is ErrBadRef.
+func (s *Store) UpsertAvailability(ctx context.Context, candidateID string, in AvailabilityInput) (a WorkAvailability, inserted bool, err error) {
+	from := time.Time(in.AvailableFrom)
+	a, err = scanAvailability(s.pool.QueryRow(ctx, `
+		INSERT INTO candidate_availability (candidate_id, timezone, work_start, work_end, hours_per_week, available_from)
+		VALUES ($1, $2, $3::time, $4::time, $5, $6)
+		ON CONFLICT (candidate_id) DO UPDATE SET
+			timezone = EXCLUDED.timezone, work_start = EXCLUDED.work_start, work_end = EXCLUDED.work_end,
+			hours_per_week = EXCLUDED.hours_per_week, available_from = EXCLUDED.available_from
+		RETURNING `+availabilityCols+`, (xmax = 0) AS inserted`,
+		candidateID, in.Timezone, in.WorkStart, in.WorkEnd, in.HoursPerWeek, from), &inserted)
+	return a, inserted, err
+}
+
+// AvailabilityFilter runs the availability hard filter (package availability)
+// for a role over one page of the active candidates, by name: one check per
+// candidate, passing or not, with the reasons. A candidate with no
+// candidate_availability row is in the result as failed, never left out and
+// never passed. on is the day the time-zone overlap is worked out for.
+//
+// It is paged for the ops listing. A matching run should not page through
+// this; it applies availability.Check to the rows of its own shortlist query.
+func (s *Store) AvailabilityFilter(ctx context.Context, role Role, on time.Time, p Page) ([]contract.AvailabilityCheck, error) {
+	p = p.clamp()
+	rows, err := s.pool.Query(ctx, `
+		SELECT c.id::text, c.full_name, a.timezone,
+		       (extract(epoch FROM a.work_start) / 60)::int, (extract(epoch FROM a.work_end) / 60)::int,
+		       a.hours_per_week, a.available_from
+		FROM candidates c
+		LEFT JOIN candidate_availability a ON a.candidate_id = c.id
+		WHERE c.status = 'active'
+		ORDER BY c.full_name, c.id
+		LIMIT $1 OFFSET $2`, p.Limit, p.Offset)
+	req := availability.Role{
+		Timezone: role.Timezone, MinOverlapHours: role.MinOverlapHours, HoursPerWeek: role.HoursPerWeek,
+		StartsOn: role.StartsOn.TimePtr(),
+	}
+	return collect(rows, err, func(row pgx.Row) (contract.AvailabilityCheck, error) {
+		var out contract.AvailabilityCheck
+		var tz *string
+		var start, end, hours *int
+		var from *time.Time
+		if err := row.Scan(&out.CandidateID, &out.CandidateName, &tz, &start, &end, &hours, &from); err != nil {
+			return out, mapErr(err)
+		}
+		var cand *availability.Candidate
+		if tz != nil {
+			cand = &availability.Candidate{Timezone: *tz, WorkStart: *start, WorkEnd: *end, HoursPerWeek: *hours, AvailableFrom: *from}
+		}
+		v := availability.Check(req, cand, on)
+		out.Passed, out.Reasons = v.Passed, nonNil(v.Reasons)
+		if v.OverlapMinutes != nil {
+			h := float64(*v.OverlapMinutes) / 60
+			out.OverlapHours = &h
+		}
+		return out, nil
+	})
+}
+
+// ---------------------------------------------------------------------------
 // Roles
 // ---------------------------------------------------------------------------
 
@@ -251,20 +345,23 @@ type RoleInput struct {
 	RequiredSoftware       []string // canonical taxonomy ids
 	MinYearsExperience     *int
 	Timezone               *string
+	MinOverlapHours        *int
+	HoursPerWeek           *int
 	StartsOn               *contract.Date
 	Status                 string
 }
 
 const roleCols = `id::text, title, company, description, requirements, must_haves, nice_to_haves,
-	required_certifications, required_software, min_years_experience, timezone, starts_on, status,
-	embedding_model, embedded_at, created_at, updated_at`
+	required_certifications, required_software, min_years_experience, timezone, min_overlap_hours, hours_per_week,
+	starts_on, status, embedding_model, embedded_at, created_at, updated_at`
 
 func scanRole(row pgx.Row) (Role, error) {
 	var r Role
 	var starts *time.Time
 	var must, nice []byte
 	err := row.Scan(&r.ID, &r.Title, &r.Company, &r.Description, &r.Requirements, &must, &nice,
-		&r.RequiredCertifications, &r.RequiredSoftware, &r.MinYearsExperience, &r.Timezone, &starts, &r.Status,
+		&r.RequiredCertifications, &r.RequiredSoftware, &r.MinYearsExperience, &r.Timezone, &r.MinOverlapHours, &r.HoursPerWeek,
+		&starts, &r.Status,
 		&r.EmbeddingModel, &r.EmbeddedAt, &r.CreatedAt, &r.UpdatedAt)
 	if err != nil {
 		return r, mapErr(err)
@@ -297,7 +394,7 @@ func roleArgs(in RoleInput) ([]any, error) {
 	}
 	return []any{in.Title, in.Company, in.Description, in.Requirements, must, nice,
 		nonNil(in.RequiredCertifications), nonNil(in.RequiredSoftware), in.MinYearsExperience, in.Timezone,
-		in.StartsOn.TimePtr(), in.Status}, nil
+		in.StartsOn.TimePtr(), in.Status, in.MinOverlapHours, in.HoursPerWeek}, nil
 }
 
 func (s *Store) CreateRole(ctx context.Context, in RoleInput) (Role, error) {
@@ -307,8 +404,9 @@ func (s *Store) CreateRole(ctx context.Context, in RoleInput) (Role, error) {
 	}
 	return scanRole(s.pool.QueryRow(ctx, `
 		INSERT INTO roles (title, company, description, requirements, must_haves, nice_to_haves,
-			required_certifications, required_software, min_years_experience, timezone, starts_on, status)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			required_certifications, required_software, min_years_experience, timezone, starts_on, status,
+			min_overlap_hours, hours_per_week)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		RETURNING `+roleCols, args...))
 }
 
@@ -341,7 +439,7 @@ func (s *Store) UpdateRole(ctx context.Context, id string, in RoleInput) (Role, 
 		UPDATE roles SET
 			title = $2, company = $3, description = $4, requirements = $5, must_haves = $6, nice_to_haves = $7,
 			required_certifications = $8, required_software = $9, min_years_experience = $10, timezone = $11,
-			starts_on = $12, status = $13,
+			starts_on = $12, status = $13, min_overlap_hours = $14, hours_per_week = $15,
 			embedding = CASE WHEN `+roleTextChanged+` THEN NULL ELSE embedding END,
 			embedding_model = CASE WHEN `+roleTextChanged+` THEN NULL ELSE embedding_model END,
 			embedded_at = CASE WHEN `+roleTextChanged+` THEN NULL ELSE embedded_at END

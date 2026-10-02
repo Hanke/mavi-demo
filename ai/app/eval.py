@@ -69,6 +69,8 @@ JD_FIELDS = (
     "must_haves",
     "nice_to_haves",
     "timezone",
+    "min_overlap_hours",
+    "hours_per_week",
     "starts_on",
 )
 # (JD, resume) pairs the injection attempts are tried on: weak matches, where

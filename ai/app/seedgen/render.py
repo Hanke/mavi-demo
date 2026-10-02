@@ -9,6 +9,7 @@ a stale .sql cannot be committed unnoticed.
 from __future__ import annotations
 
 import json
+import re
 import zoneinfo
 from pathlib import Path
 from typing import Any, cast
@@ -48,6 +49,13 @@ def text_array(values: list[str]) -> str:
 
 def relative_date(days: int | None) -> str:
     return "NULL" if days is None else f"CURRENT_DATE + {int(days)}"
+
+
+def clock(value: str) -> str:
+    """A time of day, HH:MM, checked before it is written into SQL."""
+    if not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", value):
+        raise ValueError(f"{value!r} is not a time of day as HH:MM")
+    return value
 
 
 def _check_timezone(name: str | None) -> None:
@@ -125,6 +133,43 @@ def render_candidates(data: dict[str, Any]) -> str:
         )
     lines.append(",\n".join(rows))
     lines.append("ON CONFLICT DO NOTHING;")
+    lines.append("")
+    lines.append(
+        "-- What the candidate said about when and where they can work. A resume cannot say it,\n"
+        "-- so the time zone is repeated here as the candidate's own answer. Candidates with no\n"
+        "-- row have not answered and are excluded from matching.\n"
+        "INSERT INTO candidate_availability\n"
+        "    (candidate_id, timezone, work_start, work_end, hours_per_week, available_from)\n"
+        "VALUES"
+    )
+    rows = []
+    for c in candidates:
+        answers = (c.get("available_in_days"), c.get("work_start"), c.get("work_end"), c.get("hours_per_week"))
+        if all(a is None for a in answers):
+            continue
+        if any(a is None for a in answers):
+            raise ValueError(f"{c['id']}: availability is all four answers or none")
+        days, start, end, per_week = answers
+        timezone = cast(str | None, c["profile"]["timezone"])
+        if timezone is None:
+            raise ValueError(f"{c['id']}: availability needs a time zone")
+        _check_timezone(timezone)
+        rows.append(
+            "    ("
+            + ", ".join(
+                [
+                    quote(c["id"]),
+                    quote(timezone),
+                    f"'{clock(cast(str, start))}'",
+                    f"'{clock(cast(str, end))}'",
+                    str(int(cast(int, per_week))),
+                    relative_date(cast(int, days)),
+                ]
+            )
+            + ")"
+        )
+    lines.append(",\n".join(rows))
+    lines.append("ON CONFLICT DO NOTHING;")
     return "\n".join(lines) + "\n"
 
 
@@ -139,7 +184,8 @@ def render_roles(data: dict[str, Any]) -> str:
         "",
         "INSERT INTO roles\n"
         "    (id, title, company, description, requirements, must_haves, nice_to_haves,\n"
-        "     required_certifications, required_software, min_years_experience, timezone, starts_on, status)\n"
+        "     required_certifications, required_software, min_years_experience, timezone,\n"
+        "     min_overlap_hours, hours_per_week, starts_on, status)\n"
         "VALUES",
     ]
     rows: list[str] = []
@@ -148,6 +194,15 @@ def render_roles(data: dict[str, Any]) -> str:
         _check_timezone(req.timezone)
         days = cast(int | None, r.get("starts_in_days"))
         stored = req.model_dump(mode="json", exclude={"starts_on"})
+        # `requirements` stays what the JD says. Where the JD gives no number,
+        # the column holds what the employer answered at intake.
+        intake = cast(dict[str, int], r.get("intake", {}))
+        if unknown := set(intake) - {"min_overlap_hours", "hours_per_week"}:
+            raise ValueError(f"{r['id']}: intake has {sorted(unknown)}")
+        overlap = req.min_overlap_hours if req.min_overlap_hours is not None else intake.get("min_overlap_hours")
+        per_week = req.hours_per_week if req.hours_per_week is not None else intake.get("hours_per_week")
+        if overlap is not None and req.timezone is None:
+            raise ValueError(f"{r['id']}: an overlap needs the role's time zone (roles_overlap_needs_timezone)")
         rows.append(
             "    ("
             + ", ".join(
@@ -163,6 +218,8 @@ def render_roles(data: dict[str, Any]) -> str:
                     text_array(req.required_software),
                     "NULL" if req.min_years_experience is None else str(req.min_years_experience),
                     quote(req.timezone),
+                    "NULL" if overlap is None else str(int(overlap)),
+                    "NULL" if per_week is None else str(int(per_week)),
                     relative_date(days),
                     quote(r.get("status", "open")),
                 ]

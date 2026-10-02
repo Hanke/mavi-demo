@@ -46,6 +46,12 @@ class Slot:
     gaap: list[str]
     availability: Availability
     available_in_days: int | None
+    # What the candidate supplies after uploading (candidate_availability):
+    # working hours local to `timezone`, and hours a week. All None, with
+    # available_in_days, for a candidate who has not answered.
+    work_start: str | None
+    work_end: str | None
+    hours_per_week: int | None
     languages: list[str]
 
     def to_dict(self) -> dict[str, Any]:
@@ -810,6 +816,53 @@ AVAILABILITY: tuple[tuple[Availability, int, tuple[int, int] | None], ...] = (
 )
 
 
+# Working hours (local), hours a week. A candidate who has said when they can
+# start has answered these too; one whose availability is unknown or
+# unavailable has answered none, and is excluded from matching.
+WORKING_HOURS: tuple[tuple[str, int], ...] = (
+    ("09:00-17:00", 40),
+    ("08:00-16:00", 15),
+    ("08:30-17:00", 10),
+    ("10:00-18:00", 15),
+    ("07:00-15:00", 8),
+    ("12:00-20:00", 7),
+    ("13:00-17:00", 5),
+)
+# Zones a long way from the US, where some candidates keep US hours overnight.
+US_HOURS_ABROAD: dict[str, tuple[str, float]] = {
+    "Asia/Manila": ("21:00-06:00", 0.75),
+    "Asia/Kolkata": ("18:30-03:30", 0.5),
+}
+HOURS_PER_WEEK: tuple[tuple[str, int], ...] = (("40", 78), ("32", 8), ("30", 5), ("20", 9))
+PART_TIME_ARCHETYPES = {"bookkeeper", "cfo"}
+PART_TIME_HOURS_PER_WEEK: tuple[tuple[str, int], ...] = (("40", 35), ("30", 15), ("25", 15), ("20", 25), ("15", 10))
+
+
+def _working_week(seed: int, index: int, zone: str, archetype: str) -> tuple[str, str, int]:
+    """(work_start, work_end, hours_per_week) for one slot. Drawn from an RNG
+    of its own, so adding these fields did not reshuffle the rest of the plan
+    (the stored resumes were written for it)."""
+    rng = random.Random(f"{seed}:{index}:working-week")
+    hours = _weighted(rng, list(WORKING_HOURS))
+    if zone in US_HOURS_ABROAD:
+        night, share = US_HOURS_ABROAD[zone]
+        if rng.random() < share:
+            hours = night
+    start, end = hours.split("-")
+    weekly = PART_TIME_HOURS_PER_WEEK if archetype in PART_TIME_ARCHETYPES else HOURS_PER_WEEK
+    per_week = int(_weighted(rng, list(weekly)))
+    if hours == "13:00-17:00":
+        per_week = min(per_week, 20)
+    return start, end, per_week
+
+
+def _with_working_week(seed: int, slot: Slot) -> Slot:
+    if slot.available_in_days is None:
+        return slot
+    start, end, per_week = _working_week(seed, slot.index, slot.timezone, slot.archetype)
+    return replace(slot, work_start=start, work_end=end, hours_per_week=per_week)
+
+
 def _weighted(rng: random.Random, options: list[tuple[str, int]]) -> str:
     total = sum(w for _, w in options)
     roll = rng.uniform(0, total)
@@ -950,10 +1003,14 @@ def build_plan(count: int = DEFAULT_COUNT, seed: int = PLAN_SEED) -> list[Slot]:
                 gaap=gaap,
                 availability=availability,
                 available_in_days=available_in_days,
+                work_start=None,
+                work_end=None,
+                hours_per_week=None,
                 languages=languages,
             )
         )
-    slots = _localize(slots)
+    # Working hours come after _localize, which can move a candidate to another zone.
+    slots = [_with_working_week(seed, slot) for slot in _localize(slots)]
     for slot in slots:
         for cid in slot.certifications:
             assert tax.is_canonical("certifications", cid), cid

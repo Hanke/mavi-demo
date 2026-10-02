@@ -154,6 +154,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/candidates/{id}/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Fetch what the candidate said about when and where they can work
+         * @description A 404 until the candidate has supplied it; such a candidate is excluded from matching.
+         */
+        get: operations["getAvailability"];
+        /**
+         * Set or edit the candidate's time zone, working hours, hours per week and start date
+         * @description Availability and time-zone overlap are hard filters that a resume
+         *     cannot answer, so the candidate supplies them, here. All four are
+         *     required and the body replaces whatever was stored. Parsing a resume
+         *     (again) never changes them. Talent may only set their own.
+         */
+        put: operations["putAvailability"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/roles": {
         parameters: {
             query?: never;
@@ -202,6 +231,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/roles/{id}/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Which active candidates pass the role's availability and time-zone filters
+         * @description One entry per active candidate, by name, each with whether it passes
+         *     and, when it does not, why. A candidate who has not supplied their
+         *     availability never passes, whatever the role asks for. Otherwise the
+         *     candidate must be able to start by `starts_on`, offer at least the
+         *     role's `hours_per_week`, and have working hours that cover at least
+         *     `min_overlap_hours` of the role's working day (09:00 to 17:00 in the
+         *     role's `timezone`, on the role's `starts_on`, or on the day of the
+         *     request when it has none). A requirement the role leaves null is not
+         *     checked.
+         */
+        get: operations["listRoleAvailability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/matches": {
         parameters: {
             query?: never;
@@ -217,7 +276,10 @@ export interface paths {
          */
         get: operations["listMatches"];
         put?: never;
-        /** Propose a match between a role and a candidate */
+        /**
+         * Propose a match between a role and a candidate
+         * @description A candidate who has not supplied their availability (`PUT /candidates/{id}/availability`) cannot be matched; that is a 422 on `candidate_id`.
+         */
         post: operations["createMatch"];
         delete?: never;
         options?: never;
@@ -383,8 +445,16 @@ export interface components {
          * @enum {string}
          */
         JobStatus: "queued" | "running" | "succeeded" | "failed";
-        /** @enum {string} */
+        /**
+         * @description What the resume suggests. The filters use `WorkAvailability`, which the candidate supplies.
+         * @enum {string}
+         */
         Availability: "immediate" | "two_weeks" | "one_month" | "unavailable" | "unknown";
+        /**
+         * @description A time of day on a 24-hour clock, `HH:MM`.
+         * @example 09:00
+         */
+        ClockTime: string;
         /** @enum {string} */
         HealthStatus: "ok" | "degraded";
         /**
@@ -475,6 +545,44 @@ export interface components {
             /** @description IANA zone name, e.g. `America/Chicago`. */
             timezone?: string | null;
         };
+        /** @description When and where the candidate can work, as the candidate gave it. All four answers or none. */
+        WorkAvailability: {
+            candidate_id: components["schemas"]["Id"];
+            /** @description IANA zone name, e.g. `America/Chicago`. */
+            timezone: string;
+            /** @description Start of the candidate's working hours, in their own time zone. */
+            work_start: components["schemas"]["ClockTime"];
+            /** @description End of the working hours. At or before `work_start` means they run past midnight. */
+            work_end: components["schemas"]["ClockTime"];
+            hours_per_week: number;
+            /** @description The earliest day the candidate can start. */
+            available_from: components["schemas"]["CalendarDate"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        /** @description Body for `PUT …/availability`. Every field is required; they are optional on the wire so a missing one is a 422 naming it. */
+        WorkAvailabilityInput: {
+            timezone?: string;
+            work_start?: components["schemas"]["ClockTime"];
+            work_end?: components["schemas"]["ClockTime"];
+            hours_per_week?: number;
+            available_from?: components["schemas"]["CalendarDate"];
+        };
+        /** @description One candidate against one role's availability and time-zone filters. */
+        AvailabilityCheck: {
+            candidate_id: components["schemas"]["Id"];
+            candidate_name: string;
+            passed: boolean;
+            /** @description Why the candidate does not pass, in words; empty when they do. */
+            reasons: string[];
+            /**
+             * Format: double
+             * @description Hours of the role's working day the candidate's working hours cover; null when the role has no time zone or the candidate no availability.
+             */
+            overlap_hours: number | null;
+        };
         Role: {
             id: components["schemas"]["Id"];
             title: string;
@@ -491,7 +599,12 @@ export interface components {
             required_software: string[];
             /** @description Fewest years of experience the role accepts; `null` when the JD gives no number (a `0` sent in is stored as `null`). */
             min_years_experience: number | null;
+            /** @description IANA zone the role operates in. Its working day is 09:00 to 17:00 there. */
             timezone: string | null;
+            /** @description Hours of the role's working day a candidate's working hours must cover; `null` when the role does not ask. */
+            min_overlap_hours: number | null;
+            /** @description Hours a week the role needs; a candidate must offer at least as many. `null` when the role does not ask. */
+            hours_per_week: number | null;
             starts_on: components["schemas"]["CalendarDate"] | null;
             status: components["schemas"]["RoleStatus"];
             embedding_model: string | null;
@@ -519,6 +632,10 @@ export interface components {
             required_software?: string[];
             min_years_experience?: number | null;
             timezone?: string | null;
+            /** @description Needs `timezone`. Supply it at intake when the JD does not state it; a `0` is stored as `null`. */
+            min_overlap_hours?: number | null;
+            /** @description Supply it at intake when the JD does not state it; a `0` is stored as `null`. */
+            hours_per_week?: number | null;
             starts_on?: components["schemas"]["CalendarDate"] | null;
             /** @description Defaults to `open` on create. */
             status?: components["schemas"]["RoleStatus"];
@@ -1048,6 +1165,71 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    getAvailability: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The candidate's availability. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkAvailability"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    putAvailability: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkAvailabilityInput"];
+            };
+        };
+        responses: {
+            /** @description Replaced what was stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkAvailability"];
+                };
+            };
+            /** @description Stored for the first time. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkAvailability"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["ValidationFailed"];
+        };
+    };
     listRoles: {
         parameters: {
             query?: {
@@ -1184,6 +1366,35 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
+        };
+    };
+    listRoleAvailability: {
+        parameters: {
+            query?: {
+                /** @description Page size; default 50, max 200. */
+                limit?: components["parameters"]["Limit"];
+                offset?: components["parameters"]["Offset"];
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Active candidates by name. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvailabilityCheck"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     listMatches: {

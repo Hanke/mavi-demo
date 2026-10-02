@@ -146,9 +146,10 @@ def check_experience(profile: CandidateProfile, req: RoleRequirements) -> str | 
 
 
 def check_hard_filters(profile: CandidateProfile, req: RoleRequirements) -> HardFilterResult:
-    """Qualifications, software and years of experience. The shortlist
-    query's start-date clause depends on the availability date the pipeline
-    derives, which a profile does not carry."""
+    """Qualifications, software and years of experience: the filters a
+    resume can answer. Start date, hours a week and time-zone overlap are
+    answered by the candidate, not the profile, and are applied by the API
+    (api/internal/availability)."""
     checks = [check_qualification(profile, r) for r in _requirements(req)]
     missing = [s for s in req.required_software if s not in profile.software]
     short = check_experience(profile, req)

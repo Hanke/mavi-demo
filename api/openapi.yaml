@@ -41,6 +41,7 @@ tags:
   - name: health
   - name: candidates
   - name: profiles
+  - name: availability
   - name: roles
   - name: matches
   - name: jobs
@@ -308,6 +309,56 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /candidates/{id}/availability:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [availability]
+      operationId: getAvailability
+      summary: Fetch what the candidate said about when and where they can work
+      description: A 404 until the candidate has supplied it; such a candidate is excluded from matching.
+      x-roles: [talent, ops]
+      responses:
+        "200":
+          description: The candidate's availability.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkAvailability" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [availability]
+      operationId: putAvailability
+      summary: Set or edit the candidate's time zone, working hours, hours per week and start date
+      description: |
+        Availability and time-zone overlap are hard filters that a resume
+        cannot answer, so the candidate supplies them, here. All four are
+        required and the body replaces whatever was stored. Parsing a resume
+        (again) never changes them. Talent may only set their own.
+      x-roles: [talent, ops]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/WorkAvailabilityInput" }
+      responses:
+        "200":
+          description: Replaced what was stored.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkAvailability" }
+        "201":
+          description: Stored for the first time.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/WorkAvailability" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+
   # ---------------------------------------------------------------------------
   # Roles
   # ---------------------------------------------------------------------------
@@ -412,6 +463,39 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
 
+  /roles/{id}/availability:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [availability]
+      operationId: listRoleAvailability
+      summary: Which active candidates pass the role's availability and time-zone filters
+      description: |
+        One entry per active candidate, by name, each with whether it passes
+        and, when it does not, why. A candidate who has not supplied their
+        availability never passes, whatever the role asks for. Otherwise the
+        candidate must be able to start by `starts_on`, offer at least the
+        role's `hours_per_week`, and have working hours that cover at least
+        `min_overlap_hours` of the role's working day (09:00 to 17:00 in the
+        role's `timezone`, on the role's `starts_on`, or on the day of the
+        request when it has none). A requirement the role leaves null is not
+        checked.
+      x-roles: [ops]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Active candidates by name.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AvailabilityCheck" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   # ---------------------------------------------------------------------------
   # Matches
   # ---------------------------------------------------------------------------
@@ -420,6 +504,7 @@ paths:
       tags: [matches]
       operationId: createMatch
       summary: Propose a match between a role and a candidate
+      description: A candidate who has not supplied their availability (`PUT /candidates/{id}/availability`) cannot be matched; that is a 422 on `candidate_id`.
       x-roles: [ops]
       requestBody:
         required: true
@@ -754,7 +839,13 @@ components:
       enum: [queued, running, succeeded, failed]
     Availability:
       type: string
+      description: What the resume suggests. The filters use `WorkAvailability`, which the candidate supplies.
       enum: [immediate, two_weeks, one_month, unavailable, unknown]
+    ClockTime:
+      type: string
+      description: A time of day on a 24-hour clock, `HH:MM`.
+      pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+      example: "09:00"
     HealthStatus:
       type: string
       enum: [ok, degraded]
@@ -888,13 +979,64 @@ components:
           nullable: true
           description: IANA zone name, e.g. `America/Chicago`.
 
+    # -- availability ---------------------------------------------------------
+    WorkAvailability:
+      type: object
+      description: When and where the candidate can work, as the candidate gave it. All four answers or none.
+      required: [candidate_id, timezone, work_start, work_end, hours_per_week, available_from, created_at, updated_at]
+      properties:
+        candidate_id: { $ref: "#/components/schemas/Id" }
+        timezone:
+          type: string
+          description: IANA zone name, e.g. `America/Chicago`.
+        work_start:
+          allOf: [{ $ref: "#/components/schemas/ClockTime" }]
+          description: Start of the candidate's working hours, in their own time zone.
+        work_end:
+          allOf: [{ $ref: "#/components/schemas/ClockTime" }]
+          description: End of the working hours. At or before `work_start` means they run past midnight.
+        hours_per_week: { type: integer, minimum: 1, maximum: 80 }
+        available_from:
+          allOf: [{ $ref: "#/components/schemas/CalendarDate" }]
+          description: The earliest day the candidate can start.
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    WorkAvailabilityInput:
+      type: object
+      description: Body for `PUT …/availability`. Every field is required; they are optional on the wire so a missing one is a 422 naming it.
+      properties:
+        timezone: { type: string }
+        work_start: { $ref: "#/components/schemas/ClockTime" }
+        work_end: { $ref: "#/components/schemas/ClockTime" }
+        hours_per_week: { type: integer, minimum: 1, maximum: 80 }
+        available_from: { $ref: "#/components/schemas/CalendarDate" }
+
+    AvailabilityCheck:
+      type: object
+      description: One candidate against one role's availability and time-zone filters.
+      required: [candidate_id, candidate_name, passed, reasons, overlap_hours]
+      properties:
+        candidate_id: { $ref: "#/components/schemas/Id" }
+        candidate_name: { type: string }
+        passed: { type: boolean }
+        reasons:
+          type: array
+          description: Why the candidate does not pass, in words; empty when they do.
+          items: { type: string }
+        overlap_hours:
+          type: number
+          format: double
+          nullable: true
+          description: Hours of the role's working day the candidate's working hours cover; null when the role has no time zone or the candidate no availability.
+
     # -- roles ----------------------------------------------------------------
     Role:
       type: object
       required:
         [id, title, company, description, requirements, must_haves, nice_to_haves, required_certifications,
-         required_software, min_years_experience, timezone, starts_on, status, embedding_model, embedded_at,
-         created_at, updated_at]
+         required_software, min_years_experience, timezone, min_overlap_hours, hours_per_week, starts_on, status,
+         embedding_model, embedded_at, created_at, updated_at]
       properties:
         id: { $ref: "#/components/schemas/Id" }
         title: { type: string }
@@ -925,7 +1067,22 @@ components:
           minimum: 0
           maximum: 70
           description: Fewest years of experience the role accepts; `null` when the JD gives no number (a `0` sent in is stored as `null`).
-        timezone: { type: string, nullable: true }
+        timezone:
+          type: string
+          nullable: true
+          description: IANA zone the role operates in. Its working day is 09:00 to 17:00 there.
+        min_overlap_hours:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 8
+          description: Hours of the role's working day a candidate's working hours must cover; `null` when the role does not ask.
+        hours_per_week:
+          type: integer
+          nullable: true
+          minimum: 1
+          maximum: 80
+          description: Hours a week the role needs; a candidate must offer at least as many. `null` when the role does not ask.
         starts_on:
           allOf: [{ $ref: "#/components/schemas/CalendarDate" }]
           nullable: true
@@ -969,6 +1126,18 @@ components:
           x-go-type-skip-optional-pointer: true
         min_years_experience: { type: integer, nullable: true, minimum: 0, maximum: 70 }
         timezone: { type: string, nullable: true }
+        min_overlap_hours:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 8
+          description: Needs `timezone`. Supply it at intake when the JD does not state it; a `0` is stored as `null`.
+        hours_per_week:
+          type: integer
+          nullable: true
+          minimum: 0
+          maximum: 80
+          description: Supply it at intake when the JD does not state it; a `0` is stored as `null`.
         starts_on:
           allOf: [{ $ref: "#/components/schemas/CalendarDate" }]
           nullable: true

@@ -28,6 +28,8 @@
       "Experience with an ADP to Workday or UKG migration"
     ],
     "timezone": "America/New_York",
+    "min_overlap_hours": null,
+    "hours_per_week": null,
     "starts_on": "2027-01-05"
   },
   "hard_filter_matches": ["payroll_manager"]

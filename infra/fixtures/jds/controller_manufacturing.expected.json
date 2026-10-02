@@ -28,6 +28,8 @@
       "Aerospace quality environment (AS9100) exposure"
     ],
     "timezone": "America/New_York",
+    "min_overlap_hours": null,
+    "hours_per_week": null,
     "starts_on": null
   },
   "hard_filter_matches": ["controller_manufacturing"]

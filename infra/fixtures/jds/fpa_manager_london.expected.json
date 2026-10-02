@@ -31,6 +31,8 @@
       "Experience in a business that has raised venture capital"
     ],
     "timezone": "Europe/London",
+    "min_overlap_hours": null,
+    "hours_per_week": null,
     "starts_on": null
   },
   "hard_filter_matches": ["fpa_manager_london"]

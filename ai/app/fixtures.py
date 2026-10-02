@@ -149,9 +149,10 @@ def passes_hard_filters(profile: CandidateProfile, req: RoleRequirements) -> boo
     where the role accepts one), every required product listed and at least
     the minimum years of experience.
 
-    The query's `available_from <= starts_on` clause depends on the
-    availability date the pipeline derives, which a profile does not carry,
-    so `hard_filter_matches` is deliberately computed without it.
+    The start-date, hours and time-zone overlap filters compare the role
+    with what the candidate supplied about their availability, which a
+    profile does not carry, so `hard_filter_matches` is deliberately
+    computed without them.
     """
     return matching.check_hard_filters(profile, req).passed
 

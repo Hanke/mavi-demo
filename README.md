@@ -51,8 +51,10 @@ not use is a `403`.
 | `GET` / `PUT /candidates/{id}/profile` | own record only | | yes |
 | `DELETE /candidates/{id}/profile` | | | yes |
 | `POST /candidates/{id}/resume`, `GET /candidates/{id}/resume/job` | own record only | | yes |
+| `GET` / `PUT /candidates/{id}/availability` | own record only | | yes |
 | `POST` / `PUT` / `DELETE /roles…` | | yes | yes |
 | `GET /roles`, `GET /roles/{id}` | open roles only | yes | yes |
+| `GET /roles/{id}/availability` | | | yes |
 | `POST` / `PUT` / `DELETE /matches…` | | | yes |
 | `POST /matches/{id}/release`, `…/unrelease` | | | yes |
 | `GET /matches`, `GET /matches/{id}` | own, **released only** | **released only** | all |
@@ -71,6 +73,11 @@ Rules worth knowing:
   and stored as canonical ids (`quickbooks`). Anything the taxonomy does not know
   is a `422` naming the value, so a hard-filter column never holds a value that
   cannot match.
+- **Availability is the candidate's to give.** Time zone, working hours, hours
+  per week and start date are hard filters a resume cannot answer, so they are
+  not parsed: the candidate sets them with `PUT /candidates/{id}/availability`
+  (see [Availability and time zone](#availability-and-time-zone)). A candidate
+  who has not is excluded from matching.
 - `PUT` on candidates and roles replaces the fields you send and keeps the rest;
   an explicit `null` clears an optional field and is a `422` on a required one
   (`full_name`, `title`, `status`). `PUT …/profile` replaces the whole profile
@@ -272,16 +279,30 @@ its `VERSION` (returned as `rubric_version`) and running
 
 `/parse-jd` returns the requirements in two tiers. The must-haves are the
 hard filters: each one is a field of `RoleRequirements`, a column on `roles`
-under the same name, and is compared with one column of `candidate_profiles`
-(`HARD_FILTER_COLUMNS` in [`ai/app/schemas.py`](ai/app/schemas.py)):
+under the same name, and is compared with what is stored about the candidate
+(`HARD_FILTER_COLUMNS` in [`ai/app/schemas.py`](ai/app/schemas.py)). What a
+resume shows is in `candidate_profiles`; when and where the candidate can work
+is in `candidate_availability`, which the candidate fills in
+([Availability and time zone](#availability-and-time-zone)):
 
-| Must-have (`RoleRequirements` field and `roles` column) | Compared with (`candidate_profiles`) | How |
+| Must-have (`RoleRequirements` field and `roles` column) | Compared with | How |
 | --- | --- | --- |
-| `required_certifications` (with `required_qualifications` for the detail) | `certifications` | overlap with the ids acceptable for each requirement |
-| `required_software` | `software` | containment |
-| `min_years_experience` | `years_experience` | `>=`; a profile with no figure does not pass |
-| `starts_on` | `available_from` | `<=` |
-| `timezone` | `timezone` | stored on both sides; the shortlist query does not filter on it yet |
+| `required_certifications` (with `required_qualifications` for the detail) | `candidate_profiles.certifications` | overlap with the ids acceptable for each requirement |
+| `required_software` | `candidate_profiles.software` | containment |
+| `min_years_experience` | `candidate_profiles.years_experience` | `>=`; a profile with no figure does not pass |
+| `starts_on` | `candidate_availability.available_from` | `<=` |
+| `hours_per_week` | `candidate_availability.hours_per_week` | the candidate offers at least as many |
+| `min_overlap_hours`, with `timezone` | `candidate_availability.work_start`, `work_end`, `timezone` | the candidate's working hours cover at least that much of the role's working day |
+
+`hours_per_week` and `min_overlap_hours` are filled by the parser only when
+the JD writes the number: 15 for "15 to 20 hours a week", 4 for "at least 4
+hours of overlap with Eastern time", and null for "part-time" or "Central time
+hours". Like the minimum years, a number the JD does not write is dropped by
+`ground_jd`. Most JDs do not say, so the employer is asked at intake and the
+answer goes in the same `roles` columns (`min_overlap_hours` and
+`hours_per_week` on `POST` / `PUT /roles`); null means the role does not ask.
+An overlap needs the role's time zone, so a JD that asks for one without
+saying where the role is cannot be saved as parsed: the zone is asked for too.
 
 `min_years_experience` is the fewest total years the JD accepts: 5 for "5+
 years", 1 for "1-4 years", the overall 10 of "10 or more years with at least 5
@@ -461,6 +482,10 @@ body (a PDF, or a DOCX; not multipart) from the candidate (`X-Role: talent`,
    `succeeded` the profile is at `GET /candidates/{id}/profile`; on `failed`,
    `last_error` says why.
 
+The parse never writes `candidate_availability`: what the candidate said about
+when and where they can work stays as they said it, however often a resume is
+uploaded. The web app's talent view asks for it right after the upload.
+
 The job's payload is only the candidate id, and it parses whatever text the
 row holds when it runs. Uploading again while the job waits replaces the text
 and returns the same job; a resume that changes while the parser is running
@@ -475,6 +500,72 @@ curl -s -X POST localhost:8080/candidates/$id/resume -H 'X-Role: talent' -H "X-A
   --data-binary @infra/fixtures/resumes/senior_accountant_cpa_netsuite.pdf   # 202 {"id":218,"kind":"parse_resume","status":"queued",...}
 curl -s localhost:8080/candidates/$id/resume/job -H 'X-Role: talent' -H "X-Actor: $id"   # {"status":"succeeded",...}
 curl -s localhost:8080/candidates/$id/profile -H 'X-Role: talent' -H "X-Actor: $id"      # headline, certifications, embedded_at, ...
+```
+
+### Availability and time zone
+
+Two of the hard filters, availability and time-zone overlap, cannot be read
+from a resume, so the candidate supplies them: `PUT
+/candidates/{id}/availability` with all four of
+
+| Field | |
+| --- | --- |
+| `timezone` | IANA name, e.g. `America/Chicago` |
+| `work_start`, `work_end` | working hours as `HH:MM` in that zone; an end at or before the start runs past midnight |
+| `hours_per_week` | 1 to 80 |
+| `available_from` | the earliest start date |
+
+A missing field, an unknown time zone, a time that is not `HH:MM` or hours out
+of range is a `422` naming the field; a date that is not `YYYY-MM-DD` or a
+fractional number of hours does not decode and is a `400`. The first `PUT` is
+a `201`, an edit a `200`, and `GET` is a `404` until there is something to
+return. The
+row lives in `candidate_availability`, apart from the profile, so replacing
+the profile (which every resume parse does) cannot change it. The
+`availability`, `available_from` and `timezone` on the profile are only what
+the resume suggests, and no filter reads them.
+
+In the web app (<http://localhost:5173>) the talent view takes a name, then
+the resume, then shows the form: the browser's time zone, 09:00 to 17:00, 40
+hours and today as starting values, and the stored answers when the candidate
+comes back to edit them.
+
+The role records what it requires: `starts_on`, `hours_per_week` and
+`min_overlap_hours` (1 to 8, which needs `timezone`), each null when it does
+not ask. A role's working day is 09:00 to 17:00 in its time zone; the overlap
+is how many hours of that day the candidate's working hours cover, worked out
+for the role's `starts_on` (today when it has none), minute by minute, so that
+zones which change their clocks on different dates are handled and the answer
+does not depend on the day it is asked. It is the overlap on that one day: a
+London candidate covers three hours of a New York day for most of the year and
+four in the weeks of March when only the US has changed its clocks. A candidate in Manila working 21:00 to 06:00 covers a full
+New York day; one in London working 09:00 to 17:00 covers three hours of it.
+
+[`api/internal/availability`](api/internal/availability/availability.go) is
+the filter, and says why in words:
+
+```
+Has not given their time zone, working hours, hours per week and start date
+Available from 2026-12-01; this role starts on 2026-11-02
+Offers 20 hours a week; this role needs 40
+Working hours overlap the role's day (09:00 to 17:00 America/New_York) by 3 hours; this role needs 4
+```
+
+**A candidate who has not answered is excluded, not passed through.** The
+first line above fails them against every role, including one that requires
+nothing, and `POST /matches` refuses them with a `422` on `candidate_id`, so
+no match row can exist for a candidate without answers. (For a candidate who
+has answered, whether a hand-made match fits the role's hours is left to ops.) `GET /roles/{id}/availability` (ops) runs the filter over the active
+candidates and returns each one with `passed`, `reasons` and `overlap_hours`,
+so an excluded candidate is listed with the reason rather than missing
+(`Store.AvailabilityFilter`, a page at a time). There is no matching run yet;
+when there is, it applies the same `availability.Check` to the rows of its
+shortlist query.
+
+```sh
+curl -s -X PUT localhost:8080/candidates/$id/availability -H 'X-Role: talent' -H "X-Actor: $id" -H 'Content-Type: application/json' \
+  -d '{"timezone":"America/Chicago","work_start":"08:30","work_end":"17:00","hours_per_week":40,"available_from":"2026-11-02"}'
+curl -s localhost:8080/roles/22222222-0000-0000-0000-000000000007/availability -H 'X-Role: ops' | jq '.[] | select(.passed | not) | {candidate_name, reasons}'
 ```
 
 `make test-db` runs the queue's tests against the compose database: a job is
@@ -564,8 +655,9 @@ the API writes.
 | Table | Purpose |
 | --- | --- |
 | `candidates` | The person as ingested: contact details, raw resume text, status |
-| `candidate_profiles` | One structured profile per candidate: `profile` JSONB, `embedding` (pgvector, HNSW index), and the hard-filter columns `certifications[]`, `software[]`, `availability`, `available_from`, `timezone` |
-| `roles` | Raw JD plus `must_haves` / `nice_to_haves` JSONB, promoted `required_certifications[]`, `required_software[]`, `min_years_experience`, `timezone`, `starts_on`, and an embedding |
+| `candidate_profiles` | One structured profile per candidate: `profile` JSONB, `embedding` (pgvector, HNSW index), the hard-filter columns `certifications[]`, `software[]`, `years_experience`, and what the resume suggests about `availability`, `available_from`, `timezone` |
+| `candidate_availability` | What the candidate said, at most one row each: `timezone`, `work_start`, `work_end`, `hours_per_week`, `available_from`. No row means not answered, and excluded from matching |
+| `roles` | Raw JD plus `must_haves` / `nice_to_haves` JSONB, promoted `required_certifications[]`, `required_software[]`, `min_years_experience`, `timezone`, `min_overlap_hours`, `hours_per_week`, `starts_on`, and an embedding |
 | `matches` | One row per (role, candidate): `score`, `explanation`, `breakdown`, `status` (proposed / approved / rejected / swapped), `released_at` (set when ops releases it to the employer) |
 | `review_events` | Append-only audit of ops approve / reject / swap / release / unrelease actions on a match |
 | `jobs` | Postgres-backed background queue: `kind`, `payload`, `status` (queued / running / succeeded / failed), `priority`, `run_at`, `attempts` / `max_attempts`, `last_error`, `locked_by` / `locked_at`; claimed with `FOR UPDATE SKIP LOCKED` on the partial `jobs_dequeue_idx` (see [Background jobs](#background-jobs)) |
@@ -578,18 +670,27 @@ required qualification is an overlap with the ids the taxonomy accepts for it
 requirement; see [Qualifications](#qualifications-across-jurisdictions)):
 
 ```sql
-SELECT c.full_name, p.certifications, p.software, p.timezone
+SELECT c.full_name, p.certifications, p.software, a.timezone
 FROM roles r
 JOIN candidate_profiles p
   ON p.certifications && $2   -- e.g. {cpa_us,cpa_canada,aca_icaew,ca_icas,acca,...} for "CPA or equivalent"
  AND p.software       @> r.required_software
  AND (r.min_years_experience IS NULL OR p.years_experience >= r.min_years_experience)
- AND (r.starts_on IS NULL OR p.available_from <= r.starts_on)
+JOIN candidate_availability a   -- an inner join: no answers, no match
+  ON a.candidate_id = p.candidate_id
+ AND (r.starts_on IS NULL OR a.available_from <= r.starts_on)
+ AND (r.hours_per_week IS NULL OR a.hours_per_week >= r.hours_per_week)
 JOIN candidates c ON c.id = p.candidate_id
 WHERE r.id = $1 AND c.status = 'active'
 ORDER BY p.embedding <=> r.embedding
 LIMIT 20;
 ```
+
+The time-zone overlap is the one filter not written in SQL: it needs each
+zone's rules for the day in question, so it is worked out in Go
+([Availability and time zone](#availability-and-time-zone)). It has to run
+before the `LIMIT`: the query is read in order without it, and the first 20
+rows that pass the overlap are the shortlist.
 
 ## Seed data
 
@@ -597,8 +698,8 @@ LIMIT 20;
 
 | File | What |
 | --- | --- |
-| `010_candidates.sql` | ~200 synthetic finance / accounting candidates: raw resume text plus a structured profile with the hard-filter columns filled |
-| `020_roles.sql` | A dozen sample job descriptions whose hard filters each carve a different slice of those candidates |
+| `010_candidates.sql` | ~200 synthetic finance / accounting candidates: raw resume text, a structured profile with the hard-filter columns filled, and for most of them the availability they supplied (about one in seven has not answered, and is excluded from matching) |
+| `020_roles.sql` | A dozen sample job descriptions whose hard filters each carve a different slice of those candidates, with the hours a week and time-zone overlap each requires |
 | `030_documents.sql` | Three demo documents |
 | `090_embed_jobs.sql` | Queues an `embed_profile` / `embed_role` job for every row still without a vector, so the worker in the API container fills the embeddings (no provider key needed with `EMBEDDING_PROVIDER=local`) |
 
@@ -625,7 +726,11 @@ candidates come from `ai/app/seedgen`, in two halves:
   tools, payroll systems), GAAP exposure, industries, availability
   (`immediate` through `unknown`, with a relative `available_in_days`),
   timezone (mostly US zones, some Toronto, London, Manila, Bengaluru, Sydney
-  and others) and languages. `python -m app.seedgen plan` prints the
+  and others) and languages. A candidate with a start date has also said
+  their working hours (mostly a local working day; some in Manila and
+  Bengaluru keep US hours overnight) and hours a week (mostly 40, part-time
+  more often for bookkeepers and fractional CFOs); one whose availability is
+  `unknown` or `unavailable` has said nothing. `python -m app.seedgen plan` prints the
   distribution. Because the plan decides the facts, the hard filters and the
   ranking visibly change results no matter what the prose says.
 - **The prose** is written by the model from each slot's spec: a 260-450 word

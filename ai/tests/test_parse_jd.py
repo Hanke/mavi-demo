@@ -85,6 +85,9 @@ def test_sample_jd_parses_to_the_expected_requirements(slug: str):
     assert req.starts_on == starts_on
     assert req.timezone == timezone
     assert req.must_haves == fixture.expected.must_haves
+    # Only the part-time bookkeeper JD puts a number on its hours; none on overlap.
+    assert req.hours_per_week == (15 if slug == "bookkeeper_part_time_remote" else None)
+    assert req.min_overlap_hours is None
     assert req == fixture.expected
 
 
@@ -174,6 +177,7 @@ def test_an_empty_answer_is_a_role_with_no_hard_filters():
     assert req == RoleRequirements()
     assert all(not getattr(req, field) for field in HARD_FILTER_COLUMNS)
     assert _requirements(min_years_experience=0).min_years_experience is None  # "no experience needed"
+    assert _requirements(min_overlap_hours=0, hours_per_week=0) == RoleRequirements()
     assert set(RoleRequirements.model_fields) == set(req.model_dump())
     with pytest.raises(ValidationError):
         RoleRequirements.model_validate({"minimum_years": 5})
@@ -223,6 +227,61 @@ def test_a_minimum_the_jd_writes_in_words_is_kept_and_an_invented_quote_is_repla
         assert _parse(invented, jd).requirements == RoleRequirements()
 
 
+def test_hours_are_kept_only_when_the_jd_gives_the_number():
+    text = (
+        "Bookkeeper\n\nRequirements\n- About 20 hours a week.\n"
+        "- At least four hours of overlap with Eastern time business hours.\n"
+    )
+    stated = {
+        "company": None,
+        "requirements": {"hours_per_week": 20, "min_overlap_hours": 4, "timezone": "America/New_York"},
+    }
+    req = _parse(stated, text).requirements
+    assert (req.hours_per_week, req.min_overlap_hours) == (20, 4)
+    # A JD that only says "full-time, Eastern hours" has no number to filter on:
+    # the employer is asked at intake instead, and a guess is dropped.
+    guessed = {"company": None, "requirements": {"hours_per_week": 40, "min_overlap_hours": 8}}
+    assert _parse(guessed, "Accountant\n\nFull-time, Eastern time hours.\n").requirements == RoleRequirements()
+    # A number the JD writes about something else is not a number of hours.
+    elsewhere = "Accountant\n\nWe are a team of 40 with 4 offices. Eastern time business hours.\n"
+    assert _parse(
+        guessed | {"requirements": {"hours_per_week": 40, "min_overlap_hours": 4}}, elsewhere
+    ).requirements == (RoleRequirements())
+    # Nor is a number beside the word "hours" that counts something else.
+    for field, hours, line in (
+        ("min_overlap_hours", 5, "Full-time, standard 9-5 Eastern time hours."),
+        ("min_overlap_hours", 8, "Office hours are 8 a.m. to 5 p.m. Central."),
+        ("min_overlap_hours", 4, "Respond to client email within 4 hours."),
+        ("hours_per_week", 25, "$25 per hour, part-time."),
+        ("hours_per_week", 4, "20 hours a week, with 4 hours of overlap with Central time."),
+    ):
+        invented = {"company": None, "requirements": {field: hours, "timezone": "America/Chicago"}}
+        assert getattr(_parse(invented, f"Accountant\n\n{line}\n").requirements, field) is None, (field, line)
+    # Each way a JD does write them.
+    for field, hours, line in (
+        ("hours_per_week", 15, "Roughly 15 to 20 hours a week."),
+        ("hours_per_week", 15, "15-20 hrs/week."),
+        ("hours_per_week", 30, "About 30 hours per week."),
+        ("hours_per_week", 12, "Twelve hours weekly."),
+        ("min_overlap_hours", 4, "Overlap of at least 4 hours with Pacific time."),
+        ("min_overlap_hours", 3, "3+ hours of daily overlap with our London team."),
+    ):
+        stated = {"company": None, "requirements": {field: hours, "timezone": "America/Chicago"}}
+        assert getattr(_parse(stated, f"Accountant\n\n{line}\n").requirements, field) == hours, (field, line)
+    # The fake reads the same two numbers off the text.
+    fake = extract.parse_jd(
+        FakeProvider(), "Bookkeeper\n\nRequired\n- 15 to 20 hours per week.\n- 3+ hours of overlap with Central time.\n"
+    )
+    assert (fake.requirements.hours_per_week, fake.requirements.min_overlap_hours) == (15, 3)
+
+
+@pytest.mark.parametrize(("field", "hours"), [("min_overlap_hours", 9), ("hours_per_week", 81), ("hours_per_week", -1)])
+def test_impossible_hours_are_never_returned(field: str, hours: int):
+    bad = json.dumps({"company": None, "requirements": {field: hours}})
+    with pytest.raises(InvalidOutputError, match=field):
+        extract.parse_jd(ScriptedProvider([bad, bad]), "jd")
+
+
 # --- must-have fields are the SQL hard filters ------------------------------------
 
 
@@ -236,14 +295,22 @@ def _columns(table: str) -> set[str]:
 
 
 def test_every_must_have_field_is_a_column_on_both_sides_of_the_shortlist_query():
-    roles, profiles = _columns("roles"), _columns("candidate_profiles")
+    roles = _columns("roles")
+    candidate_side = {table: _columns(table) for table in ("candidate_profiles", "candidate_availability")}
     assert {"title", "requirements"} <= roles  # the parse above worked
-    assert {"profile", "embedding"} <= profiles
-    for field, profile_column in HARD_FILTER_COLUMNS.items():
+    assert {"profile", "embedding"} <= candidate_side["candidate_profiles"]
+    for field, columns in HARD_FILTER_COLUMNS.items():
         assert field in RoleRequirements.model_fields
         assert field in roles, f"roles has no {field} column"
-        assert profile_column in profiles, f"candidate_profiles has no {profile_column} column"
-        assert profile_column in CandidateProfile.model_fields
+        for qualified in columns:
+            table, column = qualified.split(".")
+            assert column in candidate_side[table], f"{table} has no {column} column"
+            # What a resume shows is a field of the parsed profile; what the
+            # candidate supplies about their availability is not.
+            assert (column in CandidateProfile.model_fields) or table == "candidate_availability"
+    # The filters on availability read what the candidate said, never the parser's guess.
+    for field in ("starts_on", "timezone", "min_overlap_hours", "hours_per_week"):
+        assert all(c.startswith("candidate_availability.") for c in HARD_FILTER_COLUMNS[field]), field
 
 
 def test_the_must_have_fields_are_exactly_the_structured_requirements():
@@ -251,7 +318,7 @@ def test_the_must_have_fields_are_exactly_the_structured_requirements():
     so a new required_* field cannot be added without a column to filter on."""
     required = {f for f in RoleRequirements.model_fields if f.startswith(("required_", "min_"))}
     assert required - {"required_qualifications"} <= set(HARD_FILTER_COLUMNS)
-    assert set(HARD_FILTER_COLUMNS) - required == {"starts_on", "timezone"}
+    assert set(HARD_FILTER_COLUMNS) - required == {"starts_on", "timezone", "hours_per_week"}
 
 
 def test_the_seed_writes_each_must_have_to_its_column():

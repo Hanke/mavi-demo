@@ -318,15 +318,26 @@ class CandidateProfile(TaxonomyModel):
 
 
 # Each must-have field of RoleRequirements (stored in the `roles` column of the
-# same name) and the `candidate_profiles` column the shortlist query compares
-# it with. Everything else a JD requires stays in `must_haves` as text for the
-# rerank.
-HARD_FILTER_COLUMNS: dict[str, str] = {
-    "required_certifications": "certifications",
-    "required_software": "software",
-    "min_years_experience": "years_experience",
-    "starts_on": "available_from",
-    "timezone": "timezone",
+# same name) and the candidate-side columns, as `table.column`, the shortlist
+# compares it with. What a resume shows is in `candidate_profiles`; when and
+# where the candidate can work is not something a resume says, so the
+# candidate supplies it and it is in `candidate_availability` (a candidate
+# with no row there is excluded). Everything else a JD requires stays in
+# `must_haves` as text for the rerank.
+HARD_FILTER_COLUMNS: dict[str, tuple[str, ...]] = {
+    "required_certifications": ("candidate_profiles.certifications",),
+    "required_software": ("candidate_profiles.software",),
+    "min_years_experience": ("candidate_profiles.years_experience",),
+    "starts_on": ("candidate_availability.available_from",),
+    "hours_per_week": ("candidate_availability.hours_per_week",),
+    # The overlap is between the candidate's working hours in their zone and
+    # the role's working day, 09:00 to 17:00 in `timezone`.
+    "min_overlap_hours": (
+        "candidate_availability.work_start",
+        "candidate_availability.work_end",
+        "candidate_availability.timezone",
+    ),
+    "timezone": ("candidate_availability.timezone",),
 }
 
 
@@ -334,8 +345,8 @@ class RoleRequirements(TaxonomyModel):
     """What the JD parser extracts. Maps onto roles.
 
     Requirements come in two tiers that mirror the candidate profile. The
-    must-haves (`required_*`, `min_years_experience`, `starts_on`, `timezone`)
-    are the hard filters, see HARD_FILTER_COLUMNS. The nice-to-haves
+    must-haves (`required_*`, `min_years_experience`, `starts_on`, `timezone`,
+    `min_overlap_hours`, `hours_per_week`) are the hard filters, see HARD_FILTER_COLUMNS. The nice-to-haves
     (`preferred_*`) never exclude anyone: holding any one of them counts in a
     candidate's favour, so "CPP or FPC" is simply both ids."""
 
@@ -369,12 +380,13 @@ class RoleRequirements(TaxonomyModel):
         description="Fewest total years of professional experience the JD accepts; null if it gives no number.",
     )
 
-    @field_validator("min_years_experience")
+    @field_validator("min_years_experience", "min_overlap_hours", "hours_per_week")
     @classmethod
-    def _no_minimum_is_null(cls, years: int | None) -> int | None:
+    def _no_minimum_is_null(cls, minimum: int | None) -> int | None:
         """ "No experience needed" is the absence of a minimum. Stored as 0 it
-        would still exclude every profile that does not state its years."""
-        return years or None
+        would still exclude every profile that does not state its years. The
+        same goes for the two minimums in hours."""
+        return minimum or None
 
     preferred_certifications: list[CertificationID] = _taxonomy_list(
         "certifications", "Certifications the JD lists as preferred but not required, as taxonomy ids."
@@ -395,6 +407,21 @@ class RoleRequirements(TaxonomyModel):
         default_factory=list, description="Preferred but not required, in the JD's own words."
     )
     timezone: str | None = Field(default=None, description="IANA name the role operates in.")
+    min_overlap_hours: int | None = Field(
+        default=None,
+        ge=0,
+        le=8,
+        description=(
+            "Hours a day the candidate's working hours must overlap the role's working day, when the JD "
+            "gives a number; null if it gives none."
+        ),
+    )
+    hours_per_week: int | None = Field(
+        default=None,
+        ge=0,
+        le=80,
+        description="Fewest hours a week the JD accepts, when it gives a number; null if it gives none.",
+    )
     starts_on: date | None = None
 
     @model_validator(mode="after")

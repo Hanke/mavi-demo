@@ -1,1 +1,1 @@
-{"root":["./src/app.test.tsx","./src/app.tsx","./src/main.tsx","./src/test-setup.ts","./src/api/index.ts","./src/api/schema.d.ts","./src/api/types.ts","./vite.config.ts"],"version":"5.9.3"}
+{"root":["./src/app.test.tsx","./src/app.tsx","./src/talentview.test.tsx","./src/talentview.tsx","./src/main.tsx","./src/test-setup.ts","./src/api/index.ts","./src/api/schema.d.ts","./src/api/types.ts","./vite.config.ts"],"version":"5.9.3"}
