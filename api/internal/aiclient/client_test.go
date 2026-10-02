@@ -234,3 +234,41 @@ func TestParseResumeKeepsTheProfileAsSent(t *testing.T) {
 		}
 	}
 }
+
+func TestParseJDKeepsTheRequirementsAsSent(t *testing.T) {
+	requirements := `{"title":"Senior Accountant","required_certifications":["cpa_us"],"must_haves":["Active CPA"],"nice_to_haves":[],"min_years_experience":5,"timezone":null}`
+	answer := `{"company":"Northwind","requirements":` + requirements + `,"provider":"fake"}`
+	var body string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		body = string(raw)
+		if r.URL.Path != "/parse-jd" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		_, _ = w.Write([]byte(answer))
+	}))
+	defer srv.Close()
+
+	got, err := New(srv.URL).ParseJD(context.Background(), "Senior Accountant at Northwind")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body != `{"text":"Senior Accountant at Northwind"}` {
+		t.Fatalf("request body = %s", body)
+	}
+	// The raw document keeps the nulls and empty lists the typed one drops.
+	if string(got.RequirementsJSON) != requirements {
+		t.Fatalf("RequirementsJSON = %s", got.RequirementsJSON)
+	}
+	req := got.Requirements
+	if req.Title == nil || *req.Title != "Senior Accountant" || *req.MinYearsExperience != 5 || len(req.RequiredCertifications) != 1 ||
+		len(req.MustHaves) != 1 || req.Timezone != nil || got.Provider != "fake" || *got.Company != "Northwind" {
+		t.Fatalf("decoded = %+v", got)
+	}
+
+	for _, answer = range []string{`{"company":null,"provider":"fake"}`, `{"requirements":["cpa"],"provider":"fake"}`} {
+		if _, err := New(srv.URL).ParseJD(context.Background(), "x"); !errors.Is(err, ErrBadResponse) {
+			t.Fatalf("answer %s: err = %v, want ErrBadResponse", answer, err)
+		}
+	}
+}

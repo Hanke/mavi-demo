@@ -204,6 +204,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/roles/intake": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a role from a pasted job description and queue its matching run
+         * @description Employer intake. The AI service's `/parse-jd` reads the job description
+         *     in the request and the role is stored with the raw text as
+         *     `description`, the whole extraction as `requirements`, and the
+         *     must-haves, nice-to-haves and hard-filter requirements in their own
+         *     fields, so the response shows the employer what was understood. The
+         *     role is embedded before the answer (from the structured requirements,
+         *     through `/embed-batch`, as an `embed_role` job would), and a
+         *     `match_role` job is queued for it.
+         *
+         *     The parse is a chat-model call, so the request can take a while. If
+         *     only the embedding fails the role is still created: `embedded_at` is
+         *     `null` in the response and an `embed_role` job fills it in later.
+         *     Correct anything the parser got wrong with `PUT /roles/{id}`.
+         */
+        post: operations["intakeRole"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/roles/{id}": {
         parameters: {
             query?: never;
@@ -255,6 +287,51 @@ export interface paths {
         get: operations["listRoleAvailability"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/roles/{id}/filter-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /** The recorded runs of the role's hard filters, newest first */
+        get: operations["listRoleFilterRuns"];
+        put?: never;
+        /**
+         * Run the role's hard filters over the pool and record how it narrowed
+         * @description The first stage of a matching run, as one SQL statement. The pool is
+         *     the active candidates; each filter in turn drops the candidates who
+         *     miss one of the role's must-haves, and only those left after the last
+         *     (`candidate_ids`) may reach a later stage:
+         *
+         *     1. `profile`: has a parsed profile.
+         *     2. `certifications`: holds every required qualification, or, where the
+         *        requirement accepts equivalents (`requirements.required_qualifications`;
+         *        the default when it does not say), one the taxonomy treats as
+         *        equivalent.
+         *     3. `software`: lists all of `required_software`.
+         *     4. `experience`: has at least `min_years_experience`; a profile with no
+         *        figure does not pass.
+         *     5. `availability`: has supplied their availability, can start by
+         *        `starts_on` and offers at least `hours_per_week`.
+         *     6. `timezone_overlap`: their working hours cover at least
+         *        `min_overlap_hours` of the role's working day (09:00 to 17:00 in the
+         *        role's `timezone`, on `overlap_on`).
+         *
+         *     A requirement the role leaves empty or null drops nobody, except that
+         *     a candidate with no profile or no availability never passes. The run
+         *     is stored and logged, with the number of candidates left after each
+         *     filter.
+         */
+        post: operations["runRoleFilters"];
         delete?: never;
         options?: never;
         head?: never;
@@ -583,6 +660,36 @@ export interface components {
              */
             overlap_hours: number | null;
         };
+        /**
+         * @description A hard filter, in the order they are applied.
+         * @enum {string}
+         */
+        FilterName: "profile" | "certifications" | "software" | "experience" | "availability" | "timezone_overlap";
+        /** @description One filter of a run and what it did to the pool. */
+        FilterStage: {
+            filter: components["schemas"]["FilterName"];
+            /** @description Candidates still in after this filter. */
+            remaining: number;
+            /** @description Candidates this filter dropped, of those who reached it. */
+            excluded: number;
+        };
+        /** @description One run of a role's hard filters over the active candidates. */
+        FilterRun: {
+            id: components["schemas"]["Id"];
+            role_id: components["schemas"]["Id"];
+            /** @description The day the time-zone overlap was worked out for; the role's `starts_on`, or the day of the run when it has none. */
+            overlap_on: components["schemas"]["CalendarDate"];
+            /** @description Active candidates when the run started. */
+            pool: number;
+            /** @description Every filter, in the order applied; each `remaining` is at most the one before it. */
+            stages: components["schemas"]["FilterStage"][];
+            /** @description Candidates left after the last filter; the length of `candidate_ids`. */
+            passed: number;
+            /** @description Who passed every filter, by name. A record of the run; a candidate deleted since stays listed. */
+            candidate_ids: components["schemas"]["Id"][];
+            /** Format: date-time */
+            created_at: string;
+        };
         Role: {
             id: components["schemas"]["Id"];
             title: string;
@@ -640,6 +747,19 @@ export interface components {
             /** @description Defaults to `open` on create. */
             status?: components["schemas"]["RoleStatus"];
         };
+        RoleIntakeInput: {
+            /** @description The job description as pasted, up to 60,000 characters. */
+            description: string;
+            /** @description Overrides the title the parser finds; required when the job description names none. */
+            title?: string | null;
+            /** @description Overrides the company the parser finds. */
+            company?: string | null;
+        };
+        RoleIntake: {
+            role: components["schemas"]["Role"];
+            /** @description The `match_role` job queued for the role. */
+            matching_job: components["schemas"]["Job"];
+        };
         Match: {
             id: components["schemas"]["Id"];
             role_id: components["schemas"]["Id"];
@@ -696,7 +816,7 @@ export interface components {
          */
         Job: {
             id: components["schemas"]["JobId"];
-            /** @description Names the handler that runs it, e.g. `embed_role` or `parse_resume`. */
+            /** @description Names the handler that runs it, e.g. `embed_role`, `parse_resume` or `match_role`. */
             kind: string;
             /** @description Handler-specific input, e.g. `{"role_id": "…"}`. */
             payload: components["schemas"]["JSONObject"];
@@ -1288,6 +1408,54 @@ export interface operations {
             422: components["responses"]["ValidationFailed"];
         };
     };
+    intakeRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleIntakeInput"];
+            };
+        };
+        responses: {
+            /** @description The role as stored, and its matching job. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleIntake"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /**
+             * @description `description` is missing, blank or longer than the parser accepts; or the job
+             *     description names no title and none was sent (`fields.title`).
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+            /** @description The AI service, which parses the job description, is unavailable or its model's output did not validate. Nothing was stored; try again. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
     getRole: {
         parameters: {
             query?: never;
@@ -1390,6 +1558,60 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AvailabilityCheck"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listRoleFilterRuns: {
+        parameters: {
+            query?: {
+                /** @description Page size; default 50, max 200. */
+                limit?: components["parameters"]["Limit"];
+                offset?: components["parameters"]["Offset"];
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Runs, newest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FilterRun"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    runRoleFilters: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The recorded run. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FilterRun"];
                 };
             };
             401: components["responses"]["Unauthorized"];

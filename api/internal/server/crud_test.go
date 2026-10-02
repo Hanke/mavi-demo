@@ -27,14 +27,15 @@ type api struct {
 func newAPI(t *testing.T) *api { return newAPIWith(t, stub{}) }
 
 // newAPIWith is newAPI with a particular stand-in for the AI service.
-func newAPIWith(t *testing.T, ai AI) *api {
+func newAPIWith(t *testing.T, ai stub) *api {
 	t.Helper()
 	pool := dbtest.Pool(t)
 	tax, err := taxonomy.Load(dbtest.TaxonomyPath())
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := New(Config{DB: pool, AI: ai, Store: store.New(pool), Taxonomy: tax, Jobs: jobs.NewQueue(pool), JobKinds: tasks.Registry(pool, nil, nil).Kinds(), CORSOrigin: "*"})
+	embedRole := func(ctx context.Context, roleID string) error { return tasks.EmbedRole(ctx, pool, ai, roleID) }
+	h := New(Config{DB: pool, AI: ai, Store: store.New(pool), Taxonomy: tax, Jobs: jobs.NewQueue(pool), JobKinds: tasks.Registry(pool, nil, nil).Kinds(), EmbedRole: embedRole, CORSOrigin: "*"})
 	return &api{t: t, h: h, pool: pool}
 }
 

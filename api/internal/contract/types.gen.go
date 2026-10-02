@@ -56,6 +56,36 @@ func (e CandidateStatus) Valid() bool {
 	}
 }
 
+// Defines values for FilterName.
+const (
+	FilterNameAvailability    FilterName = "availability"
+	FilterNameCertifications  FilterName = "certifications"
+	FilterNameExperience      FilterName = "experience"
+	FilterNameProfile         FilterName = "profile"
+	FilterNameSoftware        FilterName = "software"
+	FilterNameTimezoneOverlap FilterName = "timezone_overlap"
+)
+
+// Valid indicates whether the value is a known member of the FilterName enum.
+func (e FilterName) Valid() bool {
+	switch e {
+	case FilterNameAvailability:
+		return true
+	case FilterNameCertifications:
+		return true
+	case FilterNameExperience:
+		return true
+	case FilterNameProfile:
+		return true
+	case FilterNameSoftware:
+		return true
+	case FilterNameTimezoneOverlap:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for HealthStatus.
 const (
 	HealthStatusDegraded HealthStatus = "degraded"
@@ -233,6 +263,46 @@ type Error struct {
 	Fields *map[string]string `json:"fields,omitempty"`
 }
 
+// FilterName A hard filter, in the order they are applied.
+type FilterName string
+
+// FilterRun One run of a role's hard filters over the active candidates.
+type FilterRun struct {
+	// CandidateIds Who passed every filter, by name. A record of the run; a candidate deleted since stays listed.
+	CandidateIds []ID      `json:"candidate_ids"`
+	CreatedAt    time.Time `json:"created_at"`
+
+	// ID A UUID, as text.
+	ID ID `json:"id"`
+
+	// OverlapOn The day the time-zone overlap was worked out for; the role's `starts_on`, or the day of the run when it has none.
+	OverlapOn CalendarDate `json:"overlap_on"`
+
+	// Passed Candidates left after the last filter; the length of `candidate_ids`.
+	Passed int `json:"passed"`
+
+	// Pool Active candidates when the run started.
+	Pool int `json:"pool"`
+
+	// RoleID A UUID, as text.
+	RoleID ID `json:"role_id"`
+
+	// Stages Every filter, in the order applied; each `remaining` is at most the one before it.
+	Stages []FilterStage `json:"stages"`
+}
+
+// FilterStage One filter of a run and what it did to the pool.
+type FilterStage struct {
+	// Excluded Candidates this filter dropped, of those who reached it.
+	Excluded int `json:"excluded"`
+
+	// Filter A hard filter, in the order they are applied.
+	Filter FilterName `json:"filter"`
+
+	// Remaining Candidates still in after this filter.
+	Remaining int `json:"remaining"`
+}
+
 // HealthResponse defines model for HealthResponse.
 type HealthResponse struct {
 	// Checks One entry per dependency (`postgres`, `ai`): `ok` or `error: <message>`.
@@ -265,7 +335,7 @@ type Job struct {
 	// ID A job's id. Jobs are numbered from a sequence, not UUIDs.
 	ID JobID `json:"id"`
 
-	// Kind Names the handler that runs it, e.g. `embed_role` or `parse_resume`.
+	// Kind Names the handler that runs it, e.g. `embed_role`, `parse_resume` or `match_role`.
 	Kind string `json:"kind"`
 
 	// LastError The most recent failed attempt's error; kept on a `failed` job, cleared on success.
@@ -496,6 +566,25 @@ type RoleInput struct {
 	Title    *string     `json:"title,omitempty"`
 }
 
+// RoleIntake defines model for RoleIntake.
+type RoleIntake struct {
+	// MatchingJob The `match_role` job queued for the role.
+	MatchingJob Job  `json:"matching_job"`
+	Role        Role `json:"role"`
+}
+
+// RoleIntakeInput defines model for RoleIntakeInput.
+type RoleIntakeInput struct {
+	// Company Overrides the company the parser finds.
+	Company *string `json:"company,omitempty"`
+
+	// Description The job description as pasted, up to 60,000 characters.
+	Description string `json:"description"`
+
+	// Title Overrides the title the parser finds; required when the job description names none.
+	Title *string `json:"title,omitempty"`
+}
+
 // RoleStatus defines model for RoleStatus.
 type RoleStatus string
 
@@ -613,6 +702,13 @@ type ListRoleAvailabilityParams struct {
 	Offset *Offset `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// ListRoleFilterRunsParams defines parameters for ListRoleFilterRuns.
+type ListRoleFilterRunsParams struct {
+	// Limit Page size; default 50, max 200.
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *Offset `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // CreateCandidateJSONRequestBody defines body for CreateCandidate for application/json ContentType.
 type CreateCandidateJSONRequestBody = CandidateInput
 
@@ -642,6 +738,9 @@ type UnreleaseMatchJSONRequestBody = ReleaseInput
 
 // CreateRoleJSONRequestBody defines body for CreateRole for application/json ContentType.
 type CreateRoleJSONRequestBody = RoleInput
+
+// IntakeRoleJSONRequestBody defines body for IntakeRole for application/json ContentType.
+type IntakeRoleJSONRequestBody = RoleIntakeInput
 
 // UpdateRoleJSONRequestBody defines body for UpdateRole for application/json ContentType.
 type UpdateRoleJSONRequestBody = RoleInput

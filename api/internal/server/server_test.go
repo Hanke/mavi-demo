@@ -10,13 +10,18 @@ import (
 
 	"github.com/colehanke/mavi-demo/api/internal/aiclient"
 	"github.com/colehanke/mavi-demo/api/internal/contract"
+	"github.com/colehanke/mavi-demo/api/internal/tasks"
 )
 
 // stub stands in for Postgres and the AI service. extract, when set, answers
-// ExtractText; without it the file's bytes come back as its text.
+// ExtractText; without it the file's bytes come back as its text. parseJD
+// answers ParseJD, and embedErr fails EmbedBatch, which otherwise returns a
+// unit vector.
 type stub struct {
-	err     error
-	extract func(file []byte) (aiclient.ExtractTextResponse, error)
+	err      error
+	extract  func(file []byte) (aiclient.ExtractTextResponse, error)
+	parseJD  func(text string) (aiclient.ParsedJD, error)
+	embedErr error
 }
 
 func (s stub) Ping(context.Context) error   { return s.err }
@@ -26,6 +31,26 @@ func (s stub) ExtractText(_ context.Context, file []byte) (aiclient.ExtractTextR
 		return s.extract(file)
 	}
 	return aiclient.ExtractTextResponse{Text: string(file), Kind: "pdf"}, s.err
+}
+
+func (s stub) ParseJD(_ context.Context, text string) (aiclient.ParsedJD, error) {
+	if s.parseJD != nil {
+		return s.parseJD(text)
+	}
+	return aiclient.ParsedJD{}, errors.New("stub: no parseJD")
+}
+
+func (s stub) EmbedBatch(_ context.Context, items []aiclient.EmbedItem) (aiclient.EmbedBatchResponse, error) {
+	if s.embedErr != nil {
+		return aiclient.EmbedBatchResponse{}, s.embedErr
+	}
+	out := aiclient.EmbedBatchResponse{Dim: tasks.EmbeddingDim, Provider: "stub"}
+	for range items {
+		vec := make([]float32, tasks.EmbeddingDim)
+		vec[0] = 1
+		out.Embeddings = append(out.Embeddings, vec)
+	}
+	return out, nil
 }
 
 func TestHealthOK(t *testing.T) {
@@ -72,6 +97,7 @@ func TestRolesAreEnforcedBeforeHandlers(t *testing.T) {
 		{"POST", "/candidates", "employer", http.StatusForbidden},
 		{"DELETE", "/candidates/x", "talent", http.StatusForbidden},
 		{"POST", "/roles", "talent", http.StatusForbidden},
+		{"POST", "/roles/intake", "talent", http.StatusForbidden},
 		{"DELETE", "/roles/x", "talent", http.StatusForbidden},
 		{"POST", "/matches", "employer", http.StatusForbidden},
 		{"POST", "/matches", "talent", http.StatusForbidden},

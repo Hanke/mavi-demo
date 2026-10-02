@@ -111,7 +111,7 @@ func TestMigrateRoundTrip(t *testing.T) {
 	if err := Migrate(ctx, pool, dir); err != nil {
 		t.Fatalf("up: %v", err)
 	}
-	wantTables := []string{"documents", "candidates", "candidate_profiles", "candidate_availability", "roles", "matches", "review_events", "jobs"}
+	wantTables := []string{"documents", "candidates", "candidate_profiles", "candidate_availability", "roles", "matches", "review_events", "jobs", "filter_runs"}
 	for _, tbl := range wantTables {
 		if !tableExists(t, pool, tbl) {
 			t.Errorf("after up: table %s missing", tbl)
@@ -491,7 +491,8 @@ func TestSeedIsVariedAndQueuesEmbeddings(t *testing.T) {
 		t.Errorf("roles ask for %d distinct hours a week; want part-time and full-time", n)
 	}
 
-	// Every sample role's hard filters (the README shortlist query) select
+	// Every sample role's hard filters (as Store.RunHardFilter applies them,
+	// less the qualification equivalents and the time-zone overlap) select
 	// some, but not nearly all, candidates. The inner join on
 	// candidate_availability is what drops a candidate who has not answered.
 	rows, err := pool.Query(ctx, `

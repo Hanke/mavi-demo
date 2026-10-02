@@ -289,8 +289,8 @@ func (s *Store) UpsertAvailability(ctx context.Context, candidateID string, in A
 // candidate_availability row is in the result as failed, never left out and
 // never passed. on is the day the time-zone overlap is worked out for.
 //
-// It is paged for the ops listing. A matching run should not page through
-// this; it applies availability.Check to the rows of its own shortlist query.
+// It is paged for the ops listing, which is for reading the reasons. A
+// matching run does not use it: RunHardFilter applies the same rules in SQL.
 func (s *Store) AvailabilityFilter(ctx context.Context, role Role, on time.Time, p Page) ([]contract.AvailabilityCheck, error) {
 	p = p.clamp()
 	rows, err := s.pool.Query(ctx, `

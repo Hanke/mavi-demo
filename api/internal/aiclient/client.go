@@ -50,7 +50,7 @@ var (
 
 // Error is the failure type for every client call.
 type Error struct {
-	Op         string // "health", "embed", "embed-batch", "extract-text", "parse-resume"
+	Op         string // "health", "embed", "embed-batch", "extract-text", "parse-resume", "parse-jd"
 	StatusCode int    // 0 when no response was received
 	Detail     string // the service's `detail` field or body excerpt, if any
 	cause      error  // one of the sentinels
@@ -226,6 +226,34 @@ func (c *Client) ParseResume(ctx context.Context, text string) (ParsedResume, er
 	out := ParsedResume{Contact: wire.Contact, ProfileJSON: wire.Profile, Provider: wire.Provider}
 	if err := json.Unmarshal(wire.Profile, &out.Profile); err != nil || !bytes.HasPrefix(bytes.TrimSpace(wire.Profile), []byte("{")) {
 		return ParsedResume{}, &Error{Op: "parse-resume", StatusCode: http.StatusOK, cause: ErrBadResponse, Detail: "profile is not a CandidateProfile", wrapped: err}
+	}
+	return out, nil
+}
+
+// ParsedJD is the /parse-jd response. RequirementsJSON is the requirements
+// exactly as the service sent them (what the API stores in JSONB);
+// Requirements is the same document decoded.
+type ParsedJD struct {
+	Company          *string
+	Requirements     RoleRequirements
+	RequirementsJSON json.RawMessage
+	Provider         string
+}
+
+// ParseJD asks the AI service to extract a role's structured requirements
+// from a job description's text.
+func (c *Client) ParseJD(ctx context.Context, text string) (ParsedJD, error) {
+	var wire struct {
+		Company      *string         `json:"company"`
+		Requirements json.RawMessage `json:"requirements"`
+		Provider     string          `json:"provider"`
+	}
+	if err := c.do(ctx, "parse-jd", http.MethodPost, "/parse-jd", ParseJDRequest{Text: text}, c.parseTimeout, &wire); err != nil {
+		return ParsedJD{}, err
+	}
+	out := ParsedJD{Company: wire.Company, RequirementsJSON: wire.Requirements, Provider: wire.Provider}
+	if err := json.Unmarshal(wire.Requirements, &out.Requirements); err != nil || !bytes.HasPrefix(bytes.TrimSpace(wire.Requirements), []byte("{")) {
+		return ParsedJD{}, &Error{Op: "parse-jd", StatusCode: http.StatusOK, cause: ErrBadResponse, Detail: "requirements is not a RoleRequirements", wrapped: err}
 	}
 	return out, nil
 }

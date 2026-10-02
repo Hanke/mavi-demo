@@ -70,12 +70,15 @@ func run() error {
 	srv := &http.Server{
 		Addr: ":" + envOr("PORT", "8080"),
 		Handler: server.New(server.Config{
-			DB:         pool,
-			AI:         ai,
-			Store:      store.New(pool),
-			Taxonomy:   tax,
-			Jobs:       jobs.NewQueue(pool),
-			JobKinds:   handlers.Kinds(),
+			DB:       pool,
+			AI:       ai,
+			Store:    store.New(pool),
+			Taxonomy: tax,
+			Jobs:     jobs.NewQueue(pool),
+			JobKinds: handlers.Kinds(),
+			EmbedRole: func(ctx context.Context, roleID string) error {
+				return tasks.EmbedRole(ctx, pool, ai, roleID)
+			},
 			CORSOrigin: envOr("CORS_ORIGIN", "http://localhost:5173"),
 		}),
 		ReadHeaderTimeout: 5 * time.Second,

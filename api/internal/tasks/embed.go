@@ -1,8 +1,9 @@
 // Package tasks holds the job handlers the worker runs: the slow work the
 // API hands to the queue instead of doing inside a request. Today that is
 // embedding roles and candidate profiles through the AI service (this file)
-// and extracting a profile from an uploaded resume (resume.go); matching runs
-// will register here too.
+// and extracting a profile from an uploaded resume (resume.go). Matching runs
+// will register here too; their kind is already named (KindMatchRole) because
+// role intake queues one.
 package tasks
 
 import (
@@ -31,6 +32,16 @@ const (
 	// KindParseResume extracts a candidate's profile from their resume text,
 	// stores it and embeds it. Payload: {"candidate_id": uuid}.
 	KindParseResume = "parse_resume"
+	// KindMatchRole is a matching run for a role: shortlist, rerank, write the
+	// matches. Payload: {"role_id": uuid}. Role intake (POST /roles/intake)
+	// queues it, but it has no handler in Registry yet, so no worker claims
+	// it and the job waits until the handler lands. Its first stage exists
+	// (HardFilter); the rest takes its candidates from that run and from
+	// nowhere else. That handler must treat a role whose embedding is still
+	// NULL as not ready and retry: intake embeds before it queues the run,
+	// but a failed embedding is handed to an embed_role job that may finish
+	// later.
+	KindMatchRole = "match_role"
 )
 
 // EmbeddingDim is the width of the vector columns (see 0002_core_tables).
@@ -38,7 +49,7 @@ const EmbeddingDim = 1536
 
 // AI is the subset of *aiclient.Client the handlers use.
 type AI interface {
-	EmbedBatch(ctx context.Context, items []aiclient.EmbedItem) (aiclient.EmbedBatchResponse, error)
+	Embedder
 	ParseResume(ctx context.Context, text string) (aiclient.ParsedResume, error)
 }
 
@@ -59,7 +70,24 @@ func Registry(pool *pgxpool.Pool, ai AI, tax *taxonomy.Taxonomy) jobs.Registry {
 
 type embedder struct {
 	pool *pgxpool.Pool
-	ai   AI
+	ai   Embedder
+}
+
+// Embedder is the one AI call the embedding handlers make.
+type Embedder interface {
+	EmbedBatch(ctx context.Context, items []aiclient.EmbedItem) (aiclient.EmbedBatchResponse, error)
+}
+
+// EmbedRole embeds a role now instead of through the queue, exactly as the
+// embed_role handler would. Role intake uses it so that the role it answers
+// with is already embedded; when it fails, queueing KindEmbedRole does the
+// same work later.
+func EmbedRole(ctx context.Context, pool *pgxpool.Pool, ai Embedder, roleID string) error {
+	payload, err := json.Marshal(map[string]string{"role_id": roleID})
+	if err != nil {
+		return err
+	}
+	return (&embedder{pool: pool, ai: ai}).role(ctx, jobs.Job{Kind: KindEmbedRole, Payload: payload})
 }
 
 // role embeds a role. A role with structured requirements is sent as those

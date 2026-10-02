@@ -53,8 +53,10 @@ not use is a `403`.
 | `POST /candidates/{id}/resume`, `GET /candidates/{id}/resume/job` | own record only | | yes |
 | `GET` / `PUT /candidates/{id}/availability` | own record only | | yes |
 | `POST` / `PUT` / `DELETE /roles…` | | yes | yes |
+| `POST /roles/intake` | | yes | yes |
 | `GET /roles`, `GET /roles/{id}` | open roles only | yes | yes |
 | `GET /roles/{id}/availability` | | | yes |
+| `POST` / `GET /roles/{id}/filter-runs` | | | yes |
 | `POST` / `PUT` / `DELETE /matches…` | | | yes |
 | `POST /matches/{id}/release`, `…/unrelease` | | | yes |
 | `GET /matches`, `GET /matches/{id}` | own, **released only** | **released only** | all |
@@ -401,7 +403,9 @@ are `embed_role` and `embed_profile`: creating or editing a role, or saving a
 profile, leaves the row's embedding `NULL` and queues the job that fills it
 through the AI service's `/embed-batch` (see [Embeddings](#embeddings) for
 what is sent); and `parse_resume`, which a resume upload queues (see
-[Resume intake](#resume-intake)). (Matching runs will be a further kind.)
+[Resume intake](#resume-intake)). [Role intake](#role-intake) queues a
+fourth, `match_role`, which has no handler yet: the job waits in the queue
+until the matching run is written.
 
 How it works (`api/internal/jobs`, handlers in `api/internal/tasks`):
 
@@ -502,6 +506,42 @@ curl -s localhost:8080/candidates/$id/resume/job -H 'X-Role: talent' -H "X-Actor
 curl -s localhost:8080/candidates/$id/profile -H 'X-Role: talent' -H "X-Actor: $id"      # headline, certifications, embedded_at, ...
 ```
 
+### Role intake
+
+`POST /roles/intake` takes a pasted job description from the employer (or
+ops) as `{"description": "..."}`, with an optional `title` and `company` that
+win over what the parser finds:
+
+1. **Parse.** The API sends the text to the AI service's `/parse-jd`, in the
+   request, because the answer is what the parser understood. If the service
+   is down or the model's output does not validate, that is a `503` and
+   nothing is stored; a blank or over-long description, or a JD that names no
+   title when none was sent, is a `422`.
+2. **Store.** The role keeps the raw JD as `description`, the whole extraction
+   as `requirements`, and `must_haves`, `nice_to_haves` and the hard-filter
+   requirements (certifications, software, minimum years, time zone, overlap,
+   hours, start date) in their own columns. Certification and software ids the
+   API's taxonomy does not have fail the intake rather than land in a column
+   no profile can satisfy; a softer value the column cannot hold (an unknown
+   time zone, say) is left out.
+3. **Embed.** Still in the request, the role is embedded exactly as an
+   `embed_role` job would embed it: from the structured requirements through
+   `/embed-batch`, so its vector is comparable with a profile's. If that
+   fails the role stays, `embedded_at` is `null` in the response and an
+   `embed_role` job takes over.
+4. **Queue the matching run.** A `match_role` job with `{"role_id": ...}` is
+   queued. Nothing runs it yet (see [Background jobs](#background-jobs)).
+
+The answer is `201` with `{role, matching_job}`: the role as stored, so the
+employer sees the extracted requirements, and the queued job. Anything the
+parser got wrong is corrected with `PUT /roles/{id}`.
+
+```sh
+curl -s -X POST localhost:8080/roles/intake -H 'X-Role: employer' -H 'Content-Type: application/json' \
+  -d "$(jq -Rs '{description: .}' infra/fixtures/jds/senior_accountant_strict.txt)" \
+  | jq '{title: .role.title, must: .role.must_haves, nice: .role.nice_to_haves, embedded_at: .role.embedded_at, job: .matching_job.kind}'
+```
+
 ### Availability and time zone
 
 Two of the hard filters, availability and time-zone overlap, cannot be read
@@ -558,9 +598,9 @@ no match row can exist for a candidate without answers. (For a candidate who
 has answered, whether a hand-made match fits the role's hours is left to ops.) `GET /roles/{id}/availability` (ops) runs the filter over the active
 candidates and returns each one with `passed`, `reasons` and `overlap_hours`,
 so an excluded candidate is listed with the reason rather than missing
-(`Store.AvailabilityFilter`, a page at a time). There is no matching run yet;
-when there is, it applies the same `availability.Check` to the rows of its
-shortlist query.
+(`Store.AvailabilityFilter`, a page at a time). That listing is for reading
+the reasons. What narrows the pool for a matching run is the
+[hard-filter stage](#hard-filters), which applies the same rules in SQL.
 
 ```sh
 curl -s -X PUT localhost:8080/candidates/$id/availability -H 'X-Role: talent' -H "X-Actor: $id" -H 'Content-Type: application/json' \
@@ -661,36 +701,67 @@ the API writes.
 | `matches` | One row per (role, candidate): `score`, `explanation`, `breakdown`, `status` (proposed / approved / rejected / swapped), `released_at` (set when ops releases it to the employer) |
 | `review_events` | Append-only audit of ops approve / reject / swap / release / unrelease actions on a match |
 | `jobs` | Postgres-backed background queue: `kind`, `payload`, `status` (queued / running / succeeded / failed), `priority`, `run_at`, `attempts` / `max_attempts`, `last_error`, `locked_by` / `locked_at`; claimed with `FOR UPDATE SKIP LOCKED` on the partial `jobs_dequeue_idx` (see [Background jobs](#background-jobs)) |
+| `filter_runs` | One row per run of a role's [hard filters](#hard-filters): the size of the pool, the number of candidates left after each filter (`after_profile` … `after_timezone_overlap`), the ids that passed and the day the time-zone overlap was worked out for; deleted with the role |
 
-The hard-filter fields are real, indexed columns rather than JSON keys, so a
-shortlist query can be written directly in SQL (each must-have the JD parser
-returns has a column here, see [JD requirements](#jd-requirements)). Software is containment. A
-required qualification is an overlap with the ids the taxonomy accepts for it
-(`taxonomy.Acceptable(id, acceptEquivalents)` in Go, one array parameter per
-requirement; see [Qualifications](#qualifications-across-jurisdictions)):
+The hard-filter fields are real, indexed columns rather than JSON keys, so
+the pool is filtered directly in SQL (each must-have the JD parser returns has
+a column here, see [JD requirements](#jd-requirements)).
 
-```sql
-SELECT c.full_name, p.certifications, p.software, a.timezone
-FROM roles r
-JOIN candidate_profiles p
-  ON p.certifications && $2   -- e.g. {cpa_us,cpa_canada,aca_icaew,ca_icas,acca,...} for "CPA or equivalent"
- AND p.software       @> r.required_software
- AND (r.min_years_experience IS NULL OR p.years_experience >= r.min_years_experience)
-JOIN candidate_availability a   -- an inner join: no answers, no match
-  ON a.candidate_id = p.candidate_id
- AND (r.starts_on IS NULL OR a.available_from <= r.starts_on)
- AND (r.hours_per_week IS NULL OR a.hours_per_week >= r.hours_per_week)
-JOIN candidates c ON c.id = p.candidate_id
-WHERE r.id = $1 AND c.status = 'active'
-ORDER BY p.embedding <=> r.embedding
-LIMIT 20;
+### Hard filters
+
+The first stage of a matching run narrows the active candidates to those who
+meet every must-have of the role, in one statement (`Store.RunHardFilter` in
+[`api/internal/store/filter.go`](api/internal/store/filter.go)). The filters
+are applied in this order, and a candidate dropped by one is not looked at by
+the next:
+
+| Filter | Passes when |
+| --- | --- |
+| `profile` | the candidate has a parsed profile |
+| `certifications` | `p.certifications` overlaps the acceptable ids of every required qualification: the id itself and, unless the parser's record for it says `accept_equivalents: false`, its equivalents (`taxonomy.Acceptable`, one array per requirement; see [Qualifications](#qualifications-across-jurisdictions)) |
+| `software` | `p.software @> r.required_software` |
+| `experience` | `p.years_experience >= r.min_years_experience`; a profile with no figure does not pass a role that sets one |
+| `availability` | the candidate has answered, `a.available_from <= r.starts_on` and `a.hours_per_week >= r.hours_per_week` |
+| `timezone_overlap` | `overlap_minutes(r.timezone, a.timezone, a.work_start, a.work_end, day) >= r.min_overlap_hours * 60` |
+
+A requirement the role leaves empty or null drops nobody, with two
+exceptions: a candidate with no profile, or who has not supplied their
+availability, never passes. What is not known is false, never NULL.
+
+`overlap_minutes` is a SQL function (migration `0008_filter_runs`) with the
+definition of `availability.OverlapMinutes`: for each minute of the role's
+working day, on the role's start date or else the day of the run, what does
+the candidate's clock read. Postgres has each zone's rules, so the overlap is
+right on the days a zone changes its clocks. The filter works it out once per
+distinct set of working hours, not once per candidate, and only between zones
+Postgres lists by that exact name (`pg_timezone_names`): a stored zone that is
+anything else, including the abbreviations and POSIX strings Postgres would
+read and the API would not, does not pass a role that has a zone.
+
+The role row is read and locked first, so the acceptable ids are computed
+from the same version of the role the statement filters on; an edit to the
+role waits the few milliseconds the run takes.
+
+Every run is recorded in `filter_runs` and logged, with the number of
+candidates left after each filter, so the narrowing can be shown:
+
+```
+hard filter: role 2222… (Senior Accountant): pool 190 -> profile 190 -> certifications 69 -> software 21 -> experience 19 -> availability 7 -> timezone_overlap 4
 ```
 
-The time-zone overlap is the one filter not written in SQL: it needs each
-zone's rules for the day in question, so it is worked out in Go
-([Availability and time zone](#availability-and-time-zone)). It has to run
-before the `LIMIT`: the query is read in order without it, and the first 20
-rows that pass the overlap are the shortlist.
+```sh
+curl -s -X POST localhost:8080/roles/$role/filter-runs -H 'X-Role: ops' | jq '{pool, stages, passed}'
+curl -s localhost:8080/roles/$role/filter-runs -H 'X-Role: ops'    # the recorded runs, newest first
+```
+
+The run's `candidate_ids` are who passed, and are the only candidates a later
+stage may take: the `match_role` handler, when it lands, calls
+`tasks.HardFilter` and ranks within that set
+(`WHERE p.candidate_id = ANY($ids) ORDER BY p.embedding <=> r.embedding`).
+Until then the stage is run by hand with the `POST` above.
+[`api/internal/server/filter_test.go`](api/internal/server/filter_test.go)
+covers each filter against a pool in which every candidate misses exactly one
+thing, and checks `overlap_minutes` against the Go calculation case by case.
 
 ## Seed data
 

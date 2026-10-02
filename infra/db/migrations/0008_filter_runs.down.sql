@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS filter_runs;
+DROP FUNCTION IF EXISTS overlap_minutes(TEXT, TEXT, TIME, TIME, DATE);

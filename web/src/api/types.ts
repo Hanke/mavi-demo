@@ -22,8 +22,14 @@ export type WorkAvailability = Schemas["WorkAvailability"];
 export type WorkAvailabilityInput = Schemas["WorkAvailabilityInput"];
 export type AvailabilityCheck = Schemas["AvailabilityCheck"];
 
+export type FilterName = Schemas["FilterName"];
+export type FilterStage = Schemas["FilterStage"];
+export type FilterRun = Schemas["FilterRun"];
+
 export type Role = Schemas["Role"];
 export type RoleInput = Schemas["RoleInput"];
+export type RoleIntake = Schemas["RoleIntake"];
+export type RoleIntakeInput = Schemas["RoleIntakeInput"];
 export type RoleStatus = Schemas["RoleStatus"];
 
 export type Match = Schemas["Match"];

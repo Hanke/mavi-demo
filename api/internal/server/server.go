@@ -30,11 +30,12 @@ type Pinger interface {
 }
 
 // AI is the subset of *aiclient.Client the server needs: the health probe,
-// and text extraction for resume uploads. Everything slower goes through the
-// job queue.
+// text extraction for resume uploads, and the JD parse of role intake, whose
+// result is the response. Everything else slow goes through the job queue.
 type AI interface {
 	Health(ctx context.Context) error
 	ExtractText(ctx context.Context, file []byte) (aiclient.ExtractTextResponse, error)
+	ParseJD(ctx context.Context, text string) (aiclient.ParsedJD, error)
 }
 
 var _ AI = (*aiclient.Client)(nil)
@@ -42,29 +43,33 @@ var _ AI = (*aiclient.Client)(nil)
 // Config wires the server's dependencies. Store, Taxonomy and Jobs may be
 // nil for a health-only server (every other route then 503s).
 type Config struct {
-	DB         Pinger
-	AI         AI
-	Store      *store.Store
-	Taxonomy   *taxonomy.Taxonomy
-	Jobs       *jobs.Queue
-	JobKinds   []string // kinds POST /jobs accepts: what the worker has handlers for
+	DB       Pinger
+	AI       AI
+	Store    *store.Store
+	Taxonomy *taxonomy.Taxonomy
+	Jobs     *jobs.Queue
+	JobKinds []string // kinds POST /jobs accepts: what the worker has handlers for
+	// EmbedRole embeds a stored role now (tasks.EmbedRole), for role intake.
+	// Nil leaves every embedding to the embed_role job.
+	EmbedRole  func(ctx context.Context, roleID string) error
 	CORSOrigin string
 }
 
 type Server struct {
-	db         Pinger
-	ai         AI
-	store      *store.Store
-	tax        *taxonomy.Taxonomy
-	jobs       *jobs.Queue
-	jobKinds   []string
-	corsOrigin string
+	db           Pinger
+	ai           AI
+	store        *store.Store
+	tax          *taxonomy.Taxonomy
+	jobs         *jobs.Queue
+	jobKinds     []string
+	embedRoleNow func(ctx context.Context, roleID string) error
+	corsOrigin   string
 }
 
 const maxBody = 1 << 20
 
 func New(cfg Config) http.Handler {
-	s := &Server{db: cfg.DB, ai: cfg.AI, store: cfg.Store, tax: cfg.Taxonomy, jobs: cfg.Jobs, jobKinds: cfg.JobKinds, corsOrigin: cfg.CORSOrigin}
+	s := &Server{db: cfg.DB, ai: cfg.AI, store: cfg.Store, tax: cfg.Taxonomy, jobs: cfg.Jobs, jobKinds: cfg.JobKinds, embedRoleNow: cfg.EmbedRole, corsOrigin: cfg.CORSOrigin}
 	mux := http.NewServeMux()
 	mux.HandleFunc(healthRoute, s.handleHealth)
 	for _, rt := range s.routes() {
@@ -114,8 +119,16 @@ func (s *Server) routes() []routeDef {
 		r("PUT /candidates/{id}/availability", s.putAvailability, talent, ops),
 		r("GET /roles/{id}/availability", s.listRoleAvailability, ops),
 
-		// Roles: employers and ops write; talent reads open roles.
+		// Hard filters: the first stage of a matching run, on its own. Ops
+		// runs it for a role and reads back how the pool narrowed.
+		r("POST /roles/{id}/filter-runs", s.runRoleFilters, ops),
+		r("GET /roles/{id}/filter-runs", s.listRoleFilterRuns, ops),
+
+		// Roles: employers and ops write; talent reads open roles. Intake is
+		// the employer's way in: a pasted JD, parsed, stored, embedded and
+		// queued for matching.
 		r("POST /roles", s.createRole, employer, ops),
+		r("POST /roles/intake", s.intakeRole, employer, ops),
 		r("GET /roles", s.listRoles, talent, employer, ops),
 		r("GET /roles/{id}", s.getRole, talent, employer, ops),
 		r("PUT /roles/{id}", s.updateRole, employer, ops),
