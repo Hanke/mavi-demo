@@ -318,6 +318,32 @@ func TestMatchRoleAgainReplacesWithoutDuplicates(t *testing.T) {
 	}
 }
 
+// A swap gave the place of the candidate swapped out to the next one down,
+// and running the role again does not take it back: whoever was swapped out
+// holds no place in the queue, so the candidate brought in stays in it.
+func TestMatchRoleAgainKeepsASwap(t *testing.T) {
+	p := newMatchPool(t)
+	ada, ben, cy, dan := p.add("Ada", 10), p.add("Ben", 20), p.add("Cy", 30), p.add("Dan", 40)
+	ai := &rerankAI{levels: map[string]int{ada: 4, ben: 3, cy: 2, dan: 1}}
+	cfg := MatchConfig{ReviewSize: 2, MinScore: 0.2}
+	p.match(ai, cfg)
+	if s := summary(p.matches()); s != "Ada pending_review, Ben pending_review, Cy proposed, Dan proposed" {
+		t.Fatalf("first run: %s", s)
+	}
+
+	var benMatch string
+	p.scan(&benMatch, `SELECT id::text FROM matches WHERE candidate_id = $1`, ben)
+	swap, err := store.New(p.pool).SwapMatch(context.Background(), benMatch, cfg.MinScore, store.Reviewer{Actor: "ops@example.com"})
+	if err != nil || swap.Replacement.CandidateID != cy {
+		t.Fatalf("swap brought in %s (%v), want Cy: the next of the run's ranking", swap.Replacement.CandidateName, err)
+	}
+
+	p.match(ai, cfg)
+	if s := summary(p.matches()); s != "Ada pending_review, Ben swapped, Cy pending_review, Dan proposed" {
+		t.Fatalf("second run: %s", s)
+	}
+}
+
 // queued is how many match_role jobs wait for the role, and how far ahead
 // the first of them runs.
 func (p *matchPool) queued() (n int, in time.Duration) {

@@ -389,6 +389,83 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/roles/{id}/review-queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The role's matches under review
+         * @description What ops has to decide on for the role, and what it has decided:
+         *     `pending` is the queue (`pending_review`), `approved` the candidates
+         *     approved so far, both best first. `next` is the next ranked candidate,
+         *     the one `POST /matches/{id}/swap` would bring into the queue.
+         */
+        get: operations["getReviewQueue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/roles/{id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Release the role's two approved candidates to the employer
+         * @description The only way a match becomes visible to the employer. It is refused
+         *     (409) unless exactly two of the role's matches are `approved`: with
+         *     fewer there are not two profiles to show, and with more ops has not
+         *     said which two. It is also refused while a match that is not approved
+         *     is still released. Nothing changes when it is refused.
+         *
+         *     It sets `released_at` on the two and records a `release` review event
+         *     for each with the `X-Actor` value. Releasing a role whose two are
+         *     already released is a no-op.
+         */
+        post: operations["releaseRole"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/roles/{id}/review-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The audit trail of review decisions on the role's matches
+         * @description Every approve, reject, swap, release and unrelease on a match of the role, with who did it (`actor`) and when. Events are never edited or deleted, and a match that has one cannot be deleted.
+         */
+        get: operations["listReviewEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/matches": {
         parameters: {
             query?: never;
@@ -406,7 +483,7 @@ export interface paths {
         put?: never;
         /**
          * Propose a match between a role and a candidate
-         * @description A candidate who has not supplied their availability (`PUT /candidates/{id}/availability`) cannot be matched; that is a 422 on `candidate_id`.
+         * @description A candidate who has not supplied their availability (`PUT /candidates/{id}/availability`) cannot be matched; that is a 422 on `candidate_id`. A match is created undecided (`proposed`, or `pending_review` to put it in the review queue); any other `status` is a 422.
          */
         post: operations["createMatch"];
         delete?: never;
@@ -430,8 +507,8 @@ export interface paths {
          */
         get: operations["getMatch"];
         /**
-         * Edit a match's review fields
-         * @description The (role, candidate) pair is immutable; sending `role_id` or `candidate_id` is a 422.
+         * Edit a match's score, explanation or breakdown
+         * @description The (role, candidate) pair is immutable; sending `role_id` or `candidate_id` is a 422. So is sending `status`: a decision is made through the review operations, which record who made it.
          */
         put: operations["updateMatch"];
         post?: never;
@@ -445,7 +522,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/matches/{id}/release": {
+    "/matches/{id}/approve": {
         parameters: {
             query?: never;
             header?: never;
@@ -457,10 +534,75 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Release a match to the employer
-         * @description Sets `released_at` and records a `release` review event with the `X-Actor` value. Releasing an already released match is a no-op.
+         * Approve a candidate for the role
+         * @description Sets the match to `approved` and records an `approve` review event with
+         *     the `X-Actor` value. The match must be undecided (`pending_review`, or
+         *     `proposed`); one that was rejected or swapped out is a 409. Approving an
+         *     approved match is a no-op. Approving does not show the employer anything:
+         *     that is `POST /roles/{id}/release`, once exactly two are approved.
          */
-        post: operations["releaseMatch"];
+        post: operations["approveMatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/matches/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Turn a candidate down, with nobody brought in
+         * @description Sets the match to `rejected` and records a `reject` review event. It is
+         *     how an approval is taken back, and how a candidate leaves the queue when
+         *     there is nobody to swap in. The match must be undecided or approved, and
+         *     not released (withdraw it first); one that was swapped out is a 409.
+         *     Rejecting a rejected match is a no-op.
+         */
+        post: operations["rejectMatch"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/matches/{id}/swap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Swap a candidate out for the next ranked one
+         * @description Takes a candidate out of review and brings in the next ranked: the match
+         *     becomes `swapped`, and the role's best `proposed` match becomes
+         *     `pending_review`, where it waits for a decision like any other. One
+         *     `swap` review event records both, with the candidate brought in as
+         *     `replacement_candidate_id`.
+         *
+         *     The next ranked candidate is the highest scoring `proposed` match of the
+         *     role whose candidate is still active and who scores the minimum
+         *     (`MATCH_MIN_SCORE`) or more; it is `next` in `GET /roles/{id}/review-queue`.
+         *     A weak candidate is not brought in to make up the number: with nobody in
+         *     reserve the swap is a 409 and nothing changes.
+         *
+         *     The match must be in review (`pending_review` or `approved`) and not
+         *     released; anything else is a 409.
+         */
+        post: operations["swapMatch"];
         delete?: never;
         options?: never;
         head?: never;
@@ -480,7 +622,9 @@ export interface paths {
         put?: never;
         /**
          * Withdraw a released match
-         * @description Clears `released_at` and records an `unrelease` review event. A no-op on an unreleased match.
+         * @description Clears `released_at`, so the employer no longer sees the match, and
+         *     records an `unrelease` review event. The match stays `approved`. A no-op
+         *     on a match that is not released.
          */
         post: operations["unreleaseMatch"];
         delete?: never;
@@ -567,7 +711,7 @@ export interface components {
         /** @enum {string} */
         RoleStatus: "open" | "filled" | "closed";
         /**
-         * @description `pending_review` is the review queue: the top of a matching run's ranking, waiting for an ops decision. `proposed` is a match nobody has decided on that is not in the queue: the rest of what a run scored, or one ops wrote by hand. Neither says anything about what the employer sees; that is `released_at`.
+         * @description `pending_review` is the review queue: the top of a matching run's ranking, waiting for an ops decision. `proposed` is a match nobody has decided on that is not in the queue: the rest of what a run scored, or one ops wrote by hand. `approved`, `rejected` and `swapped` are ops' decisions, made through the review operations. None of them says anything about what the employer sees; that is `released_at`.
          * @enum {string}
          */
         MatchStatus: "proposed" | "pending_review" | "approved" | "rejected" | "swapped";
@@ -887,7 +1031,7 @@ export interface components {
             status: components["schemas"]["MatchStatus"];
             /**
              * Format: date-time
-             * @description Set when ops released the match to the employer.
+             * @description Set when ops released the match to the employer (`POST /roles/{id}/release`).
              */
             released_at: string | null;
             /** Format: date-time */
@@ -899,14 +1043,13 @@ export interface components {
             /** @description Denormalised from the candidate. */
             candidate_name: string;
         };
-        /** @description The ops-editable part of a match. Fields not sent keep their value. */
+        /** @description The ops-editable part of a match. Fields not sent keep their value. `status` is not one of them: it changes through the review operations. */
         MatchUpdate: {
             /** Format: double */
             score?: number;
             /** @description `null` clears it to an empty string. */
             explanation?: string | null;
             breakdown?: components["schemas"]["JSONObject"];
-            status?: components["schemas"]["MatchStatus"];
         };
         MatchCreate: {
             role_id: components["schemas"]["Id"];
@@ -915,12 +1058,57 @@ export interface components {
             score: number;
             explanation?: string | null;
             breakdown?: components["schemas"]["JSONObject"];
-            /** @description Defaults to `proposed`. */
+            /** @description `proposed` (the default) or `pending_review`. */
             status?: components["schemas"]["MatchStatus"];
         };
-        ReleaseInput: {
+        ReviewInput: {
             /** @description Recorded on the review event. */
             reason?: string;
+        };
+        /** @description A role's matches under review. */
+        ReviewQueue: {
+            role_id: components["schemas"]["Id"];
+            /** @description The queue, the `pending_review` matches waiting for a decision, best first. */
+            pending: components["schemas"]["Match"][];
+            /** @description The `approved` matches, best first. The role can be released when there are exactly two; `released_at` says whether each has been. */
+            approved: components["schemas"]["Match"][];
+            /** @description The next ranked candidate, whom a swap would bring into the queue. `null` when nobody in reserve scores the minimum or more. */
+            next: components["schemas"]["Match"] | null;
+        };
+        SwapResult: {
+            /** @description The match taken out, now `swapped`. */
+            swapped: components["schemas"]["Match"];
+            /** @description The next ranked match, now `pending_review`. */
+            replacement: components["schemas"]["Match"];
+        };
+        /**
+         * @description What a review event records. Each is written by the review operation of the same name.
+         * @enum {string}
+         */
+        ReviewAction: "approve" | "reject" | "swap" | "release" | "unrelease";
+        /** @description One ops decision on a match, as recorded when it was made. */
+        ReviewEvent: {
+            /**
+             * Format: int64
+             * @description Events are numbered in the order they were recorded.
+             */
+            id: number;
+            match_id: components["schemas"]["Id"];
+            role_id: components["schemas"]["Id"];
+            /** @description The candidate of the match the decision was on. */
+            candidate_id: components["schemas"]["Id"];
+            candidate_name: string;
+            action: components["schemas"]["ReviewAction"];
+            /** @description Who did it, the `X-Actor` of the request. */
+            actor: string;
+            reason: string | null;
+            /** @description For a `swap`, the candidate brought into the queue. */
+            replacement_candidate_id: components["schemas"]["Id"] | null;
+            replacement_candidate_name: string | null;
+            /** @description `from`, the status the match had before an approve, reject or swap; for a swap also `replacement_match_id`. */
+            metadata: components["schemas"]["JSONObject"];
+            /** Format: date-time */
+            created_at: string;
         };
         /**
          * @description One background job in the Postgres-backed queue (the `jobs` table). A
@@ -1002,7 +1190,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description The role may not call this operation, or a talent request is missing its candidate id. */
+        /** @description The role may not call this operation, a talent request is missing its candidate id, or a review operation is missing its reviewer (`X-Actor`). */
         Forbidden: {
             headers: {
                 [name: string]: unknown;
@@ -1020,7 +1208,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description A unique constraint (duplicate email, duplicate role/candidate pair) or a delete blocked by history. */
+        /** @description A unique constraint (duplicate email, duplicate role/candidate pair), a delete blocked by history, or a review operation the role's matches do not allow as they stand (`error` says why; nothing was changed). */
         Conflict: {
             headers: {
                 [name: string]: unknown;
@@ -1759,6 +1947,91 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    getReviewQueue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The queue. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewQueue"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    releaseRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReviewInput"];
+            };
+        };
+        responses: {
+            /** @description The two released matches, best first; what the employer now sees for the role. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Match"][];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    listReviewEvents: {
+        parameters: {
+            query?: {
+                /** @description Page size; default 50, max 200. */
+                limit?: components["parameters"]["Limit"];
+                offset?: components["parameters"]["Offset"];
+            };
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Events, oldest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewEvent"][];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     listMatches: {
         parameters: {
             query?: {
@@ -1898,7 +2171,7 @@ export interface operations {
             409: components["responses"]["Conflict"];
         };
     };
-    releaseMatch: {
+    approveMatch: {
         parameters: {
             query?: never;
             header?: never;
@@ -1909,7 +2182,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["ReleaseInput"];
+                "application/json": components["schemas"]["ReviewInput"];
             };
         };
         responses: {
@@ -1926,6 +2199,69 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    rejectMatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReviewInput"];
+            };
+        };
+        responses: {
+            /** @description The match after the change. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Match"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    swapMatch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReviewInput"];
+            };
+        };
+        responses: {
+            /** @description The match swapped out and the one brought in. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SwapResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     unreleaseMatch: {
@@ -1939,7 +2275,7 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["ReleaseInput"];
+                "application/json": components["schemas"]["ReviewInput"];
             };
         };
         responses: {
@@ -1956,6 +2292,7 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     listJobs: {

@@ -533,12 +533,12 @@ func (s *Store) ListMatches(ctx context.Context, f MatchFilter, p Page) ([]Match
 }
 
 // MatchUpdate is the ops-editable part of a match. A nil field keeps its
-// value.
+// value. The status is not part of it: a decision is made through the review
+// methods (review.go), which record it.
 type MatchUpdate struct {
 	Score       *float64
 	Explanation *string
 	Breakdown   json.RawMessage
-	Status      *string
 }
 
 // UpdateMatch writes the fields that are set and no others, in one
@@ -552,49 +552,14 @@ func (s *Store) UpdateMatch(ctx context.Context, id string, in MatchUpdate) (Mat
 	}
 	tag, err := s.pool.Exec(ctx, `
 		UPDATE matches SET score = coalesce($2, score), explanation = coalesce($3, explanation),
-			breakdown = coalesce($4::jsonb, breakdown), status = coalesce($5, status)
+			breakdown = coalesce($4::jsonb, breakdown)
 		WHERE id = $1`,
-		id, in.Score, in.Explanation, breakdown, in.Status)
+		id, in.Score, in.Explanation, breakdown)
 	if err != nil {
 		return Match{}, mapErr(err)
 	}
 	if tag.RowsAffected() == 0 {
 		return Match{}, ErrNotFound
-	}
-	return s.GetMatch(ctx, id, false)
-}
-
-// SetReleased releases or un-releases a match and records who did it. Both
-// writes commit together so the audit trail cannot drift from the flag.
-func (s *Store) SetReleased(ctx context.Context, id string, released bool, actor, reason string) (Match, error) {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Match{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	// Only rows whose flag actually flips are updated, so a repeated release
-	// (a double-click, a retried request) is a no-op with no audit row.
-	tag, err := tx.Exec(ctx, `
-		UPDATE matches SET released_at = CASE WHEN $2 THEN now() ELSE NULL END
-		WHERE id = $1 AND (released_at IS NULL) = $2`, id, released)
-	if err != nil {
-		return Match{}, mapErr(err)
-	}
-	if tag.RowsAffected() == 0 {
-		return s.GetMatch(ctx, id, false) // ErrNotFound if it does not exist; unchanged otherwise
-	}
-	action := "release"
-	if !released {
-		action = "unrelease"
-	}
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO review_events (match_id, action, actor, reason) VALUES ($1, $2, $3, NULLIF($4, ''))`,
-		id, action, actor, reason); err != nil {
-		return Match{}, mapErr(err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return Match{}, err
 	}
 	return s.GetMatch(ctx, id, false)
 }

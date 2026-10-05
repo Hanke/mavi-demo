@@ -392,9 +392,11 @@ func TestEmployerOnlySeesReleasedMatches(t *testing.T) {
 	a := newAPI(t)
 	ada := a.candidate("Ada Okafor", "ada@example.com")
 	ben := a.candidate("Ben Larsen", "ben@example.com")
+	cy := a.candidate("Cy Reyes", "cy@example.com")
 	roleID := a.role("Senior Accountant")
 	m1 := a.match(roleID, ada, 0.91)
 	m2 := a.match(roleID, ben, 0.42)
+	m3 := a.match(roleID, cy, 0.77)
 
 	// Match validation.
 	a.want(a.do("POST", "/matches", "ops", "", map[string]any{"role_id": roleID, "candidate_id": ada, "score": 0.5}), 409, "duplicate pair")
@@ -408,8 +410,8 @@ func TestEmployerOnlySeesReleasedMatches(t *testing.T) {
 	a.want(a.do("GET", "/matches?candidate_id=abc", "employer", "", nil), 422, "bad candidate_id filter")
 	a.want(a.do("GET", "/matches", "talent", "ben", nil), 403, "talent with non-uuid actor")
 
-	// Nothing is released yet: ops sees both, employer sees none.
-	if r = a.want(a.do("GET", "/matches?role_id="+roleID, "ops", "", nil), 200, "ops list"); len(r.List) != 2 {
+	// Nothing is released yet: ops sees them all, employer sees none.
+	if r = a.want(a.do("GET", "/matches?role_id="+roleID, "ops", "", nil), 200, "ops list"); len(r.List) != 3 {
 		t.Fatalf("ops list: %s", r.Raw)
 	}
 	if r = a.want(a.do("GET", "/matches?role_id="+roleID, "employer", "", nil), 200, "employer list"); len(r.List) != 0 {
@@ -418,22 +420,25 @@ func TestEmployerOnlySeesReleasedMatches(t *testing.T) {
 	a.want(a.do("GET", "/matches/"+m1, "employer", "", nil), 404, "employer get unreleased")
 	a.want(a.do("GET", "/matches/"+m1, "ops", "", nil), 200, "ops get unreleased")
 
-	// Release one.
-	r = a.want(a.do("POST", "/matches/"+m1+"/release", "ops", "ops@example.com", map[string]any{"reason": "strong fit"}), 200, "release")
-	if r.Body["released_at"] == nil {
-		t.Fatalf("release should set released_at: %s", r.Raw)
+	// Ops approves two and releases the role; Ben's match stays as it was.
+	const ops = "ops@example.com"
+	a.want(a.do("POST", "/matches/"+m1+"/approve", "ops", ops, nil), 200, "approve ada")
+	a.want(a.do("POST", "/matches/"+m3+"/approve", "ops", ops, nil), 200, "approve cy")
+	r = a.want(a.do("POST", "/roles/"+roleID+"/release", "ops", ops, map[string]any{"reason": "strong fit"}), 200, "release")
+	if len(r.List) != 2 || r.List[0]["released_at"] == nil || r.List[1]["released_at"] == nil {
+		t.Fatalf("release should set released_at on the two approved: %s", r.Raw)
 	}
 	r = a.want(a.do("GET", "/matches?role_id="+roleID, "employer", "", nil), 200, "employer list after release")
-	if len(r.List) != 1 || r.List[0]["id"] != m1 || r.List[0]["candidate_name"] != "Ada Okafor" {
-		t.Fatalf("employer should see exactly the released match: %s", r.Raw)
+	if len(r.List) != 2 || r.List[0]["id"] != m1 || r.List[0]["candidate_name"] != "Ada Okafor" || r.List[1]["id"] != m3 {
+		t.Fatalf("employer should see exactly the released matches: %s", r.Raw)
 	}
 	a.want(a.do("GET", "/matches/"+m1, "employer", "", nil), 200, "employer get released")
 	a.want(a.do("GET", "/matches/"+m2, "employer", "", nil), 404, "employer get other unreleased")
 	// Employer cannot widen the filter to see unreleased rows.
-	if r = a.want(a.do("GET", "/matches?status=proposed", "employer", "", nil), 200, "employer status filter"); len(r.List) != 1 {
+	if r = a.want(a.do("GET", "/matches?status=proposed", "employer", "", nil), 200, "employer status filter"); len(r.List) != 0 {
 		t.Fatalf("employer status filter leaked: %s", r.Raw)
 	}
-	if r = a.want(a.do("GET", "/matches", "employer", "", nil), 200, "employer unfiltered"); len(r.List) != 1 {
+	if r = a.want(a.do("GET", "/matches", "employer", "", nil), 200, "employer unfiltered"); len(r.List) != 2 {
 		t.Fatalf("employer unfiltered leaked: %s", r.Raw)
 	}
 
@@ -452,16 +457,17 @@ func TestEmployerOnlySeesReleasedMatches(t *testing.T) {
 	a.want(a.do("GET", "/matches/"+m1, "talent", ada, nil), 200, "ada gets own match")
 
 	// Releasing again is a no-op with no extra audit row.
-	a.want(a.do("POST", "/matches/"+m1+"/release", "ops", "ops@example.com", nil), 200, "release twice")
-	a.want(a.do("POST", "/matches/"+m2+"/unrelease", "ops", "ops@example.com", ""), 200, "unrelease never released")
-	if n := a.count(`SELECT count(*) FROM review_events WHERE match_id IN ($1, $2)`, m1, m2); n != 1 {
-		t.Fatalf("review_events rows after no-op release/unrelease = %d, want 1", n)
+	a.want(a.do("POST", "/roles/"+roleID+"/release", "ops", ops, nil), 200, "release twice")
+	a.want(a.do("POST", "/matches/"+m2+"/unrelease", "ops", ops, ""), 200, "unrelease never released")
+	if n := a.count(`SELECT count(*) FROM review_events WHERE action IN ('release', 'unrelease')`); n != 2 {
+		t.Fatalf("review_events rows after no-op release/unrelease = %d, want 2", n)
 	}
-	a.want(a.do("POST", "/matches/00000000-0000-0000-0000-000000000000/release", "ops", "", nil), 404, "release missing")
+	a.want(a.do("POST", "/roles/00000000-0000-0000-0000-000000000000/release", "ops", ops, nil), 404, "release missing")
+	a.want(a.do("POST", "/matches/00000000-0000-0000-0000-000000000000/unrelease", "ops", ops, nil), 404, "unrelease missing")
 
 	// Un-release hides it again and both actions are audited.
-	a.want(a.do("POST", "/matches/"+m1+"/unrelease", "ops", "ops@example.com", nil), 200, "unrelease")
-	if r = a.want(a.do("GET", "/matches", "employer", "", nil), 200, "employer after unrelease"); len(r.List) != 0 {
+	a.want(a.do("POST", "/matches/"+m1+"/unrelease", "ops", ops, nil), 200, "unrelease")
+	if r = a.want(a.do("GET", "/matches", "employer", "", nil), 200, "employer after unrelease"); len(r.List) != 1 || r.List[0]["id"] != m3 {
 		t.Fatalf("unreleased match still visible: %s", r.Raw)
 	}
 	if n := a.count(`SELECT count(*) FROM review_events WHERE match_id = $1 AND actor = 'ops@example.com' AND action IN ('release','unrelease')`, m1); n != 2 {
@@ -471,16 +477,17 @@ func TestEmployerOnlySeesReleasedMatches(t *testing.T) {
 		t.Fatalf("release reason not recorded")
 	}
 
-	// Ops edits; the pair is immutable.
-	r = a.want(a.do("PUT", "/matches/"+m2, "ops", "", map[string]any{"status": "approved", "score": 0.6, "explanation": "solid", "breakdown": map[string]any{"filters": "pass"}}), 200, "update")
-	if r.str("status") != "approved" || r.Body["score"] != 0.6 || r.str("explanation") != "solid" {
+	// Ops edits; the pair is immutable, and the status is not an edit.
+	r = a.want(a.do("PUT", "/matches/"+m2, "ops", "", map[string]any{"score": 0.6, "explanation": "solid", "breakdown": map[string]any{"filters": "pass"}}), 200, "update")
+	if r.str("status") != "proposed" || r.Body["score"] != 0.6 || r.str("explanation") != "solid" {
 		t.Fatalf("update: %s", r.Raw)
 	}
 	r = a.want(a.do("PUT", "/matches/"+m2, "ops", "", map[string]any{"explanation": nil}), 200, "clear explanation")
-	if r.str("explanation") != "" || r.str("status") != "approved" {
+	if r.str("explanation") != "" || r.Body["score"] != 0.6 {
 		t.Fatalf("null explanation should clear only that field: %s", r.Raw)
 	}
 	a.want(a.do("PUT", "/matches/"+m2, "ops", "", map[string]any{"candidate_id": ada}), 422, "change pair")
+	a.want(a.do("PUT", "/matches/"+m2, "ops", "", map[string]any{"status": "approved"}), 422, "change status")
 
 	// A match with review history cannot be hard-deleted; one without can.
 	a.want(a.do("DELETE", "/matches/"+m1, "ops", "", nil), 409, "delete audited match")

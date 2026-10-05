@@ -44,6 +44,7 @@ tags:
   - name: availability
   - name: roles
   - name: matching
+  - name: review
   - name: matches
   - name: jobs
 
@@ -655,6 +656,96 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
 
   # ---------------------------------------------------------------------------
+  # Review: ops decides on a role's matches and releases two to the employer.
+  # Every decision is a review event, written with the change it records.
+  # ---------------------------------------------------------------------------
+  /roles/{id}/review-queue:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [review]
+      operationId: getReviewQueue
+      summary: The role's matches under review
+      description: |
+        What ops has to decide on for the role, and what it has decided:
+        `pending` is the queue (`pending_review`), `approved` the candidates
+        approved so far, both best first. `next` is the next ranked candidate,
+        the one `POST /matches/{id}/swap` would bring into the queue.
+      x-roles: [ops]
+      responses:
+        "200":
+          description: The queue.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReviewQueue" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /roles/{id}/release:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [review]
+      operationId: releaseRole
+      summary: Release the role's two approved candidates to the employer
+      description: |
+        The only way a match becomes visible to the employer. It is refused
+        (409) unless exactly two of the role's matches are `approved`: with
+        fewer there are not two profiles to show, and with more ops has not
+        said which two. It is also refused while a match that is not approved
+        is still released. Nothing changes when it is refused.
+
+        It sets `released_at` on the two and records a `release` review event
+        for each with the `X-Actor` value. Releasing a role whose two are
+        already released is a no-op.
+      x-roles: [ops]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReviewInput" }
+      responses:
+        "200":
+          description: The two released matches, best first; what the employer now sees for the role.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Match" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /roles/{id}/review-events:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [review]
+      operationId: listReviewEvents
+      summary: The audit trail of review decisions on the role's matches
+      description: >-
+        Every approve, reject, swap, release and unrelease on a match of the role, with who did it
+        (`actor`) and when. Events are never edited or deleted, and a match that has one cannot be deleted.
+      x-roles: [ops]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Events, oldest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ReviewEvent" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # ---------------------------------------------------------------------------
   # Matches
   # ---------------------------------------------------------------------------
   /matches:
@@ -662,7 +753,10 @@ paths:
       tags: [matches]
       operationId: createMatch
       summary: Propose a match between a role and a candidate
-      description: A candidate who has not supplied their availability (`PUT /candidates/{id}/availability`) cannot be matched; that is a 422 on `candidate_id`.
+      description: >-
+        A candidate who has not supplied their availability (`PUT /candidates/{id}/availability`) cannot be
+        matched; that is a 422 on `candidate_id`. A match is created undecided (`proposed`, or `pending_review`
+        to put it in the review queue); any other `status` is a 422.
       x-roles: [ops]
       requestBody:
         required: true
@@ -734,8 +828,10 @@ paths:
     put:
       tags: [matches]
       operationId: updateMatch
-      summary: Edit a match's review fields
-      description: The (role, candidate) pair is immutable; sending `role_id` or `candidate_id` is a 422.
+      summary: Edit a match's score, explanation or breakdown
+      description: >-
+        The (role, candidate) pair is immutable; sending `role_id` or `candidate_id` is a 422. So is sending
+        `status`: a decision is made through the review operations, which record who made it.
       x-roles: [ops]
       requestBody:
         required: true
@@ -766,20 +862,25 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
 
-  /matches/{id}/release:
+  /matches/{id}/approve:
     parameters:
       - $ref: "#/components/parameters/Id"
     post:
-      tags: [matches]
-      operationId: releaseMatch
-      summary: Release a match to the employer
-      description: Sets `released_at` and records a `release` review event with the `X-Actor` value. Releasing an already released match is a no-op.
+      tags: [review]
+      operationId: approveMatch
+      summary: Approve a candidate for the role
+      description: |
+        Sets the match to `approved` and records an `approve` review event with
+        the `X-Actor` value. The match must be undecided (`pending_review`, or
+        `proposed`); one that was rejected or swapped out is a 409. Approving an
+        approved match is a no-op. Approving does not show the employer anything:
+        that is `POST /roles/{id}/release`, once exactly two are approved.
       x-roles: [ops]
       requestBody:
         required: false
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/ReleaseInput" }
+            schema: { $ref: "#/components/schemas/ReviewInput" }
       responses:
         "200":
           description: The match after the change.
@@ -790,21 +891,96 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /matches/{id}/reject:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [review]
+      operationId: rejectMatch
+      summary: Turn a candidate down, with nobody brought in
+      description: |
+        Sets the match to `rejected` and records a `reject` review event. It is
+        how an approval is taken back, and how a candidate leaves the queue when
+        there is nobody to swap in. The match must be undecided or approved, and
+        not released (withdraw it first); one that was swapped out is a 409.
+        Rejecting a rejected match is a no-op.
+      x-roles: [ops]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReviewInput" }
+      responses:
+        "200":
+          description: The match after the change.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Match" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /matches/{id}/swap:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [review]
+      operationId: swapMatch
+      summary: Swap a candidate out for the next ranked one
+      description: |
+        Takes a candidate out of review and brings in the next ranked: the match
+        becomes `swapped`, and the role's best `proposed` match becomes
+        `pending_review`, where it waits for a decision like any other. One
+        `swap` review event records both, with the candidate brought in as
+        `replacement_candidate_id`.
+
+        The next ranked candidate is the highest scoring `proposed` match of the
+        role whose candidate is still active and who scores the minimum
+        (`MATCH_MIN_SCORE`) or more; it is `next` in `GET /roles/{id}/review-queue`.
+        A weak candidate is not brought in to make up the number: with nobody in
+        reserve the swap is a 409 and nothing changes.
+
+        The match must be in review (`pending_review` or `approved`) and not
+        released; anything else is a 409.
+      x-roles: [ops]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReviewInput" }
+      responses:
+        "200":
+          description: The match swapped out and the one brought in.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SwapResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
 
   /matches/{id}/unrelease:
     parameters:
       - $ref: "#/components/parameters/Id"
     post:
-      tags: [matches]
+      tags: [review]
       operationId: unreleaseMatch
       summary: Withdraw a released match
-      description: Clears `released_at` and records an `unrelease` review event. A no-op on an unreleased match.
+      description: |
+        Clears `released_at`, so the employer no longer sees the match, and
+        records an `unrelease` review event. The match stays `approved`. A no-op
+        on a match that is not released.
       x-roles: [ops]
       requestBody:
         required: false
         content:
           application/json:
-            schema: { $ref: "#/components/schemas/ReleaseInput" }
+            schema: { $ref: "#/components/schemas/ReviewInput" }
       responses:
         "200":
           description: The match after the change.
@@ -815,6 +991,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
 
   /jobs:
     post:
@@ -905,7 +1082,9 @@ components:
       type: apiKey
       in: header
       name: X-Actor
-      description: Optional. The candidate id for talent (required for talent to read anything), an email for ops.
+      description: >-
+        The candidate id for talent (required for talent to read anything), an email for ops (required for
+        the review operations, whose audit trail records it).
 
   parameters:
     Id:
@@ -940,7 +1119,9 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
     Forbidden:
-      description: The role may not call this operation, or a talent request is missing its candidate id.
+      description: >-
+        The role may not call this operation, a talent request is missing its candidate id, or a review
+        operation is missing its reviewer (`X-Actor`).
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -950,7 +1131,9 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
     Conflict:
-      description: A unique constraint (duplicate email, duplicate role/candidate pair) or a delete blocked by history.
+      description: >-
+        A unique constraint (duplicate email, duplicate role/candidate pair), a delete blocked by history, or a
+        review operation the role's matches do not allow as they stand (`error` says why; nothing was changed).
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -993,7 +1176,8 @@ components:
       description: >-
         `pending_review` is the review queue: the top of a matching run's ranking, waiting for an ops decision.
         `proposed` is a match nobody has decided on that is not in the queue: the rest of what a run scored, or
-        one ops wrote by hand. Neither says anything about what the employer sees; that is `released_at`.
+        one ops wrote by hand. `approved`, `rejected` and `swapped` are ops' decisions, made through the review
+        operations. None of them says anything about what the employer sees; that is `released_at`.
       enum: [proposed, pending_review, approved, rejected, swapped]
     JobStatus:
       type: string
@@ -1519,7 +1703,7 @@ components:
           type: string
           format: date-time
           nullable: true
-          description: Set when ops released the match to the employer.
+          description: Set when ops released the match to the employer (`POST /roles/{id}/release`).
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
         role_title:
@@ -1531,7 +1715,9 @@ components:
 
     MatchUpdate:
       type: object
-      description: The ops-editable part of a match. Fields not sent keep their value.
+      description: >-
+        The ops-editable part of a match. Fields not sent keep their value. `status` is not one of them: it
+        changes through the review operations.
       properties:
         score:
           type: number
@@ -1545,7 +1731,6 @@ components:
         breakdown:
           allOf: [{ $ref: "#/components/schemas/JSONObject" }]
           x-go-type-skip-optional-pointer: true
-        status: { $ref: "#/components/schemas/MatchStatus" }
 
     MatchCreate:
       type: object
@@ -1564,14 +1749,88 @@ components:
           x-go-type-skip-optional-pointer: true
         status:
           allOf: [{ $ref: "#/components/schemas/MatchStatus" }]
-          description: Defaults to `proposed`.
+          description: "`proposed` (the default) or `pending_review`."
 
-    ReleaseInput:
+    # -- review ---------------------------------------------------------------
+    ReviewInput:
       type: object
       properties:
         reason:
           type: string
           description: Recorded on the review event.
+
+    ReviewQueue:
+      type: object
+      description: A role's matches under review.
+      required: [role_id, pending, approved, next]
+      properties:
+        role_id: { $ref: "#/components/schemas/Id" }
+        pending:
+          type: array
+          description: The queue, the `pending_review` matches waiting for a decision, best first.
+          items: { $ref: "#/components/schemas/Match" }
+        approved:
+          type: array
+          description: >-
+            The `approved` matches, best first. The role can be released when there are exactly two;
+            `released_at` says whether each has been.
+          items: { $ref: "#/components/schemas/Match" }
+        next:
+          allOf: [{ $ref: "#/components/schemas/Match" }]
+          nullable: true
+          description: >-
+            The next ranked candidate, whom a swap would bring into the queue. `null` when nobody in reserve
+            scores the minimum or more.
+
+    SwapResult:
+      type: object
+      required: [swapped, replacement]
+      properties:
+        swapped:
+          allOf: [{ $ref: "#/components/schemas/Match" }]
+          description: The match taken out, now `swapped`.
+        replacement:
+          allOf: [{ $ref: "#/components/schemas/Match" }]
+          description: The next ranked match, now `pending_review`.
+
+    ReviewAction:
+      type: string
+      description: What a review event records. Each is written by the review operation of the same name.
+      enum: [approve, reject, swap, release, unrelease]
+
+    ReviewEvent:
+      type: object
+      description: One ops decision on a match, as recorded when it was made.
+      required:
+        [id, match_id, role_id, candidate_id, candidate_name, action, actor, reason, replacement_candidate_id,
+         replacement_candidate_name, metadata, created_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Events are numbered in the order they were recorded.
+        match_id: { $ref: "#/components/schemas/Id" }
+        role_id: { $ref: "#/components/schemas/Id" }
+        candidate_id:
+          allOf: [{ $ref: "#/components/schemas/Id" }]
+          description: The candidate of the match the decision was on.
+        candidate_name: { type: string }
+        action: { $ref: "#/components/schemas/ReviewAction" }
+        actor:
+          type: string
+          description: Who did it, the `X-Actor` of the request.
+        reason: { type: string, nullable: true }
+        replacement_candidate_id:
+          allOf: [{ $ref: "#/components/schemas/Id" }]
+          nullable: true
+          description: For a `swap`, the candidate brought into the queue.
+        replacement_candidate_name: { type: string, nullable: true }
+        metadata:
+          allOf: [{ $ref: "#/components/schemas/JSONObject" }]
+          description: >-
+            `from`, the status the match had before an approve, reject or swap; for a swap also
+            `replacement_match_id`.
+        created_at: { type: string, format: date-time }
 
     # -- jobs -----------------------------------------------------------------
     Job:

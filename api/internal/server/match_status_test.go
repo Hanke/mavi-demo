@@ -57,16 +57,20 @@ func TestRoleMatchStatus(t *testing.T) {
 		t.Fatalf("an employer sees matches of a role in review: %s", list.Raw)
 	}
 
-	// Ops finds two by hand and releases them: ready, for both.
+	// Ops finds two by hand, approves and releases them: ready, for both.
+	// With one of them withdrawn the role is back in review.
+	var found []string
 	for _, name := range []string{"Fits", "Tokyo"} {
 		id := a.match(strict, p.id(name), 0.9)
-		a.want(a.do("POST", "/matches/"+id+"/release", "ops", "ops@example.com", nil), 200, "release")
-		if name == "Fits" {
-			if r := a.want(a.do("GET", "/roles/"+strict+"/match-status", "employer", "", nil), 200, "one released"); r.str("status") != "in_review" || r.Body["released"] != float64(1) {
-				t.Fatalf("one released: %s", r.Raw)
-			}
-		}
+		a.want(a.do("POST", "/matches/"+id+"/approve", "ops", "ops@example.com", nil), 200, "approve")
+		found = append(found, id)
 	}
+	a.want(a.do("POST", "/roles/"+strict+"/release", "ops", "ops@example.com", nil), 200, "release")
+	a.want(a.do("POST", "/matches/"+found[0]+"/unrelease", "ops", "ops@example.com", nil), 200, "withdraw one")
+	if r := a.want(a.do("GET", "/roles/"+strict+"/match-status", "employer", "", nil), 200, "one released"); r.str("status") != "in_review" || r.Body["released"] != float64(1) {
+		t.Fatalf("one released: %s", r.Raw)
+	}
+	a.want(a.do("POST", "/roles/"+strict+"/release", "ops", "ops@example.com", nil), 200, "release again")
 	for _, persona := range []string{"ops", "employer"} {
 		if r := a.want(a.do("GET", "/roles/"+strict+"/match-status", persona, "", nil), 200, persona+" two released"); r.str("status") != "ready" || r.Body["released"] != float64(2) {
 			t.Fatalf("%s with two released: %s", persona, r.Raw)

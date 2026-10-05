@@ -21,6 +21,7 @@ import (
 	"github.com/colehanke/mavi-demo/api/internal/contract"
 	"github.com/colehanke/mavi-demo/api/internal/jobs"
 	"github.com/colehanke/mavi-demo/api/internal/store"
+	"github.com/colehanke/mavi-demo/api/internal/tasks"
 	"github.com/colehanke/mavi-demo/api/internal/taxonomy"
 )
 
@@ -56,7 +57,11 @@ type Config struct {
 	// filters a run retrieves by embedding similarity. Below 1 is
 	// store.DefaultRetrievalLimit.
 	RetrievalSize int
-	CORSOrigin    string
+	// MinScore is the least a candidate in reserve may score and be brought
+	// into the review queue by a swap: the matching run's own threshold
+	// (tasks.MatchConfig). 0 or less is tasks.DefaultMinScore.
+	MinScore   float64
+	CORSOrigin string
 }
 
 type Server struct {
@@ -68,13 +73,17 @@ type Server struct {
 	jobKinds      []string
 	embedRoleNow  func(ctx context.Context, roleID string) error
 	retrievalSize int
+	minScore      float64
 	corsOrigin    string
 }
 
 const maxBody = 1 << 20
 
 func New(cfg Config) http.Handler {
-	s := &Server{db: cfg.DB, ai: cfg.AI, store: cfg.Store, tax: cfg.Taxonomy, jobs: cfg.Jobs, jobKinds: cfg.JobKinds, embedRoleNow: cfg.EmbedRole, retrievalSize: cfg.RetrievalSize, corsOrigin: cfg.CORSOrigin}
+	s := &Server{db: cfg.DB, ai: cfg.AI, store: cfg.Store, tax: cfg.Taxonomy, jobs: cfg.Jobs, jobKinds: cfg.JobKinds, embedRoleNow: cfg.EmbedRole, retrievalSize: cfg.RetrievalSize, minScore: cfg.MinScore, corsOrigin: cfg.CORSOrigin}
+	if s.minScore <= 0 {
+		s.minScore = tasks.DefaultMinScore
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc(healthRoute, s.handleHealth)
 	for _, rt := range s.routes() {
@@ -142,14 +151,23 @@ func (s *Server) routes() []routeDef {
 		r("PUT /roles/{id}", s.updateRole, employer, ops),
 		r("DELETE /roles/{id}", s.deleteRole, employer, ops),
 
-		// Matches: ops writes and releases; employers and talent only ever see
+		// Review: ops decides on the role's matches, one at a time, and
+		// releases the role once exactly two are approved. Each decision is
+		// recorded in review_events, which the last of these reads back.
+		r("GET /roles/{id}/review-queue", s.getReviewQueue, ops),
+		r("POST /matches/{id}/approve", s.approveMatch, ops),
+		r("POST /matches/{id}/reject", s.rejectMatch, ops),
+		r("POST /matches/{id}/swap", s.swapMatch, ops),
+		r("POST /roles/{id}/release", s.releaseRole, ops),
+		r("POST /matches/{id}/unrelease", s.unreleaseMatch, ops),
+		r("GET /roles/{id}/review-events", s.listReviewEvents, ops),
+
+		// Matches: ops writes them; employers and talent only ever see
 		// released rows (talent only their own).
 		r("POST /matches", s.createMatch, ops),
 		r("GET /matches", s.listMatches, talent, employer, ops),
 		r("GET /matches/{id}", s.getMatch, talent, employer, ops),
 		r("PUT /matches/{id}", s.updateMatch, ops),
-		r("POST /matches/{id}/release", s.releaseMatch(true), ops),
-		r("POST /matches/{id}/unrelease", s.releaseMatch(false), ops),
 		r("DELETE /matches/{id}", s.deleteMatch, ops),
 
 		// Jobs: the background queue. Ops enqueues by hand and polls status;
@@ -259,9 +277,12 @@ func writeError(w http.ResponseWriter, code int, msg string) {
 // fail maps store and validation errors onto status codes.
 func fail(w http.ResponseWriter, err error) {
 	var ve *validationError
+	var refused *store.RefusedError
 	switch {
 	case errors.As(err, &ve):
 		writeJSON(w, http.StatusUnprocessableEntity, contract.Error{Error: "validation failed", Fields: &ve.Fields})
+	case errors.As(err, &refused):
+		writeError(w, http.StatusConflict, refused.Reason)
 	case errors.Is(err, store.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not found")
 	case errors.Is(err, store.ErrConflict):

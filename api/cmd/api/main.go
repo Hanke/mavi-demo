@@ -76,8 +76,8 @@ func run() error {
 		return fmt.Errorf("MATCH_REVIEW_SIZE: want 1 to %d, got %d", store.MaxRetrievalLimit, review)
 	}
 	// MATCH_MIN_SCORE is the least a candidate may score in the rerank and
-	// still be put in the review queue; a run with fewer than two at or above
-	// it needs attention.
+	// still be put in the review queue, by a run or by a swap; a run with
+	// fewer than two at or above it needs attention.
 	minScore := envFloat("MATCH_MIN_SCORE", tasks.DefaultMinScore)
 	if minScore <= 0 || minScore > 1 {
 		return fmt.Errorf("MATCH_MIN_SCORE: want above 0 and at most 1, got %g", minScore)
@@ -99,6 +99,7 @@ func run() error {
 				return tasks.EmbedRole(ctx, pool, ai, roleID)
 			},
 			RetrievalSize: retrieve,
+			MinScore:      minScore,
 			CORSOrigin:    envOr("CORS_ORIGIN", "http://localhost:5173"),
 		}),
 		ReadHeaderTimeout: 5 * time.Second,

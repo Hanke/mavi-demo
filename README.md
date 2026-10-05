@@ -38,7 +38,8 @@ The Go service is the system of record: JSON CRUD for candidates, their
 profiles, roles and matches, all against Postgres. There is no real auth. Every
 request outside `/health` picks a persona with the `X-Role` header (`talent`,
 `employer` or `ops`; the `mavi_role` cookie works as a session fallback) and may
-identify itself with `X-Actor`: the candidate id for talent, an email for ops.
+identify itself with `X-Actor`: the candidate id for talent, an email for ops
+(required for the review endpoints, whose audit trail records it).
 A missing or unknown role is a `401`; a known role calling an endpoint it may
 not use is a `403`.
 
@@ -58,17 +59,21 @@ not use is a `403`.
 | `GET /roles/{id}/availability` | | | yes |
 | `POST` / `GET /roles/{id}/filter-runs` | | | yes |
 | `POST` / `PUT` / `DELETE /matches…` | | | yes |
-| `POST /matches/{id}/release`, `…/unrelease` | | | yes |
+| `GET /roles/{id}/review-queue`, `GET /roles/{id}/review-events` | | | yes |
+| `POST /matches/{id}/approve`, `…/reject`, `…/swap`, `…/unrelease` | | | yes (`X-Actor` required) |
+| `POST /roles/{id}/release` | | | yes (`X-Actor` required) |
 | `GET /matches`, `GET /matches/{id}` | own, **released only** | **released only** | all |
 | `POST /jobs`, `GET /jobs`, `GET /jobs/{id}` | | | yes |
 
 Rules worth knowing:
 
 - **Employers only ever see released matches.** `matches.released_at` is set by
-  `POST /matches/{id}/release` (ops) and cleared by `…/unrelease`; both are
-  recorded in `review_events` with the `X-Actor` value. The employer filter is
-  applied inside the SQL, so no query parameter can widen it, and an unreleased
-  match is a `404` for an employer rather than a `403`.
+  `POST /roles/{id}/release` (ops), which is refused unless exactly two of the
+  role's matches are approved, and cleared by `POST /matches/{id}/unrelease`;
+  both are recorded in `review_events` with the `X-Actor` value (see
+  [Review and release](#review-and-release)). The employer filter is applied
+  inside the SQL, so no query parameter can widen it, and an unreleased match
+  is a `404` for an employer rather than a `403`.
 - **Talent is scoped by `X-Actor`.** A talent request without it is a `403`;
   another candidate's record is a `404`.
 - **Taxonomy values are accepted as free text** (`"QuickBooks Online"`, `"QBO"`)
@@ -86,19 +91,23 @@ Rules worth knowing:
   and returns `201` when it created one.
 - Validation errors are `422 {"error": "validation failed", "fields": {...}}`;
   malformed or unknown JSON fields are `400`; a duplicate email or (role,
-  candidate) pair is `409`; a delete blocked by review history is `409`.
+  candidate) pair is `409`; a delete blocked by review history is `409`, and so
+  is a review action the role's matches do not allow as they stand.
 - Lists take `limit` (default 50, max 200) and `offset`, plus `status` and, for
   matches, `role_id` / `candidate_id`.
 
 ```sh
-# employer creates a role, ops matches a seeded candidate, releases it
+# employer creates a role; ops matches two seeded candidates, approves both and releases the role
 curl -s -X POST localhost:8080/roles -H 'X-Role: employer' -H 'Content-Type: application/json' \
   -d '{"title":"Controller","company":"Acme","required_software":["QBO"]}'
 curl -s -X POST localhost:8080/matches -H 'X-Role: ops' -H 'Content-Type: application/json' \
   -d '{"role_id":"<role id>","candidate_id":"11111111-0000-0000-0000-000000000001","score":0.9}'
-curl -s localhost:8080/matches -H 'X-Role: employer'                       # []
-curl -s -X POST localhost:8080/matches/<match id>/release -H 'X-Role: ops' -H 'X-Actor: ops@example.com'
-curl -s localhost:8080/matches -H 'X-Role: employer'                       # [ {...released_at...} ]
+curl -s -X POST localhost:8080/matches -H 'X-Role: ops' -H 'Content-Type: application/json' \
+  -d '{"role_id":"<role id>","candidate_id":"11111111-0000-0000-0000-000000000002","score":0.8}'
+curl -s -X POST localhost:8080/matches/<match id>/approve -H 'X-Role: ops' -H 'X-Actor: ops@example.com'   # each of the two
+curl -s localhost:8080/matches -H 'X-Role: employer'                       # []: approved is not released
+curl -s -X POST localhost:8080/roles/<role id>/release -H 'X-Role: ops' -H 'X-Actor: ops@example.com'
+curl -s localhost:8080/matches -H 'X-Role: employer'                       # [ {...released_at...}, {...} ]
 ```
 
 The AI service client (`api/internal/aiclient`) bounds every call with a
@@ -704,8 +713,8 @@ the API writes.
 | `candidate_profiles` | One structured profile per candidate: `profile` JSONB, `embedding` (pgvector, HNSW index), the hard-filter columns `certifications[]`, `software[]`, `years_experience`, and what the resume suggests about `availability`, `available_from`, `timezone` |
 | `candidate_availability` | What the candidate said, at most one row each: `timezone`, `work_start`, `work_end`, `hours_per_week`, `available_from`. No row means not answered, and excluded from matching |
 | `roles` | Raw JD plus `must_haves` / `nice_to_haves` JSONB, promoted `required_certifications[]`, `required_software[]`, `min_years_experience`, `timezone`, `min_overlap_hours`, `hours_per_week`, `starts_on`, and an embedding |
-| `matches` | One row per (role, candidate): `score`, `explanation`, `breakdown`, `status` (proposed / pending_review / approved / rejected / swapped; `pending_review` is the review queue a [matching run](#matching-run) fills), `released_at` (set when ops releases it to the employer) |
-| `review_events` | Append-only audit of ops approve / reject / swap / release / unrelease actions on a match |
+| `matches` | One row per (role, candidate): `score`, `explanation`, `breakdown`, `status` (proposed / pending_review / approved / rejected / swapped; `pending_review` is the review queue a [matching run](#matching-run) fills), `released_at` (set when ops releases the role's two approved matches to the employer) |
+| `review_events` | Append-only audit of ops approve / reject / swap / release / unrelease actions on a match: `actor` (who), `reason`, `replacement_candidate_id` (whom a swap brought in), `metadata`; written in the same transaction as the change it records (see [Review and release](#review-and-release)) |
 | `jobs` | Postgres-backed background queue: `kind`, `payload`, `status` (queued / running / succeeded / failed), `priority`, `run_at`, `attempts` / `max_attempts`, `last_error`, `locked_by` / `locked_at`; claimed with `FOR UPDATE SKIP LOCKED` on the partial `jobs_dequeue_idx` (see [Background jobs](#background-jobs)) |
 | `filter_runs` | One row per run of a role's [hard filters](#hard-filters): the size of the pool, the number of candidates left after each filter (`after_profile` … `after_timezone_overlap`), the ids that passed and the day the time-zone overlap was worked out for; then the [shortlist](#retrieval) retrieved from those who passed (`retrieval_limit`, `retrieved_ids`, `retrieved_similarities`), who could not be compared (`unranked_ids`) and whether the role had an embedding (`role_embedded`); `matched_at` is set when a [matching run](#matching-run) wrote the run's reranked shortlist to `matches`; deleted with the role |
 
@@ -821,9 +830,9 @@ is the whole pipeline for one role, as a background job:
 4. **Review queue.** The first `MATCH_REVIEW_SIZE` (default 5) of the ranking
    are written with status `pending_review`, unless they score below
    `MATCH_MIN_SCORE` (default 0.6); those, and the rest, are `proposed`.
-   `GET /matches?status=pending_review` (ops) is the queue. A run never sets
-   `released_at`, so employers and talent see none of it until ops releases a
-   match.
+   `GET /roles/{id}/review-queue` (ops) is the queue. A run never sets
+   `released_at`, so employers and talent see none of it until ops approves
+   two and releases the role (see [Review and release](#review-and-release)).
 5. **Outcome.** The run is recorded on its `filter_runs` row as `matched` or
    `needs_attention` (see [When a run cannot deliver two](#when-a-run-cannot-deliver-two)).
 
@@ -832,7 +841,7 @@ Role intake queues the job; to run a role again, queue another:
 ```sh
 curl -s -X POST localhost:8080/jobs -H 'X-Role: ops' -H 'Content-Type: application/json' \
   -d '{"kind": "match_role", "payload": {"role_id": "<role id>"}}'
-curl -s 'localhost:8080/matches?role_id=<role id>&status=pending_review' -H 'X-Role: ops'
+curl -s localhost:8080/roles/<role id>/review-queue -H 'X-Role: ops'
 ```
 
 - **Running again replaces, never duplicates.** There is one row per (role,
@@ -846,6 +855,8 @@ curl -s 'localhost:8080/matches?role_id=<role id>&status=pending_review' -H 'X-R
 - **What ops did is kept.** A match that is approved, rejected, swapped or
   released is not rewritten by a later run, and still counts towards the top
   N, so a rejected candidate is not replaced in the queue by re-running. A
+  swapped one is the exception: the swap gave its place to the next ranked
+  candidate, so it counts for nothing and whoever it brought in stays. A
   match ops wrote by hand (`POST /matches`) is treated the same way: a run
   neither rewrites nor removes it. An undecided match with review history
   (released, then taken back) cannot be deleted, so when its candidate drops
@@ -927,6 +938,61 @@ curl -s localhost:8080/roles/<role id>/match-status -H 'X-Role: employer'
 each of these against a real database and a stub `/rerank`, and
 [`api/internal/server/match_status_test.go`](api/internal/server/match_status_test.go)
 what each persona is told.
+
+### Review and release
+
+Nothing a run writes reaches the employer. Ops validates it first, one role
+at a time ([`api/internal/store/review.go`](api/internal/store/review.go)),
+and every request below must name the reviewer in `X-Actor` (`403` without):
+
+| Endpoint | What it does | Refused (`409`) when |
+| --- | --- | --- |
+| `GET /roles/{id}/review-queue` | `{role_id, pending, approved, next}`: the `pending_review` matches, the approved ones, and the next ranked candidate, whom a swap would bring in (`null` when there is nobody) | |
+| `POST /matches/{id}/approve` | An undecided match (`pending_review`, or `proposed`) becomes `approved`. The employer still sees nothing | the match was rejected or swapped out |
+| `POST /matches/{id}/swap` | The match becomes `swapped` and the next ranked candidate `pending_review`, to be decided on like any other. Answers `{swapped, replacement}` | the match is not in review (`pending_review` or `approved`), it is released, or nobody is in reserve |
+| `POST /matches/{id}/reject` | The match becomes `rejected` and nobody is brought in: how an approval is taken back, and how a candidate leaves the queue when there is nobody to swap in | the match is released or was swapped out |
+| `POST /roles/{id}/release` | Sets `released_at` on the role's two approved matches and answers with them | the role does not have **exactly two** approved matches, or a match that is not approved is still released |
+| `POST /matches/{id}/unrelease` | Withdraws one released match; it stays `approved`, and the release puts it back | |
+| `GET /roles/{id}/review-events` | The role's audit trail, oldest first | |
+
+```sh
+curl -s localhost:8080/roles/<role id>/review-queue -H 'X-Role: ops'
+curl -s -X POST localhost:8080/matches/<match id>/approve -H 'X-Role: ops' -H 'X-Actor: ops@example.com'
+curl -s -X POST localhost:8080/matches/<match id>/swap -H 'X-Role: ops' -H 'X-Actor: ops@example.com' \
+  -H 'Content-Type: application/json' -d '{"reason": "took another offer"}'
+curl -s -X POST localhost:8080/roles/<role id>/release -H 'X-Role: ops' -H 'X-Actor: ops@example.com'
+curl -s 'localhost:8080/matches?role_id=<role id>' -H 'X-Role: employer'    # the two, and nothing else
+curl -s localhost:8080/roles/<role id>/review-events -H 'X-Role: ops'
+```
+
+- **Release takes exactly two approved.** One approved is not two profiles,
+  and with three ops has not said which two, so both are a `409` that says how
+  many there are, and nothing is released. The check and the release are one
+  transaction with the role locked, the same lock a matching run takes.
+- **Release is the only way to the employer.** There is no releasing a single
+  match, so what `GET /matches` holds for an employer is, per role, the two
+  approved matches or nothing (one, while the other is withdrawn). A match
+  released before approval was required blocks the release until it is
+  withdrawn, rather than being shown as a third.
+- **The next ranked candidate** is the role's highest scoring `proposed`
+  match whose candidate is still active and who scores `MATCH_MIN_SCORE` or
+  more: the same bar a run sets for the queue, so a swap never brings in
+  someone a run would not have. With nobody in reserve the swap is refused
+  and nothing changes.
+- **Every decision is in `review_events`**, written in the same transaction
+  as the change: the action, the match, `actor`, the optional `reason` from
+  the request body, the status the match had (`metadata.from`) and, for a
+  swap, the candidate brought in. Repeating a decision that already holds
+  (approving twice, releasing a released role) changes nothing and records
+  nothing. A refused action records nothing either.
+- **No decision goes around it.** `PUT /matches/{id}` edits score,
+  explanation and breakdown and refuses a `status` (`422`), and
+  `POST /matches` creates a match only as `proposed` or `pending_review`.
+  Events are never updated or deleted, and a match that has one cannot be
+  deleted (nor its candidate or role: `409`).
+
+[`api/internal/server/review_test.go`](api/internal/server/review_test.go)
+walks one role through all of it and reads the trail back.
 
 ## Seed data
 

@@ -37,7 +37,12 @@ export type Match = Schemas["Match"];
 export type MatchCreate = Schemas["MatchCreate"];
 export type MatchUpdate = Schemas["MatchUpdate"];
 export type MatchStatus = Schemas["MatchStatus"];
-export type ReleaseInput = Schemas["ReleaseInput"];
+
+export type ReviewQueue = Schemas["ReviewQueue"];
+export type ReviewInput = Schemas["ReviewInput"];
+export type ReviewEvent = Schemas["ReviewEvent"];
+export type ReviewAction = Schemas["ReviewAction"];
+export type SwapResult = Schemas["SwapResult"];
 
 export type Job = Schemas["Job"];
 export type JobCreate = Schemas["JobCreate"];

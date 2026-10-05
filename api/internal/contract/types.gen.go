@@ -197,6 +197,33 @@ func (e Persona) Valid() bool {
 	}
 }
 
+// Defines values for ReviewAction.
+const (
+	ReviewActionApprove   ReviewAction = "approve"
+	ReviewActionReject    ReviewAction = "reject"
+	ReviewActionRelease   ReviewAction = "release"
+	ReviewActionSwap      ReviewAction = "swap"
+	ReviewActionUnrelease ReviewAction = "unrelease"
+)
+
+// Valid indicates whether the value is a known member of the ReviewAction enum.
+func (e ReviewAction) Valid() bool {
+	switch e {
+	case ReviewActionApprove:
+		return true
+	case ReviewActionReject:
+		return true
+	case ReviewActionRelease:
+		return true
+	case ReviewActionSwap:
+		return true
+	case ReviewActionUnrelease:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RoleMatchState.
 const (
 	RoleMatchStateInReview       RoleMatchState = "in_review"
@@ -499,7 +526,7 @@ type Match struct {
 	// ID A UUID, as text.
 	ID ID `json:"id"`
 
-	// ReleasedAt Set when ops released the match to the employer.
+	// ReleasedAt Set when ops released the match to the employer (`POST /roles/{id}/release`).
 	ReleasedAt *time.Time `json:"released_at"`
 
 	// RoleID A UUID, as text.
@@ -509,7 +536,7 @@ type Match struct {
 	RoleTitle string  `json:"role_title"`
 	Score     float64 `json:"score"`
 
-	// Status `pending_review` is the review queue: the top of a matching run's ranking, waiting for an ops decision. `proposed` is a match nobody has decided on that is not in the queue: the rest of what a run scored, or one ops wrote by hand. Neither says anything about what the employer sees; that is `released_at`.
+	// Status `pending_review` is the review queue: the top of a matching run's ranking, waiting for an ops decision. `proposed` is a match nobody has decided on that is not in the queue: the rest of what a run scored, or one ops wrote by hand. `approved`, `rejected` and `swapped` are ops' decisions, made through the review operations. None of them says anything about what the employer sees; that is `released_at`.
 	Status    MatchStatus `json:"status"`
 	UpdatedAt time.Time   `json:"updated_at"`
 }
@@ -526,23 +553,20 @@ type MatchCreate struct {
 	RoleID ID      `json:"role_id"`
 	Score  float64 `json:"score"`
 
-	// Status Defaults to `proposed`.
+	// Status `proposed` (the default) or `pending_review`.
 	Status *MatchStatus `json:"status,omitempty"`
 }
 
-// MatchStatus `pending_review` is the review queue: the top of a matching run's ranking, waiting for an ops decision. `proposed` is a match nobody has decided on that is not in the queue: the rest of what a run scored, or one ops wrote by hand. Neither says anything about what the employer sees; that is `released_at`.
+// MatchStatus `pending_review` is the review queue: the top of a matching run's ranking, waiting for an ops decision. `proposed` is a match nobody has decided on that is not in the queue: the rest of what a run scored, or one ops wrote by hand. `approved`, `rejected` and `swapped` are ops' decisions, made through the review operations. None of them says anything about what the employer sees; that is `released_at`.
 type MatchStatus string
 
-// MatchUpdate The ops-editable part of a match. Fields not sent keep their value.
+// MatchUpdate The ops-editable part of a match. Fields not sent keep their value. `status` is not one of them: it changes through the review operations.
 type MatchUpdate struct {
 	Breakdown JSONObject `json:"breakdown,omitempty"`
 
 	// Explanation `null` clears it to an empty string.
 	Explanation *string  `json:"explanation,omitempty"`
 	Score       *float64 `json:"score,omitempty"`
-
-	// Status `pending_review` is the review queue: the top of a matching run's ranking, waiting for an ops decision. `proposed` is a match nobody has decided on that is not in the queue: the rest of what a run scored, or one ops wrote by hand. Neither says anything about what the employer sees; that is `released_at`.
-	Status *MatchStatus `json:"status,omitempty"`
 }
 
 // Persona The value of the `X-Role` header. Each operation's `x-roles` lists the personas that may call it.
@@ -594,12 +618,6 @@ type ProfileInput struct {
 	YearsExperience *int    `json:"years_experience,omitempty"`
 }
 
-// ReleaseInput defines model for ReleaseInput.
-type ReleaseInput struct {
-	// Reason Recorded on the review event.
-	Reason *string `json:"reason,omitempty"`
-}
-
 // RetrievedCandidate One candidate of a run's shortlist.
 type RetrievedCandidate struct {
 	// CandidateID A UUID, as text.
@@ -607,6 +625,61 @@ type RetrievedCandidate struct {
 
 	// Similarity Cosine similarity of the profile's embedding to the role's; 1 is the same direction.
 	Similarity float64 `json:"similarity"`
+}
+
+// ReviewAction What a review event records. Each is written by the review operation of the same name.
+type ReviewAction string
+
+// ReviewEvent One ops decision on a match, as recorded when it was made.
+type ReviewEvent struct {
+	// Action What a review event records. Each is written by the review operation of the same name.
+	Action ReviewAction `json:"action"`
+
+	// Actor Who did it, the `X-Actor` of the request.
+	Actor string `json:"actor"`
+
+	// CandidateID The candidate of the match the decision was on.
+	CandidateID   ID        `json:"candidate_id"`
+	CandidateName string    `json:"candidate_name"`
+	CreatedAt     time.Time `json:"created_at"`
+
+	// ID Events are numbered in the order they were recorded.
+	ID int64 `json:"id"`
+
+	// MatchID A UUID, as text.
+	MatchID ID `json:"match_id"`
+
+	// Metadata `from`, the status the match had before an approve, reject or swap; for a swap also `replacement_match_id`.
+	Metadata JSONObject `json:"metadata"`
+	Reason   *string    `json:"reason"`
+
+	// ReplacementCandidateID For a `swap`, the candidate brought into the queue.
+	ReplacementCandidateID   *ID     `json:"replacement_candidate_id"`
+	ReplacementCandidateName *string `json:"replacement_candidate_name"`
+
+	// RoleID A UUID, as text.
+	RoleID ID `json:"role_id"`
+}
+
+// ReviewInput defines model for ReviewInput.
+type ReviewInput struct {
+	// Reason Recorded on the review event.
+	Reason *string `json:"reason,omitempty"`
+}
+
+// ReviewQueue A role's matches under review.
+type ReviewQueue struct {
+	// Approved The `approved` matches, best first. The role can be released when there are exactly two; `released_at` says whether each has been.
+	Approved []Match `json:"approved"`
+
+	// Next The next ranked candidate, whom a swap would bring into the queue. `null` when nobody in reserve scores the minimum or more.
+	Next *Match `json:"next"`
+
+	// Pending The queue, the `pending_review` matches waiting for a decision, best first.
+	Pending []Match `json:"pending"`
+
+	// RoleID A UUID, as text.
+	RoleID ID `json:"role_id"`
 }
 
 // Role defines model for Role.
@@ -720,6 +793,15 @@ type RoleStatus string
 
 // RunStatus How a matching run ended. `matched`: at least two candidates passed the hard filters and scored at or above the minimum. `needs_attention`: the run could not deliver two profiles (see `AttentionReason`).
 type RunStatus string
+
+// SwapResult defines model for SwapResult.
+type SwapResult struct {
+	// Replacement The next ranked match, now `pending_review`.
+	Replacement Match `json:"replacement"`
+
+	// Swapped The match taken out, now `swapped`.
+	Swapped Match `json:"swapped"`
+}
 
 // WorkAvailability When and where the candidate can work, as the candidate gave it. All four answers or none.
 type WorkAvailability struct {
@@ -842,6 +924,13 @@ type ListRoleFilterRunsParams struct {
 	Offset *Offset `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// ListReviewEventsParams defines parameters for ListReviewEvents.
+type ListReviewEventsParams struct {
+	// Limit Page size; default 50, max 200.
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *Offset `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // CreateCandidateJSONRequestBody defines body for CreateCandidate for application/json ContentType.
 type CreateCandidateJSONRequestBody = CandidateInput
 
@@ -863,11 +952,17 @@ type CreateMatchJSONRequestBody = MatchCreate
 // UpdateMatchJSONRequestBody defines body for UpdateMatch for application/json ContentType.
 type UpdateMatchJSONRequestBody = MatchUpdate
 
-// ReleaseMatchJSONRequestBody defines body for ReleaseMatch for application/json ContentType.
-type ReleaseMatchJSONRequestBody = ReleaseInput
+// ApproveMatchJSONRequestBody defines body for ApproveMatch for application/json ContentType.
+type ApproveMatchJSONRequestBody = ReviewInput
+
+// RejectMatchJSONRequestBody defines body for RejectMatch for application/json ContentType.
+type RejectMatchJSONRequestBody = ReviewInput
+
+// SwapMatchJSONRequestBody defines body for SwapMatch for application/json ContentType.
+type SwapMatchJSONRequestBody = ReviewInput
 
 // UnreleaseMatchJSONRequestBody defines body for UnreleaseMatch for application/json ContentType.
-type UnreleaseMatchJSONRequestBody = ReleaseInput
+type UnreleaseMatchJSONRequestBody = ReviewInput
 
 // CreateRoleJSONRequestBody defines body for CreateRole for application/json ContentType.
 type CreateRoleJSONRequestBody = RoleInput
@@ -877,3 +972,6 @@ type IntakeRoleJSONRequestBody = RoleIntakeInput
 
 // UpdateRoleJSONRequestBody defines body for UpdateRole for application/json ContentType.
 type UpdateRoleJSONRequestBody = RoleInput
+
+// ReleaseRoleJSONRequestBody defines body for ReleaseRole for application/json ContentType.
+type ReleaseRoleJSONRequestBody = ReviewInput

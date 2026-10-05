@@ -35,7 +35,14 @@ func (s *Server) createMatch(w http.ResponseWriter, r *http.Request) {
 		v.add("score", "required")
 	}
 	in.Breakdown = jsonObject(v, "breakdown", b.Breakdown)
-	validateMatchFields(v, in.Score, in.Status)
+	if in.Score < 0 || in.Score > 1 {
+		v.add("score", "must be between 0 and 1")
+	}
+	// A match starts undecided. A decision is a review action (review.go),
+	// which is what records it.
+	if in.Status != string(contract.MatchStatusProposed) && in.Status != string(contract.MatchStatusPendingReview) {
+		v.add("status", "must be proposed or pending_review: "+statusIsReviewed)
+	}
 	if err := v.err(); err != nil {
 		fail(w, err)
 		return
@@ -59,12 +66,9 @@ func (s *Server) createMatch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, m)
 }
 
-func validateMatchFields(v *validationError, score float64, status string) {
-	if score < 0 || score > 1 {
-		v.add("score", "must be between 0 and 1")
-	}
-	validEnum[contract.MatchStatus](v, "status", status)
-}
+// statusIsReviewed is why POST and PUT /matches do not take a decision as a
+// status.
+const statusIsReviewed = "a decision is made with POST /matches/{id}/approve, /reject or /swap, which record who made it"
 
 // scopeMatches applies the role's visibility rule to a filter. Employers
 // see released matches only. Talent sees released matches for their own
@@ -135,13 +139,14 @@ func (s *Server) getMatch(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) updateMatch(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	// MatchUpdate has no role_id / candidate_id. They are accepted here only
-	// so the answer can say the pair is immutable instead of a generic
-	// unknown-field 400.
+	// MatchUpdate has no role_id / candidate_id / status. They are accepted
+	// here only so the answer can say why instead of a generic unknown-field
+	// 400: the pair is immutable, and the status changes by review.
 	var b struct {
 		contract.MatchUpdate
 		RoleID      *string `json:"role_id"`
 		CandidateID *string `json:"candidate_id"`
+		Status      *string `json:"status"`
 	}
 	sent, ok := decodeBody(w, r, &b, false)
 	if !ok {
@@ -149,6 +154,10 @@ func (s *Server) updateMatch(w http.ResponseWriter, r *http.Request) {
 	}
 	if sent.has("role_id") || sent.has("candidate_id") {
 		fail(w, &validationError{Fields: map[string]string{"role_id": "cannot change the pair; delete and recreate the match"}})
+		return
+	}
+	if sent.has("status") {
+		fail(w, &validationError{Fields: map[string]string{"status": "cannot be edited: " + statusIsReviewed}})
 		return
 	}
 	// Only what was sent is written (store.UpdateMatch), so an edit of one
@@ -162,11 +171,6 @@ func (s *Server) updateMatch(w http.ResponseWriter, r *http.Request) {
 	if sent.has("explanation") {
 		explanation := strOr(b.Explanation, "")
 		in.Explanation = &explanation
-	}
-	if b.Status != nil {
-		status := string(*b.Status)
-		validEnum[contract.MatchStatus](v, "status", status)
-		in.Status = &status
 	}
 	if sent.has("breakdown") {
 		in.Breakdown = jsonObject(v, "breakdown", b.Breakdown)
@@ -184,26 +188,6 @@ func (s *Server) updateMatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, m)
-}
-
-// releaseMatch flips released_at and records the ops actor in review_events.
-func (s *Server) releaseMatch(release bool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var b contract.ReleaseInput
-		if _, ok := decodeBody(w, r, &b, true); !ok {
-			return
-		}
-		actor := identity(r).Actor
-		if actor == "" {
-			actor = "ops"
-		}
-		m, err := s.store.SetReleased(r.Context(), r.PathValue("id"), release, actor, strOr(b.Reason, ""))
-		if err != nil {
-			fail(w, err)
-			return
-		}
-		writeJSON(w, http.StatusOK, m)
-	}
 }
 
 func (s *Server) deleteMatch(w http.ResponseWriter, r *http.Request) {

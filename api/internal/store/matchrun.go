@@ -95,8 +95,10 @@ func (s *Store) FailRun(ctx context.Context, runID string, cause error) error {
 // swapped or released, or that ops wrote by hand (POST /matches), keeps its
 // score, explanation and status even when the run ranks its candidate again
 // (counted in Kept); it still takes its place in the ranking, so it is not
-// replaced in the queue by the next one down. A candidate deleted since the
-// run is skipped and takes no place.
+// replaced in the queue by the next one down. The exception is a match ops
+// swapped out: the swap gave its place to the next one down (SwapMatch), so
+// it takes none here and the candidate brought in is not put back in
+// reserve. A candidate deleted since the run is skipped and takes no place.
 //
 // A match an earlier run wrote, still undecided, for a candidate this run
 // had no place for is deleted, or, when it has review history and cannot be
@@ -157,15 +159,17 @@ func (s *Store) ReplaceRunMatches(ctx context.Context, runID string, ranked []Ra
 	}
 
 	// The queue is the first reviewSize of the ranking among the candidates
-	// who still exist, counted here rather than by the caller, less whoever
-	// scores below minScore.
+	// who still exist and were not swapped out, counted here rather than by
+	// the caller, less whoever scores below minScore.
 	written, err := tx.Query(ctx, `
 		INSERT INTO matches AS m (role_id, candidate_id, score, explanation, breakdown, status)
 		SELECT $1::uuid, x.candidate_id, x.score, x.explanation, x.breakdown,
-		       CASE WHEN row_number() OVER (ORDER BY x.rank) <= $3 AND x.score >= $4 THEN 'pending_review' ELSE 'proposed' END
+		       CASE WHEN count(*) FILTER (WHERE was.status IS DISTINCT FROM 'swapped') OVER (ORDER BY x.rank) <= $3
+		                 AND x.score >= $4 THEN 'pending_review' ELSE 'proposed' END
 		FROM jsonb_to_recordset($2::jsonb)
 		     AS x (candidate_id uuid, rank int, score double precision, explanation text, breakdown jsonb)
 		JOIN candidates c ON c.id = x.candidate_id
+		LEFT JOIN matches was ON was.role_id = $1::uuid AND was.candidate_id = x.candidate_id
 		ON CONFLICT (role_id, candidate_id) DO UPDATE SET
 			score = EXCLUDED.score, explanation = EXCLUDED.explanation, breakdown = EXCLUDED.breakdown, status = EXCLUDED.status
 		WHERE `+replaceableMatch+`
