@@ -54,6 +54,12 @@ func ParseClock(s string) (int, bool) {
 	if len(s) != 5 || s[2] != ':' {
 		return 0, false
 	}
+	// Atoi takes a sign, and "+9:00" is not a time Postgres reads.
+	for _, i := range []int{0, 1, 3, 4} {
+		if s[i] < '0' || s[i] > '9' {
+			return 0, false
+		}
+	}
 	h, errH := strconv.Atoi(s[:2])
 	m, errM := strconv.Atoi(s[3:])
 	if errH != nil || errM != nil || h < 0 || h > 23 || m < 0 || m > 59 {

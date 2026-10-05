@@ -24,6 +24,12 @@ import (
 // when MatchConfig does not say.
 const DefaultReviewSize = 5
 
+// DefaultMinScore is the least a candidate may score and still be put forward
+// when MatchConfig does not say. A score is the rubric's levels weighted
+// (docs/rerank-rubric.md): 0.5 is "partial" on every dimension, 0.75
+// "strong", so this asks for better than partial overall.
+const DefaultMinScore = 0.6
+
 // The AI service's limits on what /rerank reads, in characters:
 // MAX_TEXT_CHARS (ai/app/main.py) for the role and MAX_CANDIDATE_CHARS
 // (ai/app/extract.py) for each candidate. Longer text is cut to fit rather
@@ -60,6 +66,11 @@ type MatchConfig struct {
 	// ReviewSize is how many of the ranking, from the top, are written as
 	// pending_review; below 1 is DefaultReviewSize.
 	ReviewSize int
+	// MinScore is the minimum quality threshold: a candidate scoring below it
+	// is never put in the review queue, and a run with fewer than
+	// store.PromisedMatches at or above it needs attention. 0 or less is
+	// DefaultMinScore.
+	MinScore float64
 }
 
 // Reranker is the one AI call a matching run makes.
@@ -94,6 +105,28 @@ type matcher struct {
 // changed: the matches are keyed on (role, candidate) and replaced, never
 // added to. A role that is not open (filled or closed since the job was
 // queued) is not matched.
+//
+// The pipeline promises two profiles (store.PromisedMatches), and a run that
+// cannot deliver them still completes, recorded on its filter run as
+// needs_attention with the reason, where ops finds it with the funnel and the
+// must-have that eliminated the most candidates (FilterRun.TopFilter; GET
+// /roles/{id}/match-status):
+//
+//   - too_few_passed: zero or one candidate passed the hard filters. The one,
+//     if any, is still reranked and written.
+//   - too_few_qualified: fewer than two of the ranking score MinScore or
+//     more, not counting anyone ops has rejected or swapped out. Everyone is
+//     written, for ops to read, but nobody below the threshold enters the
+//     review queue: a weak candidate is not promoted to make up the number.
+//     A run that could not rank everybody yet (some are still being
+//     embedded, and a later run is queued for them) records no outcome
+//     instead: it is not known yet.
+//   - ai_failed: the AI service failed or timed out for any batch of the
+//     rerank. Nothing of the run is written to matches, the error is
+//     returned and the queue retries the job while it has attempts; the retry
+//     is a new run, so there is nothing of this one to duplicate.
+//
+// A run that delivers them is recorded as matched.
 //
 // What cannot be judged yet is never written as an empty result. A role with
 // no embedding, or a pool in which nobody who passed has one, waits: while a
@@ -149,7 +182,19 @@ func (m *matcher) run(ctx context.Context, job jobs.Job) error {
 	if review < 1 {
 		review = DefaultReviewSize
 	}
-	res, err := m.store.ReplaceRunMatches(ctx, run.ID, ranked, review)
+	minScore := m.cfg.MinScore
+	if minScore <= 0 {
+		minScore = DefaultMinScore
+	}
+	// Whoever passed but is still being embedded gets their turn in a later
+	// run, and until then this one has not seen everybody.
+	partial := false
+	if len(run.UnrankedIds) > 0 {
+		if partial, err = m.embedding(ctx, "candidate_id", run.UnrankedIds, KindEmbedProfile, KindParseResume); err != nil {
+			return err
+		}
+	}
+	res, err := m.store.ReplaceRunMatches(ctx, run.ID, ranked, review, minScore, partial)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		return nil // the role was deleted while its candidates were reranked
@@ -161,14 +206,17 @@ func (m *matcher) run(ctx context.Context, job jobs.Job) error {
 	}
 	logf("match: role %s: run %s: %d reranked, %d written (%d pending review), %d already decided and kept, %d from earlier runs removed",
 		p.RoleID, run.ID, len(ranked), res.Written, res.PendingReview, res.Kept, res.Removed)
-
-	// Whoever passed but is still being embedded gets their turn in a later run.
-	if len(run.UnrankedIds) > 0 {
-		if pending, err := m.embedding(ctx, "candidate_id", run.UnrankedIds, KindEmbedProfile, KindParseResume); err != nil {
-			return err
-		} else if pending {
-			return m.later(ctx, job, matchPickupDelay, fmt.Sprintf("%d candidates who pass the filters are still being embedded", len(run.UnrankedIds)))
+	if reason := res.Outcome.Reason; reason != nil {
+		top := "no must-have excluded anybody"
+		if f := run.TopFilter; f != nil {
+			top = fmt.Sprintf("%s excluded the most candidates (%d)", f.Filter, f.Excluded)
 		}
+		logf("match: role %s: run %s needs attention: %s (%d passed the filters; minimum score %g); %s",
+			p.RoleID, run.ID, *reason, run.Passed, minScore, top)
+	}
+
+	if partial {
+		return m.later(ctx, job, matchPickupDelay, fmt.Sprintf("%d candidates who pass the filters are still being embedded", len(run.UnrankedIds)))
 	}
 	return nil
 }
@@ -255,13 +303,13 @@ func (m *matcher) rerank(ctx context.Context, job jobs.Job, run store.FilterRun)
 	wg.Wait()
 	// A 4xx means this request can never be scored. The rest, including the
 	// 502 the service answers when the model's output does not validate, is
-	// worth another attempt. Nothing is kept of a run with a failed batch.
-	for _, err := range errs {
+	// worth another attempt. Nothing is kept of a run with a failed batch,
+	// which is recorded as needing attention either way.
+	if err := errors.Join(errs...); err != nil {
+		m.aiFailed(ctx, job, run, err)
 		if errors.Is(err, aiclient.ErrBadRequest) {
 			return nil, jobs.Permanent(err)
 		}
-	}
-	if err := errors.Join(errs...); err != nil {
 		return nil, err
 	}
 
@@ -269,8 +317,10 @@ func (m *matcher) rerank(ctx context.Context, job jobs.Job, run store.FilterRun)
 	var results []aiclient.RerankResult
 	for _, resp := range responses {
 		if resp.RubricVersion != first.RubricVersion {
-			return nil, fmt.Errorf("job %d: the batches were scored under rubric versions %s and %s, so their scores do not compare; retrying",
+			err := fmt.Errorf("job %d: the batches were scored under rubric versions %s and %s, so their scores do not compare; retrying",
 				job.ID, first.RubricVersion, resp.RubricVersion)
+			m.aiFailed(ctx, job, run, err)
+			return nil, err
 		}
 		results = append(results, resp.Results...)
 	}
@@ -299,6 +349,21 @@ func (m *matcher) rerank(ctx context.Context, job jobs.Job, run store.FilterRun)
 		}
 	}
 	return ranked, nil
+}
+
+// aiFailed records on the run that its rerank failed, and why
+// (Store.FailRun). The job is failing with cause already, so an error here is
+// only logged. A job interrupted by a shutdown did not fail: it is handed
+// back to the queue and nothing is recorded.
+func (m *matcher) aiFailed(ctx context.Context, job jobs.Job, run store.FilterRun, cause error) {
+	if ctx.Err() != nil {
+		return
+	}
+	if err := m.store.FailRun(ctx, run.ID, cause); err != nil {
+		logf("match: job %d: run %s: could not record the failed rerank: %v", job.ID, run.ID, err)
+		return
+	}
+	logf("match: role %s: run %s needs attention: ai_failed: %v", run.RoleID, run.ID, cause)
 }
 
 // batches splits a shortlist, in order, into the groups sent to /rerank: each

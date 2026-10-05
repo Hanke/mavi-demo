@@ -28,6 +28,25 @@ jobs:
     defaults:
       run:
         working-directory: api
+    # Most of the API's tests need a database (internal/dbtest) and skip
+    # without one, so one is provided: the same image as docker-compose.yml.
+    # Each test creates and drops a database of its own in it.
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: mavi
+          POSTGRES_PASSWORD: mavi
+          POSTGRES_DB: mavi
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mavi -d mavi"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://mavi:mavi@localhost:5432/mavi?sslmode=disable
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -44,6 +63,11 @@ jobs:
         run: go vet ./...
       - name: go test
         run: go test ./...
+      - name: The database tests ran
+        # A test that cannot reach the database skips, and a skip is green.
+        run: |
+          skipped="$(go test ./internal/db/ ./internal/jobs/ ./internal/server/ ./internal/tasks/ -v 2>&1 | grep -c -e '--- SKIP' || true)"
+          if [ "$skipped" != "0" ]; then echo "$skipped tests were skipped: the database tests did not run"; exit 1; fi
 
   python:
     name: Python AI service
@@ -64,8 +88,38 @@ jobs:
         run: ruff check .
       - name: ruff format --check
         run: ruff format --check .
+      - name: pyright
+        run: pyright
       - name: pytest
         run: pytest -q
+
+  contracts:
+    name: Generated contracts are current
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ai/requirements-dev.txt
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install dependencies
+        run: |
+          pip install -r ai/requirements-dev.txt
+          npm --prefix web ci
+      # Regenerates ai/openapi.json, the Go types and the web types from the
+      # specs and fails when any of them was committed stale.
+      - name: make check-contracts
+        run: make check-contracts PYTHON=python
 
   web:
     name: Web

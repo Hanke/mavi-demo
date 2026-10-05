@@ -66,8 +66,12 @@ func (s *Server) createCandidate(w http.ResponseWriter, r *http.Request) {
 		fail(w, err)
 		return
 	}
-	if id := identity(r); id.Role == auth.Talent && input.Source == nil {
+	if identity(r).Role == auth.Talent {
 		src := "self"
+		if err := opsOnly(store.CandidateInput{Status: string(contract.CandidateStatusActive), Source: &src}, input, input.Source != nil); err != nil {
+			fail(w, err)
+			return
+		}
 		input.Source = &src
 	}
 	c, err := s.store.CreateCandidate(r.Context(), input)
@@ -76,6 +80,23 @@ func (s *Server) createCandidate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, c)
+}
+
+// opsOnly refuses a talent's write that changes what only ops decides: the
+// status, which is whether the candidate is in the matching pool (a candidate
+// ops archived must not be able to put themselves back), and the source,
+// which is ops' record of where they came from. was is the record as it
+// stands (or as a talent's sign-up starts); sending a value unchanged is
+// fine, so a client may send back the whole record it read.
+func opsOnly(was, in store.CandidateInput, checkSource bool) error {
+	v := &validationError{}
+	if in.Status != was.Status {
+		v.add("status", "only ops can change this")
+	}
+	if checkSource && strOr(in.Source, "") != strOr(was.Source, "") {
+		v.add("source", "only ops can change this")
+	}
+	return v.err()
 }
 
 func strOr(p *string, fallback string) string {
@@ -138,6 +159,13 @@ func (s *Server) updateCandidate(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fail(w, err)
 		return
+	}
+	if identity(r).Role == auth.Talent {
+		cur := store.CandidateInput{Status: string(cur.Status), Source: cur.Source}
+		if err := opsOnly(cur, input, true); err != nil {
+			fail(w, err)
+			return
+		}
 	}
 	c, err := s.store.UpdateCandidate(r.Context(), id, input)
 	if err != nil {

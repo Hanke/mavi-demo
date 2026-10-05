@@ -25,6 +25,17 @@ from app import qualifications, taxonomy
 from app.qualifications import Status
 from app.taxonomy import Kind
 
+
+def _readable(text: str) -> str:
+    if not text.strip():
+        raise ValueError("must not be blank")
+    return text
+
+
+# A document sent in to be embedded, parsed or judged: something to read.
+# Blank text would be a paid model call about nothing, stored as a success.
+Document = Annotated[str, AfterValidator(_readable)]
+
 Availability = Literal["immediate", "two_weeks", "one_month", "unavailable", "unknown"]
 
 

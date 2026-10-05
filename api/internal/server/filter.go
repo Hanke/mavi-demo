@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/colehanke/mavi-demo/api/internal/auth"
+	"github.com/colehanke/mavi-demo/api/internal/contract"
 	"github.com/colehanke/mavi-demo/api/internal/tasks"
 )
 
@@ -31,4 +33,22 @@ func (s *Server) listRoleFilterRuns(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, runs)
+}
+
+// getRoleMatchStatus answers where the role's matching stands. Ops gets the
+// whole of it. An employer is told ready or in_review and nothing of the
+// run: a role that needs attention is, to them, still in review.
+func (s *Server) getRoleMatchStatus(w http.ResponseWriter, r *http.Request) {
+	status, err := s.store.RoleMatchStatus(r.Context(), r.PathValue("id"))
+	if err != nil {
+		fail(w, err)
+		return
+	}
+	if identity(r).Role != auth.Ops {
+		status.Run = nil
+		if status.Status != contract.RoleMatchStateReady {
+			status.Status = contract.RoleMatchStateInReview
+		}
+	}
+	writeJSON(w, http.StatusOK, status)
 }

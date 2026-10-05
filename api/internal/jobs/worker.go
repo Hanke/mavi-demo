@@ -254,6 +254,17 @@ func (w *Worker) invoke(ctx context.Context, job Job) (err error) {
 // slow attempt when it finally returns.
 const ownedRunning = ` WHERE id = $1 AND status = 'running' AND locked_by = $2 AND attempts = $3`
 
+// queuedTwin is true, in an UPDATE of jobs, for a row that cannot go back to
+// 'queued': an identical job (same kind and payload) is queued already, and
+// jobs_queued_dedupe_idx allows one. That happens when the same work was
+// enqueued again while this job ran (a role saved twice, a resume uploaded
+// again). The queued one does the work, so this one is finished as failed
+// with a note rather than requeued, which would violate the index and leave
+// the row stuck in 'running'.
+const queuedTwin = `EXISTS (SELECT 1 FROM jobs q WHERE q.kind = jobs.kind AND q.payload = jobs.payload AND q.status = 'queued' AND q.id <> jobs.id)`
+
+const twinNote = `not requeued: an identical job is already queued`
+
 // errNotOwned is returned when a finishing statement matched no row.
 var errNotOwned = errors.New("job is no longer owned by this claim (lock timed out and it was reclaimed?)")
 
@@ -275,7 +286,8 @@ func (w *Worker) complete(ctx context.Context, job Job) error {
 const maxErrorLen = 4 << 10
 
 // fail records a failed attempt: back to 'queued' after a backoff while
-// attempts remain, otherwise 'failed'. Both branches keep the error.
+// attempts remain, otherwise 'failed'. Both branches keep the error. A job
+// with attempts left whose identical twin is queued is failed too (queuedTwin).
 func (w *Worker) fail(ctx context.Context, job Job, cause error) (string, error) {
 	msg := truncate(cause.Error(), maxErrorLen)
 	permanent := errors.Is(cause, ErrPermanent)
@@ -283,11 +295,11 @@ func (w *Worker) fail(ctx context.Context, job Job, cause error) (string, error)
 	var status string
 	err := w.pool.QueryRow(ctx, `
 		UPDATE jobs SET
-			status      = CASE WHEN $4 OR attempts >= max_attempts THEN 'failed' ELSE 'queued' END,
-			run_at      = CASE WHEN $4 OR attempts >= max_attempts THEN run_at ELSE now() + make_interval(secs => $5) END,
-			finished_at = CASE WHEN $4 OR attempts >= max_attempts THEN now() ELSE NULL END,
-			last_error  = $6`+ownedRunning+`
-		RETURNING status`, job.ID, w.cfg.ID, job.Attempts, permanent, delay.Seconds(), msg).Scan(&status)
+			status      = CASE WHEN $4 OR attempts >= max_attempts OR `+queuedTwin+` THEN 'failed' ELSE 'queued' END,
+			run_at      = CASE WHEN $4 OR attempts >= max_attempts OR `+queuedTwin+` THEN run_at ELSE now() + make_interval(secs => $5) END,
+			finished_at = CASE WHEN $4 OR attempts >= max_attempts OR `+queuedTwin+` THEN now() ELSE NULL END,
+			last_error  = $6 || CASE WHEN NOT ($4 OR attempts >= max_attempts) AND `+queuedTwin+` THEN $7 ELSE '' END`+ownedRunning+`
+		RETURNING status`, job.ID, w.cfg.ID, job.Attempts, permanent, delay.Seconds(), msg, "; "+twinNote).Scan(&status)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", errNotOwned
 	}
@@ -311,10 +323,17 @@ func truncate(s string, n int) string {
 // release hands an interrupted job back: queued, runnable now, and with the
 // attempt the claim counted given back. locked_by / locked_at stay as a
 // record of who held it last; ownership is decided by status and attempts.
+// When an identical job is queued already, that one takes its place and this
+// one is finished instead (queuedTwin).
 func (w *Worker) release(ctx context.Context, job Job) error {
 	tag, err := w.pool.Exec(ctx, `
-		UPDATE jobs SET status = 'queued', run_at = now(), attempts = attempts - 1`+ownedRunning,
-		job.ID, w.cfg.ID, job.Attempts)
+		UPDATE jobs SET
+			status      = CASE WHEN `+queuedTwin+` THEN 'failed' ELSE 'queued' END,
+			run_at      = CASE WHEN `+queuedTwin+` THEN run_at ELSE now() END,
+			finished_at = CASE WHEN `+queuedTwin+` THEN now() ELSE NULL END,
+			last_error  = CASE WHEN `+queuedTwin+` THEN $4 ELSE last_error END,
+			attempts    = attempts - 1`+ownedRunning,
+		job.ID, w.cfg.ID, job.Attempts, "interrupted by shutdown; "+twinNote)
 	if err != nil {
 		return err
 	}
@@ -353,14 +372,25 @@ func (w *Worker) sweep(ctx context.Context) {
 // counted the attempt). locked_by / locked_at are kept so the row still says
 // which worker held it. It reports how many rows it touched. Run calls it
 // on a timer; it is exported for tests and one-off repair.
+//
+// Only one job per (kind, payload) may be queued, so a stale job is failed
+// rather than requeued when an identical one is queued already (queuedTwin)
+// or is being requeued by this same statement (the oldest stale one with
+// attempts left is). One such row must not abort the statement, which would
+// leave every other stale job running.
 func (w *Worker) Reclaim(ctx context.Context, olderThan time.Duration) (int64, error) {
+	const spent = `(attempts >= max_attempts OR ` + queuedTwin + ` OR EXISTS (
+			SELECT 1 FROM jobs o
+			WHERE o.kind = jobs.kind AND o.payload = jobs.payload AND o.id < jobs.id AND o.status = 'running'
+			  AND o.locked_at < now() - make_interval(secs => $2) AND o.attempts < o.max_attempts))`
 	tag, err := w.pool.Exec(ctx, `
 		UPDATE jobs SET
-			status      = CASE WHEN attempts >= max_attempts THEN 'failed' ELSE 'queued' END,
-			finished_at = CASE WHEN attempts >= max_attempts THEN now() ELSE NULL END,
+			status      = CASE WHEN `+spent+` THEN 'failed' ELSE 'queued' END,
+			finished_at = CASE WHEN `+spent+` THEN now() ELSE NULL END,
 			last_error  = 'lock expired: worker ' || COALESCE(locked_by, '?') || ' did not finish within ' || $1::text
+			              || CASE WHEN attempts < max_attempts AND `+spent+` THEN $3 ELSE '' END
 		WHERE status = 'running' AND locked_at < now() - make_interval(secs => $2)`,
-		olderThan.String(), olderThan.Seconds())
+		olderThan.String(), olderThan.Seconds(), "; "+twinNote)
 	if err != nil {
 		return 0, err
 	}

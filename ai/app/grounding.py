@@ -12,7 +12,18 @@ import re
 
 from app import taxonomy
 
-_DASHES = str.maketrans({"\u2013": "-", "\u2014": "-", "\u2019": "'", "\u2018": "'"})
+_DASHES = str.maketrans(
+    {
+        "\u2010": "-",
+        "\u2011": "-",
+        "\u2012": "-",
+        "\u2013": "-",
+        "\u2014": "-",
+        "\u2212": "-",
+        "\u2019": "'",
+        "\u2018": "'",
+    }
+)
 
 # An accounting framework or a numbered standard, as resumes write them:
 # "US GAAP", "UK GAAP", "IFRS", "IFRS 17", "IAS 36", "ASC 606", "ASC 350-40",
@@ -39,7 +50,7 @@ def in_text(fragment: str, text: str) -> bool:
 
 
 # Characters a model retypes when it copies a passage: any one of a group stands for the others.
-_INTERCHANGEABLE = ("-\u2013\u2014", "'\u2018\u2019", '"\u201c\u201d')
+_INTERCHANGEABLE = ("-\u2010\u2011\u2012\u2013\u2014\u2212", "'\u2018\u2019", '"\u201c\u201d')
 
 
 def _as_written(char: str) -> str:

@@ -42,6 +42,13 @@ def marker(*parts: str) -> str:
     return digest.hexdigest()[:MARKER_CHARS]
 
 
+def marker_of(prompt: str) -> str | None:
+    """The marker of a prompt built with `block`, read off its first tag
+    (always one the service wrote); None for a prompt with no blocks."""
+    first = _FIRST_TAG.search(prompt)
+    return first.group(1) if first else None
+
+
 def block(tag: str, mark: str, text: str, ident: str | None = None) -> str:
     """The text as a block. `ident` must not contain a double quote or a line break."""
     attr = f' id="{ident}"' if ident is not None else ""

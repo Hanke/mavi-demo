@@ -223,6 +223,42 @@ func TestTalentIsScopedToOwnCandidate(t *testing.T) {
 	}
 	a.want(a.do("GET", "/candidates/"+other, "employer", "", nil), 403, "employer reads candidate")
 	a.want(a.do("DELETE", "/candidates/"+mine, "talent", mine, nil), 403, "talent delete")
+
+	// Whether a candidate is in the pool, and where they came from, is ops'
+	// to say: a candidate ops archived cannot put themselves back.
+	a.want(a.do("PUT", "/candidates/"+mine, "ops", "", map[string]any{"status": "archived"}), 200, "ops archives")
+	r = a.want(a.do("PUT", "/candidates/"+mine, "talent", mine, map[string]any{"status": "active", "source": "agency"}), 422, "talent un-archives")
+	if r.field("status") == "" || r.field("source") == "" {
+		t.Fatalf("want field errors on status and source: %s", r.Raw)
+	}
+	// Sending the record back as it was read is not a change.
+	r = a.want(a.do("PUT", "/candidates/"+mine, "talent", mine, map[string]any{"status": "archived", "source": "self", "phone": "555-0100"}), 200, "talent sends status back unchanged")
+	if r.str("status") != "archived" || r.str("phone") != "555-0100" {
+		t.Fatalf("update: %s", r.Raw)
+	}
+	a.want(a.do("POST", "/candidates", "talent", "", map[string]any{"full_name": "Dee", "status": "archived"}), 422, "talent signs up archived")
+	a.want(a.do("POST", "/candidates", "talent", "", map[string]any{"full_name": "Dee", "source": "referral"}), 422, "talent names a source")
+	a.want(a.do("POST", "/candidates", "talent", "", map[string]any{"full_name": "Dee", "status": "active", "source": "self"}), 201, "talent sends the defaults")
+}
+
+// Text Postgres cannot store is refused at the door, not a 500 at the write.
+func TestUnstorableInputIsRefused(t *testing.T) {
+	a := newAPI(t)
+	id := a.candidate("Ada Okafor", "ada@example.com")
+	a.want(a.do("POST", "/candidates", "ops", "", `{"full_name":"a\u0000b"}`), 400, "NUL escape in a name")
+	a.want(a.do("POST", "/candidates", "ops", "", "{\"full_name\":\"a\x00b\"}"), 400, "raw NUL in a name")
+	a.want(a.do("POST", "/jobs", "ops", "", `{"kind":"embed_role","payload":{"role_id":"\u0000"}}`), 400, "NUL in a job payload")
+	// The six characters of the escape, spelled out, are ordinary text.
+	r := a.want(a.do("POST", "/candidates", "ops", "", `{"full_name":"a\\u0000b"}`), 201, "an escaped backslash")
+	if r.str("full_name") != `a\u0000b` {
+		t.Fatalf("stored %q", r.str("full_name"))
+	}
+	for _, clock := range []string{"+9:00", "-0:30", "9:000", " 9:00", "24:00"} {
+		r := a.want(a.do("PUT", "/candidates/"+id+"/availability", "ops", "", workHours("America/Chicago", clock, "17:00", 40, "2026-01-01")), 422, "work_start "+clock)
+		if r.field("work_start") == "" {
+			t.Fatalf("work_start %q: %s", clock, r.Raw)
+		}
+	}
 }
 
 func TestProfileUpsertResolvesTaxonomy(t *testing.T) {

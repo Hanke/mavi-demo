@@ -29,7 +29,7 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-}
-      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-openai}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-local}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
       AI_CACHE: ${AI_CACHE:-on}
       DATABASE_URL: postgresql://${POSTGRES_USER:-mavi}:${POSTGRES_PASSWORD:-mavi}@db:5432/${POSTGRES_DB:-mavi}
@@ -63,8 +63,11 @@ services:
       # Background job worker embedded in the API process (0 disables it; see `make worker`).
       # WORKER_ID is left to its default (container hostname + pid) so scaled replicas stay distinct.
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+      # Empty leaves the API's default (5m). It must outlast the slowest job.
+      WORKER_LOCK_TIMEOUT: ${WORKER_LOCK_TIMEOUT:-}
       MATCH_RETRIEVAL_SIZE: ${MATCH_RETRIEVAL_SIZE:-20}
       MATCH_REVIEW_SIZE: ${MATCH_REVIEW_SIZE:-5}
+      MATCH_MIN_SCORE: ${MATCH_MIN_SCORE:-0.6}
     ports:
       - "${API_PORT:-8080}:8080"
     volumes:

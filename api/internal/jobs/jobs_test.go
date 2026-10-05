@@ -188,7 +188,12 @@ func TestRetryWaitsForBackoff(t *testing.T) {
 	cfg.Backoff = func(int) time.Duration { return time.Hour }
 	start(t, pool, reg, cfg)
 
-	waitFor(t, "first attempt to be recorded", func() bool { return get(t, q, job.ID).Attempts == 1 })
+	// The claim counts the attempt before the handler runs, so the count alone
+	// does not say the failure has been recorded yet.
+	waitFor(t, "first attempt to be recorded", func() bool {
+		got := get(t, q, job.ID)
+		return got.Attempts == 1 && got.Status != StatusRunning
+	})
 	got := get(t, q, job.ID)
 	if got.Status != StatusQueued {
 		t.Fatalf("status after first failure = %s, want queued", got.Status)
@@ -537,4 +542,77 @@ func TestTruncateKeepsValidUTF8(t *testing.T) {
 	if got := truncate("bad\xffbyte", 100); !utf8.ValidString(got) || !strings.Contains(got, "bad") {
 		t.Fatalf("invalid input should be repaired: %q", got)
 	}
+}
+
+// The same work enqueued again while a job runs leaves an identical job
+// queued, and only one may be. The running one then cannot go back to the
+// queue, on a failure or when its lock expires: it is finished with a note,
+// the queued one does the work, and no other stale job is left behind.
+func TestAJobWithAQueuedTwinIsFinishedNotRequeued(t *testing.T) {
+	pool := dbtest.Pool(t)
+	q := NewQueue(pool)
+	ctx := context.Background()
+
+	t.Run("on a failed attempt", func(t *testing.T) {
+		var twin Job
+		reg := Registry{"edited": func(ctx context.Context, job Job) error {
+			var err error
+			if twin, _, err = q.Enqueue(ctx, EnqueueInput{Kind: job.Kind, Payload: job.Payload, RunAt: time.Now().Add(time.Hour)}); err != nil {
+				return err
+			}
+			return errors.New("the text changed; retrying")
+		}}
+		job, _, err := q.Enqueue(ctx, EnqueueInput{Kind: "edited", MaxAttempts: 3})
+		if err != nil {
+			t.Fatal(err)
+		}
+		stop := start(t, pool, reg, fast("w1", 1))
+		waitFor(t, "the attempt to be recorded", func() bool { return status(t, q, job.ID) != string(StatusRunning) && get(t, q, job.ID).Attempts == 1 })
+		stop()
+		got := get(t, q, job.ID)
+		if got.Status != StatusFailed || got.FinishedAt == nil || got.LastError == nil ||
+			*got.LastError != "the text changed; retrying; "+twinNote {
+			t.Fatalf("job with a queued twin: %+v (last_error %v)", got, got.LastError)
+		}
+		if twin.ID == job.ID || status(t, q, twin.ID) != string(StatusQueued) {
+			t.Fatalf("the twin should be a second job, still queued: %+v", get(t, q, twin.ID))
+		}
+	})
+
+	t.Run("when its lock expires", func(t *testing.T) {
+		stale := func(kind string) (id int64) {
+			if err := pool.QueryRow(ctx, `INSERT INTO jobs (kind, status, attempts, max_attempts, locked_by, locked_at)
+				VALUES ($1, 'running', 1, 3, 'dead', now() - interval '1 hour') RETURNING id`, kind).Scan(&id); err != nil {
+				t.Fatal(err)
+			}
+			return id
+		}
+		withTwin, first, second, other := stale("twinned"), stale("pair"), stale("pair"), stale("alone")
+		twin, created, err := q.Enqueue(ctx, EnqueueInput{Kind: "twinned"})
+		if err != nil || !created {
+			t.Fatalf("enqueue the twin: created=%v err=%v", created, err)
+		}
+
+		w := NewWorker(pool, Registry{"x": func(context.Context, Job) error { return nil }}, WorkerConfig{ID: "sweeper", Logger: quiet})
+		n, err := w.Reclaim(ctx, 5*time.Minute)
+		if err != nil {
+			t.Fatalf("reclaim: %v", err)
+		}
+		if n != 4 {
+			t.Fatalf("reclaimed %d, want 4", n)
+		}
+		if got := get(t, q, withTwin); got.Status != StatusFailed || got.LastError == nil || !strings.HasSuffix(*got.LastError, twinNote) {
+			t.Fatalf("stale job with a queued twin: %+v", got)
+		}
+		if status(t, q, twin.ID) != string(StatusQueued) {
+			t.Fatalf("the twin: %s", status(t, q, twin.ID))
+		}
+		// Of two identical stale jobs, one goes back and the other does not.
+		if a, b := status(t, q, first), status(t, q, second); a != string(StatusQueued) || b != string(StatusFailed) {
+			t.Fatalf("two identical stale jobs: %s and %s, want queued and failed", a, b)
+		}
+		if got := status(t, q, other); got != string(StatusQueued) {
+			t.Fatalf("an unrelated stale job was left %s", got)
+		}
+	})
 }

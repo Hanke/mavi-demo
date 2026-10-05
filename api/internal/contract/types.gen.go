@@ -11,6 +11,27 @@ const (
 	RoleScopes roleContextKey = "role.Scopes"
 )
 
+// Defines values for AttentionReason.
+const (
+	AttentionReasonAiFailed        AttentionReason = "ai_failed"
+	AttentionReasonTooFewPassed    AttentionReason = "too_few_passed"
+	AttentionReasonTooFewQualified AttentionReason = "too_few_qualified"
+)
+
+// Valid indicates whether the value is a known member of the AttentionReason enum.
+func (e AttentionReason) Valid() bool {
+	switch e {
+	case AttentionReasonAiFailed:
+		return true
+	case AttentionReasonTooFewPassed:
+		return true
+	case AttentionReasonTooFewQualified:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for Availability.
 const (
 	AvailabilityImmediate   Availability = "immediate"
@@ -176,6 +197,27 @@ func (e Persona) Valid() bool {
 	}
 }
 
+// Defines values for RoleMatchState.
+const (
+	RoleMatchStateInReview       RoleMatchState = "in_review"
+	RoleMatchStateNeedsAttention RoleMatchState = "needs_attention"
+	RoleMatchStateReady          RoleMatchState = "ready"
+)
+
+// Valid indicates whether the value is a known member of the RoleMatchState enum.
+func (e RoleMatchState) Valid() bool {
+	switch e {
+	case RoleMatchStateInReview:
+		return true
+	case RoleMatchStateNeedsAttention:
+		return true
+	case RoleMatchStateReady:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RoleStatus.
 const (
 	RoleStatusClosed RoleStatus = "closed"
@@ -196,6 +238,27 @@ func (e RoleStatus) Valid() bool {
 		return false
 	}
 }
+
+// Defines values for RunStatus.
+const (
+	RunStatusMatched        RunStatus = "matched"
+	RunStatusNeedsAttention RunStatus = "needs_attention"
+)
+
+// Valid indicates whether the value is a known member of the RunStatus enum.
+func (e RunStatus) Valid() bool {
+	switch e {
+	case RunStatusMatched:
+		return true
+	case RunStatusNeedsAttention:
+		return true
+	default:
+		return false
+	}
+}
+
+// AttentionReason Why a matching run needs attention. `too_few_passed`: zero or one candidate passed the hard filters. `too_few_qualified`: fewer than two of the reranked scored at or above the minimum. `ai_failed`: the AI service failed or timed out during the rerank, and no matches were written. When more than one applies, `ai_failed` is reported first, then `too_few_passed`.
+type AttentionReason string
 
 // Availability What the resume suggests. The filters use `WorkAvailability`, which the candidate supplies.
 type Availability string
@@ -271,6 +334,12 @@ type FilterName string
 
 // FilterRun One run of a role's hard filters over the active candidates, and the shortlist retrieved from those who passed.
 type FilterRun struct {
+	// AttentionDetail The AI service's error when `attention_reason` is `ai_failed`; otherwise `null`.
+	AttentionDetail *string `json:"attention_detail"`
+
+	// AttentionReason Why the run needs attention; `null` unless `match_status` is `needs_attention`.
+	AttentionReason *AttentionReason `json:"attention_reason"`
+
 	// CandidateIds Who passed every filter, by name. A record of the run; a candidate deleted since stays listed.
 	CandidateIds []ID      `json:"candidate_ids"`
 	CreatedAt    time.Time `json:"created_at"`
@@ -278,8 +347,14 @@ type FilterRun struct {
 	// ID A UUID, as text.
 	ID ID `json:"id"`
 
+	// MatchStatus How the `match_role` job that made this run ended. `null` for a run of the filters alone, or one that never reached an outcome: the worker stopped, or some of those who passed were still being embedded and too few of the rest qualified, which is for the run queued behind it to say.
+	MatchStatus *RunStatus `json:"match_status"`
+
 	// MatchedAt When a `match_role` job reranked this run's shortlist and wrote it to the role's matches. `null` for a run of the filters alone, or one whose rerank did not finish.
 	MatchedAt *time.Time `json:"matched_at"`
+
+	// MinScore The minimum score the run applied (`MATCH_MIN_SCORE` when it ran): a candidate scoring below it is never put in the review queue. `null` when the run scored nobody.
+	MinScore *float64 `json:"min_score"`
 
 	// OverlapOn The day the time-zone overlap was worked out for; the role's `starts_on`, or the day of the run when it has none.
 	OverlapOn CalendarDate `json:"overlap_on"`
@@ -289,6 +364,9 @@ type FilterRun struct {
 
 	// Pool Active candidates when the run started.
 	Pool int `json:"pool"`
+
+	// Qualified How many of the run's ranking can be put forward: those who scored at or above `min_score`, not counting a candidate deleted since or one whose match ops rejected or swapped out. `null` when the run scored nobody.
+	Qualified *int `json:"qualified"`
 
 	// RetrievalLimit The most candidates the run could retrieve (`MATCH_RETRIEVAL_SIZE` when it ran). 0 on a run recorded before retrieval existed, which retrieved nothing.
 	RetrievalLimit int `json:"retrieval_limit"`
@@ -304,6 +382,9 @@ type FilterRun struct {
 
 	// Stages Every filter, in the order applied; each `remaining` is at most the one before it.
 	Stages []FilterStage `json:"stages"`
+
+	// TopFilter The must-have that eliminated the most candidates: of the filters after `profile`, the one with the largest `excluded` (the earliest applied, when two tie). `null` when none of them excluded anybody. Filters are applied in order, so each count is of the candidates who got that far.
+	TopFilter *FilterStage `json:"top_filter"`
 
 	// UnrankedIds Who passed but could not be compared, by name: their profile or the role had no usable embedding, or the two were embedded by different providers. None of them is in `retrieved`.
 	UnrankedIds []ID `json:"unranked_ids"`
@@ -616,8 +697,29 @@ type RoleIntakeInput struct {
 	Title *string `json:"title,omitempty"`
 }
 
+// RoleMatchState Where a role's matching stands. `ready`: at least two matches are released. `needs_attention` (ops only): not ready, and the latest matching run could not deliver two profiles. `in_review`: anything else, and all an employer is told until the role is `ready`.
+type RoleMatchState string
+
+// RoleMatchStatus Where a role's matching stands, as the caller may see it.
+type RoleMatchStatus struct {
+	// Released Matches released to the employer.
+	Released int `json:"released"`
+
+	// RoleID A UUID, as text.
+	RoleID ID `json:"role_id"`
+
+	// Run The latest matching run with an outcome: its `attention_reason`, the funnel and `top_filter`. Always `null` for an employer, and for ops when no run has finished.
+	Run *FilterRun `json:"run"`
+
+	// Status Where a role's matching stands. `ready`: at least two matches are released. `needs_attention` (ops only): not ready, and the latest matching run could not deliver two profiles. `in_review`: anything else, and all an employer is told until the role is `ready`.
+	Status RoleMatchState `json:"status"`
+}
+
 // RoleStatus defines model for RoleStatus.
 type RoleStatus string
+
+// RunStatus How a matching run ended. `matched`: at least two candidates passed the hard filters and scored at or above the minimum. `needs_attention`: the run could not deliver two profiles (see `AttentionReason`).
+type RunStatus string
 
 // WorkAvailability When and where the candidate can work, as the candidate gave it. All four answers or none.
 type WorkAvailability struct {

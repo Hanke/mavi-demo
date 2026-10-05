@@ -128,6 +128,9 @@ func (s *Server) routes() []routeDef {
 		// runs it for a role and reads back how the pool narrowed.
 		r("POST /roles/{id}/filter-runs", s.runRoleFilters, ops),
 		r("GET /roles/{id}/filter-runs", s.listRoleFilterRuns, ops),
+		// Where the role's matching stands. An employer is told in_review or
+		// ready; why a run needs attention is for ops.
+		r("GET /roles/{id}/match-status", s.getRoleMatchStatus, employer, ops),
 
 		// Roles: employers and ops write; talent reads open roles. Intake is
 		// the employer's way in: a pasted JD, parsed, stored, embedded and
@@ -309,6 +312,11 @@ func decodeBody(w http.ResponseWriter, r *http.Request, v any, allowEmpty bool) 
 	if allowEmpty && len(strings.TrimSpace(string(buf))) == 0 {
 		return body{}, true
 	}
+	// Postgres stores no NUL in text or jsonb, so one would be a 500 at the write.
+	if hasNUL(buf) {
+		writeError(w, http.StatusBadRequest, "invalid JSON body: it contains a NUL character (\\u0000), which cannot be stored")
+		return nil, false
+	}
 	var keys body
 	if err := json.Unmarshal(buf, &keys); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid JSON body: "+err.Error())
@@ -321,6 +329,24 @@ func decodeBody(w http.ResponseWriter, r *http.Request, v any, allowEmpty bool) 
 		return nil, false
 	}
 	return keys, true
+}
+
+// hasNUL reports whether a JSON document holds a NUL character: a raw zero
+// byte, or the escape \u0000 (and not the six characters of it spelled out
+// with an escaped backslash).
+func hasNUL(doc []byte) bool {
+	for i := 0; i < len(doc); i++ {
+		switch doc[i] {
+		case 0:
+			return true
+		case '\\':
+			if bytes.HasPrefix(doc[i+1:], []byte("u0000")) {
+				return true
+			}
+			i++ // whatever is escaped is not the start of another escape
+		}
+	}
+	return false
 }
 
 var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)

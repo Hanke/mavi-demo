@@ -278,6 +278,12 @@ func (c *Client) Rerank(ctx context.Context, role string, candidates []RerankCan
 				Detail: fmt.Sprintf("result for %q, which was not sent or is there twice", r.ID)}
 		}
 		delete(sent, r.ID)
+		// matches.score takes 0 to 1; anything else would fail at the write,
+		// as a database error, on every attempt.
+		if !(r.Score >= 0 && r.Score <= 1) {
+			return RerankResponse{}, &Error{Op: "rerank", StatusCode: http.StatusOK, cause: ErrBadResponse,
+				Detail: fmt.Sprintf("score %v for %q is not between 0 and 1", r.Score, r.ID)}
+		}
 	}
 	if len(sent) > 0 {
 		return RerankResponse{}, &Error{Op: "rerank", StatusCode: http.StatusOK, cause: ErrBadResponse,

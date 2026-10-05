@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   createApiClient,
   type ApiClient,
@@ -113,6 +113,10 @@ function Intake({ candidateId, onForget }: { candidateId: string; onForget: () =
   const client = useMemo(() => createApiClient({ role: "talent", actor: candidateId }), [candidateId]);
   const [state, setState] = useState<Loaded>({ kind: "loading" });
   const [job, setJob] = useState<Job | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  // A poll that left before a second upload can come back after it: the job
+  // with the higher id is the later one, and an older answer never replaces it.
+  const keepLatest = useCallback((next: Job) => setJob((cur) => (cur !== null && cur.id > next.id ? cur : next)), []);
 
   useEffect(() => {
     let current = true;
@@ -135,7 +139,7 @@ function Intake({ candidateId, onForget }: { candidateId: string; onForget: () =
         } else {
           setState({ kind: "ready", candidate: candidate.data, availability: availability.data ?? null });
           // A parse still running from before a reload is picked up again.
-          if (resumeJob.data) setJob((newer) => newer ?? resumeJob.data);
+          if (resumeJob.data) keepLatest(resumeJob.data);
         }
       })
       .catch((err: unknown) => {
@@ -144,10 +148,29 @@ function Intake({ candidateId, onForget }: { candidateId: string; onForget: () =
     return () => {
       current = false;
     };
-  }, [client, candidateId]);
+  }, [client, candidateId, attempt, keepLatest]);
 
   if (state.kind === "loading") return <p>Loading your details…</p>;
-  if (state.kind === "error") return <p role="alert">Could not load your details: {state.message}</p>;
+  if (state.kind === "error") {
+    // Without these the only ways out are a reload and clearing the browser's storage by hand.
+    return (
+      <div>
+        <p role="alert">Could not load your details: {state.message}</p>
+        <button
+          type="button"
+          onClick={() => {
+            setState({ kind: "loading" });
+            setAttempt((n) => n + 1);
+          }}
+        >
+          Try again
+        </button>{" "}
+        <button type="button" className="link" onClick={onForget}>
+          Not you?
+        </button>
+      </div>
+    );
+  }
   if (state.kind === "gone") {
     return (
       <div>
@@ -171,7 +194,7 @@ function Intake({ candidateId, onForget }: { candidateId: string; onForget: () =
           Not you?
         </button>
       </p>
-      <ResumeUpload client={client} candidateId={candidateId} job={job} onJob={setJob} />
+      <ResumeUpload client={client} candidateId={candidateId} job={job} onJob={keepLatest} />
       {showAvailability && <AvailabilityForm client={client} candidateId={candidateId} initial={availability} />}
     </div>
   );

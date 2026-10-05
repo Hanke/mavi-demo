@@ -75,7 +75,14 @@ func run() error {
 	if review < 1 || review > store.MaxRetrievalLimit {
 		return fmt.Errorf("MATCH_REVIEW_SIZE: want 1 to %d, got %d", store.MaxRetrievalLimit, review)
 	}
-	handlers := tasks.Registry(pool, ai, tax, tasks.MatchConfig{Retrieve: retrieve, ReviewSize: review})
+	// MATCH_MIN_SCORE is the least a candidate may score in the rerank and
+	// still be put in the review queue; a run with fewer than two at or above
+	// it needs attention.
+	minScore := envFloat("MATCH_MIN_SCORE", tasks.DefaultMinScore)
+	if minScore <= 0 || minScore > 1 {
+		return fmt.Errorf("MATCH_MIN_SCORE: want above 0 and at most 1, got %g", minScore)
+	}
+	handlers := tasks.Registry(pool, ai, tax, tasks.MatchConfig{Retrieve: retrieve, ReviewSize: review, MinScore: minScore})
 	if len(os.Args) > 1 { // worker
 		return newWorker(pool, handlers, envInt("WORKER_CONCURRENCY", 2)).Run(ctx)
 	}
@@ -227,6 +234,18 @@ func envInt(key string, fallback int) int {
 	n, err := strconv.Atoi(v)
 	if err != nil {
 		log.Fatalf("%s: want an integer, got %q", key, v)
+	}
+	return n
+}
+
+func envFloat(key string, fallback float64) float64 {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		log.Fatalf("%s: want a number, got %q", key, v)
 	}
 	return n
 }

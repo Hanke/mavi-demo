@@ -12,7 +12,7 @@ from xml.sax.saxutils import escape
 import pytest
 from fastapi.testclient import TestClient
 
-from app import documents, fixtures
+from app import documents, fixtures, grounding
 from app.main import MAX_TEXT_CHARS, app
 from app.settings import Settings, get_settings
 
@@ -325,3 +325,24 @@ def test_the_extracted_text_always_fits_the_parsers():
     """Whatever /extract-text returns can be sent to /parse-resume: the same limit bounds both."""
     schema = app.openapi()["components"]["schemas"]["ParseResumeRequest"]["properties"]["text"]
     assert schema["maxLength"] == MAX_TEXT_CHARS
+
+
+def test_text_is_written_the_way_a_reader_would_type_it():
+    """What a parser copies is checked against this text character by
+    character, so what a PDF hides between letters, and its ligatures, would
+    make a plainly typed quote miss."""
+    data = _docx(
+        ["Certiﬁed Public Accountant", "co\xadordinated the month-end close", "Senior\u200b Accountant, Café Group"]
+    )
+    text = _post(data).json()["text"]
+    assert text == "Certified Public Accountant\ncoordinated the month-end close\nSenior Accountant, Café Group"
+    assert grounding.find_quote("Certified Public Accountant", text) == "Certified Public Accountant"
+    # A lone surrogate is not text and would fail the response's encoding.
+    assert documents._clean("CPA \ud800licence") == "CPA licence"  # pyright: ignore[reportPrivateUsage]
+
+
+def test_a_quote_matches_whatever_hyphen_the_page_uses():
+    for hyphen in map(chr, (0x2010, 0x2011, 0x2212, 0x2013)):
+        page = f"Led the month{hyphen}end close"
+        assert grounding.find_quote("month-end close", page) == f"month{hyphen}end close"
+        assert grounding.in_text("month-end", page)

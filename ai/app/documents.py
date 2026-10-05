@@ -20,6 +20,7 @@ import io
 import multiprocessing
 import re
 import sys
+import unicodedata
 import zipfile
 from dataclasses import dataclass
 from multiprocessing.connection import Connection
@@ -47,8 +48,16 @@ _DOCX_MARGINS = re.compile(r"^word/(?:header|footer)\d*\.xml$")
 _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 _MC = "{http://schemas.openxmlformats.org/markup-compatibility/2006}"
 _READ_CHUNK = 64 * 1024
-# Control characters other than tab and line break, and the invisible Unicode "tag" letters.
-_UNPRINTABLE = re.compile("[\x00-\x08\x0b-\x1f\x7f-\x9f\U000e0000-\U000e007f]")
+# Control characters other than tab and line break, the invisible Unicode "tag"
+# letters, what a PDF leaves between letters without it showing (soft hyphen,
+# zero-width space and joiners, byte-order mark) and lone surrogates, which
+# pypdf can decode from a broken font map and which are not text: they cannot
+# be encoded as UTF-8, so not sent in a response or stored.
+_UNPRINTABLE = re.compile(
+    "[\x00-\x08\x0b-\x1f\x7f-\x9f\xad\u200b-\u200d\u2060\ufeff\ud800-\udfff\U000e0000-\U000e007f]"
+)
+# Typeset ligatures ("ﬁ" for "fi"): one glyph on the page, two or three letters to a reader.
+_LIGATURES = re.compile("[\ufb00-\ufb06]")
 
 
 class UploadError(Exception):
@@ -186,8 +195,14 @@ def _too_much_text(max_chars: int) -> UploadError:
 
 
 def _clean(text: str) -> str:
-    """Line endings as \\n, nothing unprintable, no trailing space, no blank lines at either end."""
+    """Line endings as \\n, nothing unprintable, no trailing space, no blank lines at either end.
+
+    Letters are written the way somebody typing them would: composed (NFC, so
+    "é" is one character however the file spells it) and with ligatures spelled
+    out. What a parser copies from this text is checked against it character
+    by character (app.grounding), and a model retypes "Certified", not "Certiﬁed"."""
     text = _UNPRINTABLE.sub("", text.replace("\r\n", "\n").replace("\r", "\n"))
+    text = _LIGATURES.sub(lambda m: unicodedata.normalize("NFKC", m.group()), unicodedata.normalize("NFC", text))
     return "\n".join(line.rstrip() for line in text.split("\n")).strip("\n")
 
 

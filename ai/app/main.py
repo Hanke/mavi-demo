@@ -1,19 +1,32 @@
+import json
 from datetime import date
 from functools import lru_cache
 from typing import Any, Self
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.concurrency import run_in_threadpool
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app import documents, embeddings, embedtext, extract, llm, rubric
 from app.extract import RerankCandidate, RerankResult
 from app.llm import InvalidOutputError, Provider
-from app.schemas import CandidateProfile, Contact, RoleRequirements
+from app.schemas import CandidateProfile, Contact, Document, RoleRequirements
 from app.settings import Settings, get_settings
 
 # Route names double as operation ids so generated clients get `embed`, not `embed_embed_post`.
 app = FastAPI(title="Mavi AI", version="0.1.0", generate_unique_id_function=lambda route: route.name)
+
+
+@app.exception_handler(RequestValidationError)
+async def invalid_request(_: Request, exc: RequestValidationError) -> Response:
+    """FastAPI's 422, written as ASCII. The errors echo the rejected input, and
+    a string with a lone surrogate (which is why it was rejected) has no UTF-8
+    encoding: the default handler fails on it and the caller gets a 500."""
+    body = json.dumps({"detail": jsonable_encoder(exc.errors())}, ensure_ascii=True)
+    return Response(body, status_code=422, media_type="application/json")
+
 
 MAX_TEXT_CHARS = 60_000  # ~15 pages; anything bigger is not a resume or a JD
 MAX_RERANK_CANDIDATES = 50
@@ -56,7 +69,7 @@ class HealthResponse(BaseModel):
 
 
 class EmbedRequest(BaseModel):
-    text: str = Field(min_length=1, max_length=MAX_TEXT_CHARS)
+    text: Document = Field(min_length=1, max_length=MAX_TEXT_CHARS)
 
 
 class EmbedResponse(BaseModel):
@@ -107,7 +120,7 @@ class ExtractTextResponse(BaseModel):
 
 
 class ParseResumeRequest(BaseModel):
-    text: str = Field(min_length=1, max_length=MAX_TEXT_CHARS, description="The resume as plain text.")
+    text: Document = Field(min_length=1, max_length=MAX_TEXT_CHARS, description="The resume as plain text.")
     as_of: date | None = Field(default=None, description="The date years_experience is counted to. Default: today.")
 
 
@@ -118,7 +131,7 @@ class ParseResumeResponse(BaseModel):
 
 
 class ParseJDRequest(BaseModel):
-    text: str = Field(min_length=1, max_length=MAX_TEXT_CHARS, description="The job description as plain text.")
+    text: Document = Field(min_length=1, max_length=MAX_TEXT_CHARS, description="The job description as plain text.")
 
 
 class ParseJDResponse(BaseModel):
@@ -128,7 +141,7 @@ class ParseJDResponse(BaseModel):
 
 
 class RerankRequest(BaseModel):
-    role: str = Field(
+    role: Document = Field(
         min_length=1, max_length=MAX_TEXT_CHARS, description="The job description, or a rendering of the role."
     )
     candidates: list[RerankCandidate] = Field(min_length=1, max_length=MAX_RERANK_CANDIDATES)
@@ -249,11 +262,15 @@ def rerank(req: RerankRequest, provider: Provider = Depends(get_provider)) -> Re
 
 def _http_error(e: llm.LLMError) -> HTTPException:
     """Both failures are the upstream model's, so both are 502 (the Go client
-    treats that as retryable). The detail prefix says which, so the caller can
-    tell a flaky provider from a prompt that needs work; app.llm logs the
-    rejected output itself."""
+    treats that as retryable), except a provider failure that the same input
+    would only repeat (a refusal, an answer cut off at the output limit, a
+    request the provider rejects as malformed or too large), which is a 422:
+    the client does not retry a 4xx. The detail prefix says which, so the
+    caller can tell a flaky provider from a prompt that needs work; app.llm
+    logs the rejected output itself."""
     kind = "llm output invalid" if isinstance(e, InvalidOutputError) else "llm provider error"
     detail = f"{kind}: {e}"
     if len(detail) > MAX_ERROR_DETAIL_CHARS:
         detail = detail[: MAX_ERROR_DETAIL_CHARS - 3] + "..."
-    return HTTPException(status_code=502, detail=detail)
+    permanent = isinstance(e, llm.ProviderError) and e.permanent
+    return HTTPException(status_code=422 if permanent else 502, detail=detail)

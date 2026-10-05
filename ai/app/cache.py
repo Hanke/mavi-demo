@@ -9,8 +9,9 @@ run's results identical to the first.
 One JSON file per entry, `<dir>/<first two hex chars>/<key>.json`, written
 with a rename so a reader never sees half a file. Only successful responses
 are stored; a provider error is raised to the caller and the next run tries
-again. A stored response is replayed as is, including one the caller goes on
-to reject, so a bad answer stays bad until the entry is refreshed.
+again. A stored response is replayed as is. One the caller could not use at
+all is taken back out (`discard`; app.llm does so when every attempt at an
+answer failed validation), so that asking again asks the provider.
 
 `AI_CACHE` picks the mode: `on` (default), `off` to bypass the cache
 entirely, `refresh` to call the provider and overwrite what is stored.
@@ -90,6 +91,13 @@ class Cache:
             # A read-only or full disk must not fail the request that already has its answer.
             log.warning("cache: could not store %s: %s", key, e)
 
+    def discard(self, key: str) -> None:
+        """Forget what is stored under `key`, if anything is."""
+        try:
+            self._path(key).unlink(missing_ok=True)
+        except OSError as e:
+            log.warning("cache: could not discard %s: %s", key, e)
+
     def get_or_call[T](self, key: str, call: Callable[[], T], **meta: str) -> T:
         """The stored value for `key`, or `call()` stored under it. An
         exception from `call` propagates and stores nothing."""
@@ -124,7 +132,7 @@ class Cache:
         with self._lock:
             self.hits += len(found)
             self.calls += len(missing)
-        size = batch or len(missing)
+        size = batch or len(missing) or 1
         for start in range(0, len(missing), size):
             chunk = missing[start : start + size]
             for key, value in zip(chunk, call(chunk), strict=True):

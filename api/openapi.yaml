@@ -617,6 +617,43 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /roles/{id}/match-status:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [matching]
+      operationId: getRoleMatchStatus
+      summary: Where the role's matching stands
+      description: |
+        The pipeline promises two profiles. A role is `ready` once two matches
+        are released, and `in_review` until then.
+
+        A matching run that cannot deliver two still completes, as
+        `needs_attention`, and ops sees that here with the run (`run`): why
+        (`attention_reason`), how the pool narrowed (`stages`) and the
+        must-have that eliminated the most candidates (`top_filter`).
+
+        - `too_few_passed`: zero or one candidate passed the hard filters.
+        - `too_few_qualified`: fewer than two of the reranked scored at or
+          above the minimum (`min_score`). A candidate below it is written as
+          `proposed` and never put in the review queue to make up the number.
+        - `ai_failed`: the AI service failed or timed out during the rerank.
+          No matches were written, and the job is retried while it has
+          attempts left; a retry that succeeds is a new run.
+
+        An employer is told `in_review` in every one of those cases, with no
+        run: they see a role being worked on, never a weak match.
+      x-roles: [employer, ops]
+      responses:
+        "200":
+          description: The role's matching status.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RoleMatchStatus" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
   # ---------------------------------------------------------------------------
   # Matches
   # ---------------------------------------------------------------------------
@@ -1185,7 +1222,10 @@ components:
     FilterRun:
       type: object
       description: One run of a role's hard filters over the active candidates, and the shortlist retrieved from those who passed.
-      required: [id, role_id, overlap_on, pool, stages, passed, candidate_ids, retrieval_limit, retrieved, unranked_ids, role_embedded, matched_at, created_at]
+      required:
+        [id, role_id, overlap_on, pool, stages, passed, top_filter, candidate_ids, retrieval_limit, retrieved,
+         unranked_ids, role_embedded, matched_at, match_status, attention_reason, attention_detail, min_score,
+         qualified, created_at]
       properties:
         id: { $ref: "#/components/schemas/Id" }
         role_id: { $ref: "#/components/schemas/Id" }
@@ -1202,6 +1242,13 @@ components:
         passed:
           type: integer
           description: Candidates left after the last filter; the length of `candidate_ids`.
+        top_filter:
+          allOf: [{ $ref: "#/components/schemas/FilterStage" }]
+          nullable: true
+          description: >-
+            The must-have that eliminated the most candidates: of the filters after `profile`, the one with the
+            largest `excluded` (the earliest applied, when two tie). `null` when none of them excluded anybody.
+            Filters are applied in order, so each count is of the candidates who got that far.
         candidate_ids:
           type: array
           description: Who passed every filter, by name. A record of the run; a candidate deleted since stays listed.
@@ -1235,7 +1282,73 @@ components:
           description: >-
             When a `match_role` job reranked this run's shortlist and wrote it to the role's matches. `null` for
             a run of the filters alone, or one whose rerank did not finish.
+        match_status:
+          allOf: [{ $ref: "#/components/schemas/RunStatus" }]
+          nullable: true
+          description: >-
+            How the `match_role` job that made this run ended. `null` for a run of the filters alone, or one that
+            never reached an outcome: the worker stopped, or some of those who passed were still being embedded
+            and too few of the rest qualified, which is for the run queued behind it to say.
+        attention_reason:
+          allOf: [{ $ref: "#/components/schemas/AttentionReason" }]
+          nullable: true
+          description: Why the run needs attention; `null` unless `match_status` is `needs_attention`.
+        attention_detail:
+          type: string
+          nullable: true
+          description: The AI service's error when `attention_reason` is `ai_failed`; otherwise `null`.
+        min_score:
+          type: number
+          format: double
+          nullable: true
+          description: >-
+            The minimum score the run applied (`MATCH_MIN_SCORE` when it ran): a candidate scoring below it is
+            never put in the review queue. `null` when the run scored nobody.
+        qualified:
+          type: integer
+          nullable: true
+          description: >-
+            How many of the run's ranking can be put forward: those who scored at or above `min_score`, not
+            counting a candidate deleted since or one whose match ops rejected or swapped out. `null` when the
+            run scored nobody.
         created_at: { type: string, format: date-time }
+    RunStatus:
+      type: string
+      description: >-
+        How a matching run ended. `matched`: at least two candidates passed the hard filters and scored at or
+        above the minimum. `needs_attention`: the run could not deliver two profiles (see `AttentionReason`).
+      enum: [matched, needs_attention]
+    AttentionReason:
+      type: string
+      description: >-
+        Why a matching run needs attention. `too_few_passed`: zero or one candidate passed the hard filters.
+        `too_few_qualified`: fewer than two of the reranked scored at or above the minimum. `ai_failed`: the AI
+        service failed or timed out during the rerank, and no matches were written. When more than one applies,
+        `ai_failed` is reported first, then `too_few_passed`.
+      enum: [too_few_passed, too_few_qualified, ai_failed]
+    RoleMatchState:
+      type: string
+      description: >-
+        Where a role's matching stands. `ready`: at least two matches are released. `needs_attention` (ops
+        only): not ready, and the latest matching run could not deliver two profiles. `in_review`: anything else,
+        and all an employer is told until the role is `ready`.
+      enum: [in_review, needs_attention, ready]
+    RoleMatchStatus:
+      type: object
+      description: Where a role's matching stands, as the caller may see it.
+      required: [role_id, status, released, run]
+      properties:
+        role_id: { $ref: "#/components/schemas/Id" }
+        status: { $ref: "#/components/schemas/RoleMatchState" }
+        released:
+          type: integer
+          description: Matches released to the employer.
+        run:
+          allOf: [{ $ref: "#/components/schemas/FilterRun" }]
+          nullable: true
+          description: >-
+            The latest matching run with an outcome: its `attention_reason`, the funnel and `top_filter`. Always
+            `null` for an employer, and for ops when no run has finished.
 
     # -- roles ----------------------------------------------------------------
     Role:

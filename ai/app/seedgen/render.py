@@ -67,6 +67,12 @@ def load_json(path: Path) -> dict[str, Any]:
     return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
 
 
+# Only for the seed candidates who were inserted: one whose email a demo user
+# already holds was skipped by ON CONFLICT, and a row for them here would
+# violate the foreign key, which ON CONFLICT does not catch.
+SEEDED = "WHERE EXISTS (SELECT 1 FROM candidates c WHERE c.id = v.candidate_id::uuid)"
+
+
 def render_candidates(data: dict[str, Any]) -> str:
     candidates = cast(list[dict[str, Any]], data["candidates"])
     lines = [
@@ -76,7 +82,8 @@ def render_candidates(data: dict[str, Any]) -> str:
         f"-- {len(candidates)} synthetic finance / accounting candidates with structured profiles.",
         "-- Embeddings are left NULL; 090_embed_jobs.sql queues the jobs that fill them.",
         "-- Fixed ids plus a targetless ON CONFLICT keep this idempotent, even when a demo",
-        "-- user has reused one of the seed emails.",
+        "-- user has reused one of the seed emails: that seed candidate is skipped, and so",
+        "-- are their profile and availability below, which would have no row to attach to.",
         "",
         "INSERT INTO candidates (id, full_name, email, phone, location, source, status, resume_text) VALUES",
     ]
@@ -103,7 +110,9 @@ def render_candidates(data: dict[str, Any]) -> str:
     lines.append(
         "INSERT INTO candidate_profiles\n"
         "    (candidate_id, headline, years_experience, certifications, software, availability, available_from, timezone, profile)\n"
-        "VALUES"
+        "SELECT v.candidate_id::uuid, v.headline, v.years_experience::integer, v.certifications::text[], v.software::text[],\n"
+        "       v.availability, v.available_from::date, v.timezone, v.profile\n"
+        "FROM (VALUES"
     )
     rows: list[str] = []
     for c in candidates:
@@ -132,6 +141,10 @@ def render_candidates(data: dict[str, Any]) -> str:
             + ")"
         )
     lines.append(",\n".join(rows))
+    lines.append(
+        ") AS v (candidate_id, headline, years_experience, certifications, software, availability, available_from, timezone, profile)\n"
+        + SEEDED
+    )
     lines.append("ON CONFLICT DO NOTHING;")
     lines.append("")
     lines.append(
@@ -140,7 +153,8 @@ def render_candidates(data: dict[str, Any]) -> str:
         "-- row have not answered and are excluded from matching.\n"
         "INSERT INTO candidate_availability\n"
         "    (candidate_id, timezone, work_start, work_end, hours_per_week, available_from)\n"
-        "VALUES"
+        "SELECT v.candidate_id::uuid, v.timezone, v.work_start::time, v.work_end::time, v.hours_per_week::integer, v.available_from::date\n"
+        "FROM (VALUES"
     )
     rows = []
     for c in candidates:
@@ -169,6 +183,7 @@ def render_candidates(data: dict[str, Any]) -> str:
             + ")"
         )
     lines.append(",\n".join(rows))
+    lines.append(") AS v (candidate_id, timezone, work_start, work_end, hours_per_week, available_from)\n" + SEEDED)
     lines.append("ON CONFLICT DO NOTHING;")
     return "\n".join(lines) + "\n"
 

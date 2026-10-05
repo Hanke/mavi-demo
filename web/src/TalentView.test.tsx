@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { TalentView } from "./TalentView";
 import type { Candidate, Job, WorkAvailability } from "./api";
 
@@ -217,6 +217,64 @@ describe("TalentView", () => {
     render(<TalentView />);
 
     expect(await screen.findByText(/could not read that resume: no text in the file/)).toBeInTheDocument();
+  });
+
+  it("lets the candidate try again, or leave, when their details could not be loaded", async () => {
+    localStorage.setItem("mavi.candidate", ID);
+    let down = true;
+    const seen = api({
+      [`GET /candidates/${ID}`]: () => (down ? json({ error: "internal error" }, 500) : json(candidate)),
+    });
+
+    render(<TalentView />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("internal error");
+
+    down = false;
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Ada Okafor")).toBeInTheDocument();
+    // Every request is made as this candidate.
+    expect(seen.every((request) => request.headers.get("X-Actor") === ID)).toBe(true);
+
+    down = true;
+    cleanup();
+    render(<TalentView />);
+    fireEvent.click(await screen.findByRole("button", { name: "Not you?" }));
+    await waitFor(() => expect(screen.getByLabelText("Full name")).toBeInTheDocument());
+    expect(localStorage.getItem("mavi.candidate")).toBeNull();
+  });
+
+  it("does not let a late answer about an earlier upload replace a newer one", async () => {
+    localStorage.setItem("mavi.candidate", ID);
+    let polls = 0;
+    let answerPoll: (response: Response) => void = () => {};
+    api({
+      [`GET /candidates/${ID}`]: () => json({ ...candidate, resume_text: "Ada Okafor, CPA" }),
+      // The page loads with job 7 running; the first poll for it is slow to answer.
+      [`GET /candidates/${ID}/resume/job`]: () =>
+        polls++ === 0 ? json({ ...job, id: 7, status: "running" }) : new Promise<Response>((resolve) => (answerPoll = resolve)),
+      [`POST /candidates/${ID}/resume`]: () =>
+        json({ ...job, id: 8, status: "failed", last_error: "no text in the file" }, 202),
+    });
+
+    render(<TalentView />);
+    expect(await screen.findByText("Resume received; reading it now.")).toBeInTheDocument();
+    await waitFor(() => expect(polls).toBe(2), { timeout: 4000 });
+
+    // A second upload is answered while that poll is still out.
+    fireEvent.change(screen.getByLabelText("Resume (PDF or DOCX)"), {
+      target: { files: [new TextEncoder().encode("%PDF-1.4")] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Upload" }));
+    expect(await screen.findByText(/could not read that resume: no text in the file/)).toBeInTheDocument();
+
+    // The poll comes back about job 7. It is older news.
+    await act(async () => {
+      answerPoll(json({ ...job, id: 7, status: "succeeded" }));
+      await Promise.resolve();
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByText(/could not read that resume: no text in the file/)).toBeInTheDocument();
+    expect(screen.queryByText("Resume read.")).not.toBeInTheDocument();
   });
 
   it("starts again when the stored candidate no longer exists", async () => {

@@ -187,3 +187,49 @@ def test_seed_generation_does_not_pay_twice_for_the_same_batch(tmp_path: Path):
     assert messages.requests == 2
     call(mode="off")
     assert messages.requests == 3
+
+
+def test_an_answer_that_never_validated_is_not_replayed_to_a_retry(tmp_path: Path):
+    """The caller reports invalid output as retryable. A retry that got the
+    same rejected answers back from the cache could never succeed."""
+    from pydantic import BaseModel
+
+    class Answer(BaseModel):
+        count: int
+
+    inner = ScriptedProvider(["not json", "still not json"])
+    provider = CachingProvider(inner, Cache(tmp_path))
+    with pytest.raises(llm.InvalidOutputError):
+        llm.complete_json(provider, "sys", "user", Answer)
+    assert len(inner.calls) == 2
+
+    # The retry reaches the provider, and its good answer is the one kept.
+    inner.queue('{"count": 3}')
+    assert llm.complete_json(provider, "sys", "user", Answer).count == 3
+    assert len(inner.calls) == 3
+    assert llm.complete_json(provider, "sys", "user", Answer).count == 3
+    assert len(inner.calls) == 3
+
+
+def test_an_answer_corrected_on_the_second_attempt_stays_cached(tmp_path: Path):
+    from pydantic import BaseModel
+
+    class Answer(BaseModel):
+        count: int
+
+    inner = ScriptedProvider(["not json", '{"count": 3}'])
+    provider = CachingProvider(inner, Cache(tmp_path))
+    assert llm.complete_json(provider, "sys", "user", Answer).count == 3
+    assert llm.complete_json(provider, "sys", "user", Answer).count == 3
+    assert len(inner.calls) == 2
+
+
+def test_a_batch_that_is_all_stored_makes_no_call_whatever_the_batch_size(tmp_path: Path):
+    cache = Cache(tmp_path)
+    keys = ["a" * 64, "b" * 64]
+    assert cache.get_or_call_many(keys, lambda missing: [k[0] for k in missing]) == ["a", "b"]
+
+    def never(missing: list[str]) -> list[str]:
+        raise AssertionError(f"called for {missing}")
+
+    assert cache.get_or_call_many(keys, never) == ["a", "b"]

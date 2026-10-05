@@ -30,7 +30,8 @@ var filterOrder = []contract.FilterName{
 
 const filterRunCols = `id::text, role_id::text, overlap_on, pool, after_profile, after_certifications, after_software,
 	after_experience, after_availability, after_timezone_overlap, candidate_ids::text[], created_at,
-	retrieval_limit, retrieved_ids::text[], retrieved_similarities, unranked_ids::text[], role_embedded, matched_at`
+	retrieval_limit, retrieved_ids::text[], retrieved_similarities, unranked_ids::text[], role_embedded, matched_at,
+	match_status, attention_reason, attention_detail, min_score, qualified`
 
 func scanFilterRun(row pgx.Row) (FilterRun, error) {
 	var run FilterRun
@@ -42,7 +43,8 @@ func scanFilterRun(row pgx.Row) (FilterRun, error) {
 	}
 	var retrieved []string
 	var similarities []float64
-	dest = append(dest, &run.CandidateIds, &run.CreatedAt, &run.RetrievalLimit, &retrieved, &similarities, &run.UnrankedIds, &run.RoleEmbedded, &run.MatchedAt)
+	dest = append(dest, &run.CandidateIds, &run.CreatedAt, &run.RetrievalLimit, &retrieved, &similarities, &run.UnrankedIds, &run.RoleEmbedded, &run.MatchedAt,
+		&run.MatchStatus, &run.AttentionReason, &run.AttentionDetail, &run.MinScore, &run.Qualified)
 	if err := row.Scan(dest...); err != nil {
 		return run, mapErr(err)
 	}
@@ -63,7 +65,22 @@ func scanFilterRun(row pgx.Row) (FilterRun, error) {
 		before = after[i]
 	}
 	run.Passed = before
+	run.TopFilter = topFilter(run.Stages)
 	return run, nil
+}
+
+// topFilter is the must-have that eliminated the most candidates: of the
+// stages after the profile filter (which asks nothing of the role), the one
+// that excluded the most, the earliest applied when two tie. Nil when none of
+// them excluded anybody.
+func topFilter(stages []contract.FilterStage) *contract.FilterStage {
+	var top *contract.FilterStage
+	for _, s := range stages {
+		if s.Filter != contract.FilterNameProfile && s.Excluded > 0 && (top == nil || s.Excluded > top.Excluded) {
+			top = &s
+		}
+	}
+	return top
 }
 
 // DefaultRetrievalLimit is how many candidates a run retrieves when the

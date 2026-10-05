@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/colehanke/mavi-demo/api/internal/aiclient"
+	"github.com/colehanke/mavi-demo/api/internal/contract"
 	"github.com/colehanke/mavi-demo/api/internal/dbtest"
 	"github.com/colehanke/mavi-demo/api/internal/jobs"
 	"github.com/colehanke/mavi-demo/api/internal/store"
@@ -24,12 +26,20 @@ import (
 // rerankAI answers /rerank with a result per candidate sent, best first by
 // levels (the must-have level each candidate's id maps to; 2 when it has
 // none), or with status. requests is what it was asked, in order.
+//
+// failFor and stallFor name a candidate whose batch, and no other, goes
+// wrong: a 502 for the first, no answer inside the client's deadline (cut to
+// stallTimeout) for the second. That is a run failing part-way.
 type rerankAI struct {
 	levels   map[string]int
 	status   int
+	failFor  string
+	stallFor string
 	mu       sync.Mutex // batches arrive at once
 	requests []aiclient.RerankRequest
 }
+
+const stallTimeout = 200 * time.Millisecond
 
 func (f *rerankAI) client(t *testing.T) *aiclient.Client {
 	t.Helper()
@@ -41,9 +51,23 @@ func (f *rerankAI) client(t *testing.T) *aiclient.Client {
 		}
 		f.mu.Lock()
 		f.requests = append(f.requests, req)
+		failFor, stallFor := f.failFor, f.stallFor
 		f.mu.Unlock()
-		if f.status != 0 {
-			w.WriteHeader(f.status)
+		status := f.status
+		for _, c := range req.Candidates {
+			if c.ID == failFor {
+				status = http.StatusBadGateway
+			}
+			if c.ID == stallFor {
+				select {
+				case <-r.Context().Done():
+				case <-time.After(10 * stallTimeout):
+				}
+				return
+			}
+		}
+		if status != 0 {
+			w.WriteHeader(status)
 			_, _ = w.Write([]byte(`{"detail":"nope"}`))
 			return
 		}
@@ -59,7 +83,7 @@ func (f *rerankAI) client(t *testing.T) *aiclient.Client {
 		_ = json.NewEncoder(w).Encode(out)
 	}))
 	t.Cleanup(srv.Close)
-	return aiclient.New(srv.URL)
+	return aiclient.New(srv.URL, aiclient.WithParseTimeout(stallTimeout))
 }
 
 // rerankResult scores a candidate level/4, quoting their own text.
@@ -265,7 +289,7 @@ func TestMatchRoleAgainReplacesWithoutDuplicates(t *testing.T) {
 	p.exec(`INSERT INTO matches (role_id, candidate_id, score, status) VALUES ($1, $2, 0.1, 'pending_review')`, p.role, fay)
 
 	ai.levels = map[string]int{eve: 3, cy: 2, ada: 0}
-	p.match(ai, MatchConfig{ReviewSize: 2})
+	p.match(ai, MatchConfig{ReviewSize: 2, MinScore: 0.5})
 
 	got := p.matches()
 	// Ada keeps the decision and the score it was made on. Ben is gone. Dan
@@ -563,26 +587,26 @@ func TestReplaceRunMatchesRefusesAnOlderRun(t *testing.T) {
 	ranked := func(score float64) []store.RankedMatch {
 		return []store.RankedMatch{{CandidateID: ada, Score: score, Breakdown: json.RawMessage(`{"filter_run_id":"x"}`)}}
 	}
-	if _, err := st.ReplaceRunMatches(ctx, newer.ID, ranked(0.9), 5); err != nil {
+	if _, err := st.ReplaceRunMatches(ctx, newer.ID, ranked(0.9), 5, DefaultMinScore, false); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := st.ReplaceRunMatches(ctx, older.ID, ranked(0.1), 5); !errors.Is(err, store.ErrSuperseded) {
+	if _, err := st.ReplaceRunMatches(ctx, older.ID, ranked(0.1), 5, DefaultMinScore, false); !errors.Is(err, store.ErrSuperseded) {
 		t.Fatalf("older run: %v", err)
 	}
 	if got := p.matches(); len(got) != 1 || got[0].Score != 0.9 {
 		t.Fatalf("matches after the older run: %+v", got)
 	}
 	// The same run again (a retried write) is not older than itself.
-	if res, err := st.ReplaceRunMatches(ctx, newer.ID, ranked(0.8), 5); err != nil || res.Written != 1 || res.PendingReview != 1 {
+	if res, err := st.ReplaceRunMatches(ctx, newer.ID, ranked(0.8), 5, DefaultMinScore, false); err != nil || res.Written != 1 || res.PendingReview != 1 {
 		t.Fatalf("same run again: %+v, %v", res, err)
 	}
-	if _, err := st.ReplaceRunMatches(ctx, "00000000-0000-0000-0000-000000000000", nil, 5); !errors.Is(err, store.ErrNotFound) {
+	if _, err := st.ReplaceRunMatches(ctx, "00000000-0000-0000-0000-000000000000", nil, 5, DefaultMinScore, false); !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("missing run: %v", err)
 	}
 
 	// A candidate deleted since the run takes no place in the queue.
 	gone := store.RankedMatch{CandidateID: "00000000-0000-0000-0000-000000000001", Score: 1, Breakdown: json.RawMessage(`{"filter_run_id":"x"}`)}
-	res, err := st.ReplaceRunMatches(ctx, newer.ID, append([]store.RankedMatch{gone}, ranked(0.8)...), 1)
+	res, err := st.ReplaceRunMatches(ctx, newer.ID, append([]store.RankedMatch{gone}, ranked(0.8)...), 1, DefaultMinScore, false)
 	if err != nil || res.Written != 1 || res.PendingReview != 1 {
 		t.Fatalf("with a deleted candidate first: %+v, %v", res, err)
 	}
@@ -608,5 +632,323 @@ func TestRerankTextIsCutToTheServiceLimits(t *testing.T) {
 	}
 	if n := len([]rune(req.Candidates[0].Text)); n != maxRerankCandidateChars {
 		t.Errorf("candidate text is %d characters", n)
+	}
+}
+
+// status is where the role's matching stands, as ops reads it.
+func (p *matchPool) status() contract.RoleMatchStatus {
+	p.t.Helper()
+	out, err := store.New(p.pool).RoleMatchStatus(context.Background(), p.role)
+	if err != nil {
+		p.t.Fatal(err)
+	}
+	return out
+}
+
+// outcome is a role's status in a line: the status and, of its latest run
+// with an outcome, the reason it needs attention, how many qualified and the
+// must-have that eliminated the most.
+func outcome(s contract.RoleMatchStatus) string {
+	out := string(s.Status)
+	run := s.Run
+	if run == nil {
+		return out + ", no run"
+	}
+	if run.AttentionReason != nil {
+		out += " " + string(*run.AttentionReason)
+	}
+	if run.Qualified != nil {
+		out += fmt.Sprintf(", %d qualified", *run.Qualified)
+	}
+	if run.TopFilter != nil {
+		out += fmt.Sprintf(", %s excluded %d", run.TopFilter.Filter, run.TopFilter.Excluded)
+	}
+	return out
+}
+
+// Zero or one candidate passing the hard filters is a run that completes and
+// needs attention, and ops is told which must-have eliminated the most. The
+// one who passed is still scored: a strong candidate goes to review, a weak
+// one does not.
+func TestMatchRoleNeedsAttentionWhenTooFewPassTheFilters(t *testing.T) {
+	p := newMatchPool(t)
+	ada, ben, cy := p.add("Ada", 10), p.add("Ben", 20), p.add("Cy", 30)
+	if got := outcome(p.status()); got != "in_review, no run" {
+		t.Fatalf("before any run: %s", got)
+	}
+
+	// Nobody lists the software the role requires; Cy also lacks the years.
+	p.exec(`UPDATE roles SET required_software = '{netsuite}', min_years_experience = 5 WHERE id = $1`, p.role)
+	p.exec(`UPDATE candidate_profiles SET years_experience = 8 WHERE candidate_id = ANY($1::text[]::uuid[])`, []string{ada, ben})
+	ai := &rerankAI{levels: map[string]int{ada: 4, ben: 4, cy: 4}}
+	p.match(ai, MatchConfig{})
+	if got := outcome(p.status()); got != "needs_attention too_few_passed, software excluded 3" {
+		t.Fatalf("nobody passes: %s", got)
+	}
+	if run := p.status().Run; run.MatchedAt == nil || run.MinScore != nil || run.Passed != 0 {
+		t.Fatalf("nobody passes: the run did not complete as one that scored nobody: %+v", run)
+	}
+	if len(ai.requests) != 0 || len(p.matches()) != 0 {
+		t.Fatalf("nobody passes: %d rerank calls, %d matches", len(ai.requests), len(p.matches()))
+	}
+
+	// One passes, and is strong.
+	p.exec(`UPDATE candidate_profiles SET software = '{netsuite}' WHERE candidate_id = $1`, ada)
+	p.match(ai, MatchConfig{})
+	if got := outcome(p.status()); got != "needs_attention too_few_passed, 1 qualified, software excluded 2" {
+		t.Fatalf("one passes: %s", got)
+	}
+	if s := summary(p.matches()); s != "Ada pending_review" {
+		t.Fatalf("one passes: %s", s)
+	}
+
+	// One passes, and is weak: written for ops to read, not queued.
+	ai.levels[ada] = 1
+	p.match(ai, MatchConfig{})
+	if got := outcome(p.status()); got != "needs_attention too_few_passed, 0 qualified, software excluded 2" {
+		t.Fatalf("one weak candidate passes: %s", got)
+	}
+	if s := summary(p.matches()); s != "Ada proposed" {
+		t.Fatalf("one weak candidate passes: %s", s)
+	}
+}
+
+// Fewer than two at or above the minimum score is a run that needs
+// attention, and the queue is not topped up with whoever came next: a weak
+// candidate is never promoted to reach two.
+func TestMatchRoleNeverPromotesAWeakCandidateToReachTwo(t *testing.T) {
+	p := newMatchPool(t)
+	ada, ben, cy := p.add("Ada", 10), p.add("Ben", 20), p.add("Cy", 30)
+	ai := &rerankAI{levels: map[string]int{ada: 4, ben: 2, cy: 1}}
+	p.match(ai, MatchConfig{ReviewSize: 2})
+
+	if s := summary(p.matches()); s != "Ada pending_review, Ben proposed, Cy proposed" {
+		t.Fatalf("one strong candidate: %s", s)
+	}
+	st := p.status()
+	if got := outcome(st); got != "needs_attention too_few_qualified, 1 qualified" {
+		t.Fatalf("one strong candidate: %s", got)
+	}
+	if st.Run.MinScore == nil || *st.Run.MinScore != DefaultMinScore || st.Run.Passed != 3 {
+		t.Fatalf("one strong candidate: run = %+v", st.Run)
+	}
+
+	// Nobody clears the bar: an empty queue, not the best of a weak field.
+	ai.levels[ada] = 2
+	p.match(ai, MatchConfig{ReviewSize: 2})
+	if s := summary(p.matches()); strings.Contains(s, "pending_review") || len(p.matches()) != 3 {
+		t.Fatalf("nobody strong: %s", s)
+	}
+	if got := outcome(p.status()); got != "needs_attention too_few_qualified, 0 qualified" {
+		t.Fatalf("nobody strong: %s", got)
+	}
+	if n := p.count(`SELECT count(*) FROM matches WHERE released_at IS NOT NULL`); n != 0 {
+		t.Fatalf("%d matches were released to the employer", n)
+	}
+
+	// The threshold is the configured one, and at it is enough.
+	p.match(ai, MatchConfig{ReviewSize: 2, MinScore: 0.5})
+	if s := summary(p.matches()); strings.Count(s, "pending_review") != 2 || !strings.HasSuffix(s, "Cy proposed") {
+		t.Fatalf("a lower threshold: %s", s)
+	}
+	if got := outcome(p.status()); got != "in_review, 2 qualified" {
+		t.Fatalf("a lower threshold: %s", got)
+	}
+
+	// Two strong candidates: matched, in review until ops releases two.
+	ai.levels = map[string]int{ada: 4, ben: 3, cy: 1}
+	p.match(ai, MatchConfig{ReviewSize: 3})
+	if s := summary(p.matches()); s != "Ada pending_review, Ben pending_review, Cy proposed" {
+		t.Fatalf("two strong candidates: %s", s)
+	}
+	st = p.status()
+	if got := outcome(st); got != "in_review, 2 qualified" || *st.Run.MatchStatus != "matched" {
+		t.Fatalf("two strong candidates: %s", got)
+	}
+	p.exec(`UPDATE matches SET released_at = now() WHERE candidate_id = $1`, ada)
+	if got := p.status(); got.Status != "in_review" || got.Released != 1 {
+		t.Fatalf("one released: %+v", got)
+	}
+	p.exec(`UPDATE matches SET released_at = now() WHERE candidate_id = $1`, ben)
+	if got := p.status(); got.Status != "ready" || got.Released != 2 {
+		t.Fatalf("two released: %+v", got)
+	}
+}
+
+// Two who scored well but whom ops has already turned down are not two
+// profiles: the run needs attention rather than reading as matched with
+// nobody left to review.
+func TestMatchRoleDoesNotCountCandidatesOpsRejected(t *testing.T) {
+	p := newMatchPool(t)
+	ada, ben, cy := p.add("Ada", 10), p.add("Ben", 20), p.add("Cy", 30)
+	ai := &rerankAI{levels: map[string]int{ada: 4, ben: 4, cy: 1}}
+	p.match(ai, MatchConfig{})
+	if got := outcome(p.status()); got != "in_review, 2 qualified" {
+		t.Fatalf("first run: %s", got)
+	}
+	p.exec(`UPDATE matches SET status = 'rejected' WHERE candidate_id = $1`, ada)
+	p.exec(`UPDATE matches SET status = 'swapped' WHERE candidate_id = $1`, ben)
+	p.match(ai, MatchConfig{})
+	if got := outcome(p.status()); got != "needs_attention too_few_qualified, 0 qualified" {
+		t.Fatalf("after ops turned both down: %s", got)
+	}
+	// One ops approved still counts.
+	p.exec(`UPDATE matches SET status = 'approved' WHERE candidate_id = $1`, ada)
+	p.match(ai, MatchConfig{})
+	if got := outcome(p.status()); got != "needs_attention too_few_qualified, 1 qualified" {
+		t.Fatalf("after ops approved one: %s", got)
+	}
+}
+
+// A run that could not rank everybody who passed, with the rest on their way,
+// has not found too few: it records no outcome and leaves that to the run
+// queued behind it. Too few passing the filters is known already.
+func TestMatchRoleRecordsNoOutcomeWhileCandidatesAreStillBeingEmbedded(t *testing.T) {
+	p := newMatchPool(t)
+	ada, ben, cy := p.add("Ada", 10), p.add("Ben", -1), p.add("Cy", -1)
+	for _, id := range []string{ben, cy} {
+		p.exec(`INSERT INTO jobs (kind, payload) VALUES ($1, jsonb_build_object('candidate_id', $2::text))`, KindEmbedProfile, id)
+	}
+	ai := &rerankAI{levels: map[string]int{ada: 4, ben: 4, cy: 4}}
+	p.match(ai, MatchConfig{})
+	if got := outcome(p.status()); got != "in_review, no run" {
+		t.Fatalf("one of three ranked, two on their way: %s", got)
+	}
+	if s := summary(p.matches()); s != "Ada pending_review" {
+		t.Fatalf("matches: %s", s)
+	}
+	if n, _ := p.queued(); n != 1 {
+		t.Fatalf("%d runs queued to pick the others up", n)
+	}
+
+	// The embeddings land and the queued run finds everybody.
+	p.exec(`DELETE FROM jobs`)
+	for i, id := range []string{ben, cy} {
+		p.exec(`UPDATE candidate_profiles SET embedding = $2::vector, embedding_model = 'fake' WHERE candidate_id = $1`, id, unit(float64(20+i)))
+	}
+	p.match(ai, MatchConfig{})
+	if got := outcome(p.status()); got != "in_review, 3 qualified" {
+		t.Fatalf("everybody ranked: %s", got)
+	}
+
+	// Nobody is coming for a candidate with no embedding job: that run is whole.
+	p.exec(`UPDATE candidate_profiles SET embedding = NULL, embedding_model = NULL WHERE candidate_id = ANY($1::text[]::uuid[])`, []string{ben, cy})
+	p.match(ai, MatchConfig{})
+	if got := outcome(p.status()); got != "needs_attention too_few_qualified, 1 qualified" {
+		t.Fatalf("two unranked with nothing queued for them: %s", got)
+	}
+}
+
+// The AI service failing or timing out for one batch of several: the run
+// completes as needs_attention, the job fails so the queue retries it, and
+// the retry writes one match per candidate. Nothing of the failed run is
+// written, so matches from an earlier run stay as they were.
+func TestMatchRoleAIFailurePartWayNeedsAttentionAndRetriesWithoutDuplicates(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		broken func(ai *rerankAI, id string)
+		cause  error
+	}{
+		{"fails", func(ai *rerankAI, id string) { ai.failFor = id }, aiclient.ErrUnavailable},
+		{"times out", func(ai *rerankAI, id string) { ai.stallFor = id }, aiclient.ErrTimeout},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := newMatchPool(t)
+			ctx := context.Background()
+			const n = rerankBatchSize + 2 // two batches
+			ids := make([]string, n)
+			levels := map[string]int{}
+			for i := range ids {
+				ids[i] = p.add(fmt.Sprintf("Candidate %02d", i), float64(i+1))
+				levels[ids[i]] = 3
+			}
+			ai := &rerankAI{levels: levels}
+			run := p.handler(ai, MatchConfig{})
+			this := job(KindMatchRole, "role_id", p.role)
+			set := func(id string) {
+				ai.mu.Lock()
+				defer ai.mu.Unlock()
+				ai.failFor, ai.stallFor = "", ""
+				if id != "" {
+					tc.broken(ai, id)
+				}
+			}
+
+			// The second batch goes wrong; the first is answered.
+			set(ids[n-1])
+			err := run(ctx, this)
+			if !errors.Is(err, tc.cause) || errors.Is(err, jobs.ErrPermanent) {
+				t.Fatalf("want a retryable %v, got %v", tc.cause, err)
+			}
+			if len(ai.requests) != 2 {
+				t.Fatalf("want both batches sent, got %d", len(ai.requests))
+			}
+			st := p.status()
+			if got := outcome(st); got != "needs_attention ai_failed" {
+				t.Fatalf("after the failure: %s", got)
+			}
+			if d := st.Run.AttentionDetail; d == nil || !strings.Contains(*d, "aiclient rerank") || st.Run.MatchedAt != nil {
+				t.Fatalf("after the failure: run = %+v", st.Run)
+			}
+			if got := len(p.matches()); got != 0 {
+				t.Fatalf("a failed run wrote %d matches", got)
+			}
+
+			// The retry is the same job again.
+			set("")
+			if err := run(ctx, this); err != nil {
+				t.Fatal(err)
+			}
+			rows := p.count(`SELECT count(*) FROM matches WHERE role_id = $1`, p.role)
+			pairs := p.count(`SELECT count(DISTINCT candidate_id) FROM matches WHERE role_id = $1`, p.role)
+			if rows != n || pairs != n {
+				t.Fatalf("after the retry: %d matches for %d candidates, want %d of each", rows, pairs, n)
+			}
+			if got := p.count(`SELECT count(*) FROM matches WHERE status = 'pending_review'`); got != DefaultReviewSize {
+				t.Fatalf("after the retry: %d in the review queue", got)
+			}
+			if got := outcome(p.status()); got != fmt.Sprintf("in_review, %d qualified", n) {
+				t.Fatalf("after the retry: %s", got)
+			}
+			// The failed run is still on record as one.
+			if got := p.count(`SELECT count(*) FROM filter_runs WHERE attention_reason = 'ai_failed' AND matched_at IS NULL`); got != 1 {
+				t.Fatalf("%d failed runs on record", got)
+			}
+
+			// A later run that fails leaves those matches exactly as they are.
+			before := summary(p.matches())
+			set(ids[0])
+			if err := run(ctx, this); err == nil {
+				t.Fatal("the failing run reported no error")
+			}
+			if got := summary(p.matches()); got != before {
+				t.Fatalf("a failed run changed the matches:\n%s\nwere:\n%s", got, before)
+			}
+			if got := outcome(p.status()); got != "needs_attention ai_failed" {
+				t.Fatalf("after the later failure: %s", got)
+			}
+			// And a retry of that one adds nothing either.
+			set("")
+			if err := run(ctx, this); err != nil {
+				t.Fatal(err)
+			}
+			if rows := p.count(`SELECT count(*) FROM matches WHERE role_id = $1`, p.role); rows != n {
+				t.Fatalf("after the second retry: %d matches, want %d", rows, n)
+			}
+		})
+	}
+}
+
+// A request the service will never take needs attention too, and is not retried.
+func TestMatchRoleRefusedRerankNeedsAttention(t *testing.T) {
+	p := newMatchPool(t)
+	p.add("Ada", 10)
+	p.add("Ben", 20)
+	err := p.handler(&rerankAI{status: http.StatusUnprocessableEntity}, MatchConfig{})(context.Background(), job(KindMatchRole, "role_id", p.role))
+	if !errors.Is(err, jobs.ErrPermanent) {
+		t.Fatalf("422: %v", err)
+	}
+	if got := outcome(p.status()); got != "needs_attention ai_failed" {
+		t.Fatalf("after a refused rerank: %s", got)
 	}
 }

@@ -309,6 +309,9 @@ func TestRerankChecksEveryCandidateIsAnsweredOnce(t *testing.T) {
 		`{"results":[` + result("a") + `],"rubric_version":"1","provider":"fake"}`,
 		`{"results":[` + result("a") + `,` + result("a") + `],"rubric_version":"1","provider":"fake"}`,
 		`{"results":[` + result("a") + `,` + result("c") + `],"rubric_version":"1","provider":"fake"}`,
+		// A score the matches table would refuse.
+		`{"results":[` + result("a") + `,` + strings.Replace(result("b"), `"score":0.75`, `"score":1.25`, 1) + `],"rubric_version":"1","provider":"fake"}`,
+		`{"results":[` + result("a") + `,` + strings.Replace(result("b"), `"score":0.75`, `"score":-0.1`, 1) + `],"rubric_version":"1","provider":"fake"}`,
 	} {
 		if _, err := New(srv.URL).Rerank(context.Background(), "Controller", candidates); !errors.Is(err, ErrBadResponse) {
 			t.Fatalf("answer %s: err = %v, want ErrBadResponse", answer, err)

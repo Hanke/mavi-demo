@@ -200,9 +200,12 @@ rerank that drops or invents a candidate id or scores a dimension for some
 candidates only, is sent back to the model once
 with the validation errors quoted; a second failure is a `502` whose `detail`
 starts with `llm output invalid:` and names the fields. Nothing that did not
-validate is ever returned. A provider failure (no credentials, rate limit,
-refusal, truncation) is a `502` with `detail` starting `llm provider error:`;
-the Go client treats both as retryable. Prompts and the extraction rules live
+validate is ever returned. A provider failure is reported with `detail`
+starting `llm provider error:`. One that may pass (no credentials, rate limit,
+an outage) is a `502`, which the Go client retries, as it does invalid output.
+One the same input would only repeat (a refusal, an answer cut off at the
+output limit, a request the provider rejects as malformed or too large) is a
+`422`, which it does not. Prompts and the extraction rules live
 in [`ai/app/extract.py`](ai/app/extract.py).
 
 ```sh
@@ -432,7 +435,10 @@ How it works (`api/internal/jobs`, handlers in `api/internal/tasks`):
   to `queued` without spending an attempt.
 - **Crashes.** A job left `running` longer than `WORKER_LOCK_TIMEOUT` (default
   5m) is reclaimed by any worker's sweeper: back to `queued`, or `failed` if
-  its attempts are spent. Keep the timeout above the slowest handler, or a
+  its attempts are spent. A job that would go back to `queued` (here, after a
+  failed attempt or on shutdown) while an identical one is already queued is
+  finished as `failed` with a note instead, since only one may be queued and
+  that one does the work. Keep the timeout above the slowest handler, or a
   live job runs twice. Handlers are written to be re-runnable.
 - **Where it runs.** The API container runs `WORKER_CONCURRENCY` (default 2)
   workers in-process, so `make up` is enough. `make worker` starts another
@@ -813,10 +819,13 @@ is the whole pipeline for one role, as a background job:
    rerank's own output, including the `quotes` from the candidate's text
    behind each level.
 4. **Review queue.** The first `MATCH_REVIEW_SIZE` (default 5) of the ranking
-   are written with status `pending_review`, the rest `proposed`.
+   are written with status `pending_review`, unless they score below
+   `MATCH_MIN_SCORE` (default 0.6); those, and the rest, are `proposed`.
    `GET /matches?status=pending_review` (ops) is the queue. A run never sets
    `released_at`, so employers and talent see none of it until ops releases a
    match.
+5. **Outcome.** The run is recorded on its `filter_runs` row as `matched` or
+   `needs_attention` (see [When a run cannot deliver two](#when-a-run-cannot-deliver-two)).
 
 Role intake queues the job; to run a role again, queue another:
 
@@ -855,13 +864,15 @@ curl -s 'localhost:8080/matches?role_id=<role id>&status=pending_review' -H 'X-R
   waiting (`unranked_ids`), the rest are matched now, the waiting keep
   whatever match they had, and a run is queued 5 minutes ahead to pick them
   up.
-- **Nobody passes** is a result: the run writes no matches and clears the
-  earlier run's. A shortlist whose candidates were all deleted or have no
-  text to read is not: the attempt is retried against the pool as it is now.
+- **Nobody passes** is a result: the run writes no matches, clears the
+  earlier run's and needs attention (below). A shortlist whose candidates
+  were all deleted or have no text to read is not: the attempt is retried
+  against the pool as it is now.
 - **Failures.** A `/rerank` the service refuses (4xx) fails the job at once;
-  anything else (the service down, a model output that did not validate) is
-  retried. Nothing is written unless every batch answered for every
-  candidate, so a failed run leaves the previous matches as they were.
+  anything else (the service down, a timeout, a model output that did not
+  validate) is retried. Nothing is written unless every batch answered for
+  every candidate, so a failed run leaves the previous matches as they were,
+  and is recorded as needing attention (below).
 - **Two runs at once.** The write locks the role, and a run that started
   before one already written is dropped (logged, job `succeeded`), so a slow
   rerank cannot overwrite a newer ranking.
@@ -869,8 +880,53 @@ curl -s 'localhost:8080/matches?role_id=<role id>&status=pending_review' -H 'X-R
   together, which keeps the job under `WORKER_LOCK_TIMEOUT` (see
   [Background jobs](#background-jobs)).
 
+#### When a run cannot deliver two
+
+The pipeline promises two profiles. A run that cannot deliver them still
+completes: its `filter_runs` row gets `match_status: needs_attention` and an
+`attention_reason`, instead of `matched`.
+
+| Case | `attention_reason` | What is written |
+| --- | --- | --- |
+| Zero or one candidate passes the hard filters | `too_few_passed` | The one who passed, if any, is reranked and written; they are queued for review only if they score `MATCH_MIN_SCORE` or more. |
+| Fewer than two score `MATCH_MIN_SCORE` or more after the rerank, not counting anyone ops has rejected or swapped out | `too_few_qualified` | Everyone reranked, for ops to read. Only those at or above the minimum are `pending_review`; the rest are `proposed`. |
+| The AI service fails or times out for any batch of the rerank | `ai_failed` | No matches. The error is in `attention_detail`, and the job fails and is retried by the queue (a 4xx is not retried). |
+
+When more than one applies, `ai_failed` is reported first, then
+`too_few_passed`. A run that could not rank everybody who passed (some are
+still being embedded, and a run is queued to pick them up) does not report
+`too_few_qualified`: it records no outcome and leaves that to the later run.
+
+- **A weak candidate is never promoted to reach two.** The review queue is
+  cut by score as well as by rank, so with one strong candidate it holds one,
+  and with none it is empty. `qualified` and `min_score` on the run say how
+  many cleared which bar.
+- **Retrying a failed run does not duplicate.** A run with a failed batch
+  writes nothing to `matches`, and the retry is a new run that replaces by
+  (role, candidate) like any other. The failed run stays on record with
+  `matched_at: null`.
+- **What ops sees.** `GET /roles/{id}/match-status` answers
+  `{role_id, status, released, run}`. `status` is `ready` once two matches
+  are released, `needs_attention` when it is not ready and the latest run
+  with an outcome needs attention, and `in_review` otherwise. `run` is that
+  run: the reason, the funnel (`stages`) and `top_filter`, the must-have that
+  eliminated the most candidates (the filter after `profile` with the largest
+  `excluded`; filters apply in order, so each count is of those who got that
+  far).
+- **What the employer sees.** The same endpoint answers `in_review` or
+  `ready` and never the run, and `GET /matches` only ever holds released
+  matches, so a role that needs attention reads as "in review" and no weak
+  match is shown.
+
+```sh
+curl -s localhost:8080/roles/<role id>/match-status -H 'X-Role: ops'
+curl -s localhost:8080/roles/<role id>/match-status -H 'X-Role: employer'
+```
+
 [`api/internal/tasks/match_test.go`](api/internal/tasks/match_test.go) covers
-each of these against a real database and a stub `/rerank`.
+each of these against a real database and a stub `/rerank`, and
+[`api/internal/server/match_status_test.go`](api/internal/server/match_status_test.go)
+what each persona is told.
 
 ## Seed data
 
@@ -1116,12 +1172,17 @@ Two things this does not do:
 
 ## Local dev without Docker
 
-Each service runs standalone against `DATABASE_URL` / `AI_SERVICE_URL` from `.env`.
+Each service runs standalone. Nothing loads `.env` for a service started this
+way, and the API's defaults are the paths inside its container, so export the
+file and point the API at the checkout first (`DATABASE_URL` in `.env` is the
+compose database on port 5433; the API's own default is 5432):
 The AI service's `requirements-dev.txt` adds pytest, ruff and pyright on top of
 the runtime `requirements.txt` the Docker image installs; the lint rules live
 in `ai/pyproject.toml` and `ai/pyrightconfig.json`.
 
 ```sh
+set -a; . ./.env; set +a
+export MIGRATIONS_DIR=$PWD/infra/db/migrations SEED_DIR=$PWD/infra/db/seed TAXONOMY_PATH=$PWD/infra/taxonomy.json
 (cd api && go run ./cmd/api)
 (cd ai && python3.12 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt && .venv/bin/uvicorn app.main:app --reload)
 (cd web && npm install && npm run dev)
@@ -1178,8 +1239,9 @@ run, and `make cache-clear` deletes the local entries. Things to know:
 
 - Provider errors are never stored. A completion that came back but failed
   validation is: the correction retry is a different prompt with its own
-  entry, so a replay takes the same path as the original run, and an input
-  that failed twice keeps failing until `AI_CACHE=refresh`.
+  entry, so a replay takes the same path as the original run. When the
+  retry fails too, both entries are dropped, because that failure is
+  reported as retryable and a retry that replayed them could never succeed.
 - `/parse-resume` puts today's date (or `as_of`) in the prompt, so the same
   resume is a new entry each day unless the caller pins `as_of`.
 - Changing a prompt, a schema (including the taxonomy ids in it) or the model

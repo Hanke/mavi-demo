@@ -31,6 +31,7 @@ from app.llm import Provider
 from app.schemas import (
     CandidateProfile,
     Contact,
+    Document,
     Position,
     Qualification,
     RequiredQualification,
@@ -126,7 +127,7 @@ class RerankCandidate(BaseModel):
         pattern=r"^[A-Za-z0-9_.:-]+$",
         description="Opaque id echoed back in the result: letters, digits and _ . : - only.",
     )
-    text: str = Field(
+    text: Document = Field(
         min_length=1,
         max_length=MAX_CANDIDATE_CHARS,
         description="Resume text or a rendered profile; whatever the model should judge.",
