@@ -60,14 +60,32 @@ jobs:
             echo "gofmt: run gofmt -w on:"; echo "$unformatted"; exit 1
           fi
       - name: go vet
-        run: go vet ./...
+        # The smoke tag brings the compose smoke test (internal/e2e) into the build.
+        run: go vet -tags smoke ./...
       - name: go test
         run: go test ./...
       - name: The database tests ran
         # A test that cannot reach the database skips, and a skip is green.
         run: |
-          skipped="$(go test ./internal/db/ ./internal/jobs/ ./internal/server/ ./internal/tasks/ -v 2>&1 | grep -c -e '--- SKIP' || true)"
+          skipped="$(go test ./internal/db/ ./internal/jobs/ ./internal/server/ ./internal/tasks/ ./internal/e2e/ -v 2>&1 | grep -c -e '--- SKIP' || true)"
           if [ "$skipped" != "0" ]; then echo "$skipped tests were skipped: the database tests did not run"; exit 1; fi
+
+  smoke:
+    name: Smoke test (compose stack)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
+      # Builds and starts db, ai and api as docker-compose.yml defines them,
+      # with the fake LLM and an empty database, and drives one role from
+      # resume upload to release over HTTP (api/internal/e2e/smoke_test.go).
+      # On a failure it prints the api and ai logs before removing the stack.
+      - name: make smoke
+        run: make smoke
 
   python:
     name: Python AI service

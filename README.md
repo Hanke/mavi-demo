@@ -690,12 +690,13 @@ Run `make` to list them. The main ones:
 - `make fixtures-render` — rewrite the fixture PDFs from their text files (see [Parser fixtures](#parser-fixtures))
 - `make rubric-render` — rewrite the tables of `docs/rerank-rubric.md` from `ai/app/rubric.py` (see [Rerank rubric](#rerank-rubric))
 - `make worker` — an extra background job worker container next to the one inside the API (see [Background jobs](#background-jobs))
-- `make test-db` — migration up/down round-trip, the API CRUD / role tests and the job queue tests against the compose DB (each test creates and drops a throwaway database)
+- `make test-db` — migration up/down round-trip, the API CRUD / role tests, the job queue tests and the end-to-end pipeline test against the compose DB (each test creates and drops a throwaway database)
+- `make smoke` — start a throwaway copy of the stack with the fake LLM, drive one role from resume upload to release over HTTP, and remove it (see [End-to-end tests](#end-to-end-tests))
 - `make generate` / `make check-contracts` — regenerate the shared types from the OpenAPI documents, or fail if regenerating changes anything (see [Contracts](#contracts))
 - `make lint` — `gofmt` + `go vet` for the API; `ruff check`, `ruff format --check` and strict `pyright` for the AI service; `eslint` for the web app (`make fmt-ai` fixes what ruff can)
 - `make eval` — score the parsers and the reranker on the fixtures (`PROVIDER=fake` for no key, `NO_CACHE=1` to bypass the response cache; see [Eval](#eval)); `make cache-clear` deletes the cached responses
 - `make test` — contract check, lint, then the Go, Python and web test suites (host toolchains: Go 1.24, Python 3.12+, Node 22)
-- CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main` and every pull request: `go vet` + `go test`, `ruff` + `pytest`, and the web typecheck, lint, tests and build, one job per service. It sets `LLM_PROVIDER=fake`, `EMBEDDING_PROVIDER=local` and no provider keys, so nothing in CI calls a model.
+- CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push to `main` and every pull request: `go vet` + `go test`, `ruff` + `pytest`, and the web typecheck, lint, tests and build, one job per service, plus `make smoke` against the compose stack. It sets `LLM_PROVIDER=fake`, `EMBEDDING_PROVIDER=local` and no provider keys, so nothing in CI calls a model.
 - `make health` — curl every health endpoint
 
 ## Database
@@ -993,6 +994,52 @@ curl -s localhost:8080/roles/<role id>/review-events -H 'X-Role: ops'
 
 [`api/internal/server/review_test.go`](api/internal/server/review_test.go)
 walks one role through all of it and reads the trail back.
+
+## End-to-end tests
+
+Two tests take one role through the whole loop, from the candidates in the
+pool to the two profiles the employer is shown, over HTTP and one persona at
+a time ([`api/internal/e2e`](api/internal/e2e)):
+
+| Test | What is real | The LLM | Run it with |
+| --- | --- | --- | --- |
+| `TestPipelineFromIntakeToRelease` | The API and its worker, inside the test process, on a throwaway database in a real Postgres with pgvector | A scripted stand-in for the AI service: fixed requirements for the JD, a fixed score per candidate, embeddings worked out from the words of the input | `make test-db`, or `go test ./...` with `TEST_DATABASE_URL` set, as CI does |
+| `TestSmoke` | The compose stack: `db`, `ai` and `api` as `docker-compose.yml` builds them | The AI service's own key-free provider (`LLM_PROVIDER=fake`) | `make smoke` |
+
+**The integration test** decides who should reach review, and checks that
+they do. Eight candidates are in the pool when the employer's JD arrives.
+Four each miss exactly one must-have (the licence, the software, the years,
+or they never said when they can work), and the script would have the LLM
+rate all four highly; the other four pass, and the LLM finds three of them
+good enough. The test asserts the funnel filter by filter, that the LLM was
+asked about the four who passed and nobody else, that the three are the
+review queue and the fourth is on record as `proposed`, and that the employer
+sees nothing. Ops then approves two, deliberately not the top two, and
+releases: the employer sees exactly those two, by list and by id, and a `404`
+for the rest.
+
+**The smoke test** checks that the services do this together as they are
+deployed. Four candidates sign up as talent and upload fixture resumes (the
+PDFs in [`infra/fixtures/resumes`](infra/fixtures/resumes)), an employer
+pastes a JD, the worker parses, embeds and matches, ops approves the two
+strong candidates from the review queue and releases, and the employer sees
+those two and not the third candidate who was matched. The JD is in the test
+and is written for the fake provider, which reads the bullets under
+"Requirements" as the must-haves.
+
+```sh
+make smoke    # about half a minute once the images are built
+```
+
+`make smoke` starts a compose project of its own (`mavi-smoke`: its own
+containers and volumes, so an empty database) on host ports 18080, 18000 and
+15433, next to whatever `make up` is running. It does not read `.env`: the
+providers are `fake` and `local` and everything else is the compose file's
+default. It applies the migrations, runs the test, and removes the project,
+volumes included, whether the test passed or not; when it did not, the `api`
+and `ai` logs are printed first. It needs Docker and Go on the host; `web` is
+not started. `SMOKE_API_PORT`, `SMOKE_AI_PORT` and `SMOKE_POSTGRES_PORT` move
+the ports.
 
 ## Seed data
 

@@ -9,7 +9,18 @@ PYTHON ?= $(shell test -x $(CURDIR)/ai/.venv/bin/python && echo $(CURDIR)/ai/.ve
 # Every file a generator writes. `make check-contracts` fails when one is stale.
 GENERATED := ai/openapi.json api/internal/aiclient/types.gen.go api/internal/contract/types.gen.go web/src/api/schema.d.ts
 
-.PHONY: help up down logs ps migrate migrate-down migrate-status seed seed-render seed-generate fixtures-render rubric-render eval cache-clear worker test test-api test-ai test-db test-web health \
+# `make smoke` runs a copy of the stack of its own: a separate compose project (its own
+# containers and volumes, so an empty database) on its own host ports, next to whatever
+# `make up` is running. The developer's .env is not read: the providers are the key-free
+# ones and everything else is the compose file's default.
+SMOKE_API_PORT ?= 18080
+SMOKE_AI_PORT ?= 18000
+SMOKE_POSTGRES_PORT ?= 15433
+SMOKE_COMPOSE := LLM_PROVIDER=fake EMBEDDING_PROVIDER=local ANTHROPIC_API_KEY= OPENAI_API_KEY= \
+	API_PORT=$(SMOKE_API_PORT) AI_PORT=$(SMOKE_AI_PORT) POSTGRES_PORT=$(SMOKE_POSTGRES_PORT) \
+	$(COMPOSE) --env-file /dev/null -p mavi-smoke
+
+.PHONY: help up down logs ps migrate migrate-down migrate-status seed seed-render seed-generate fixtures-render rubric-render eval cache-clear worker test test-api test-ai test-db test-web smoke health \
         lint lint-api lint-ai lint-web fmt-ai generate generate-ai-spec generate-api generate-web check-contracts
 
 help: ## Show this help
@@ -70,7 +81,7 @@ lint: lint-api lint-ai lint-web ## Lint every service
 
 lint-api: ## gofmt and go vet
 	@cd api && unformatted="$$(gofmt -l .)"; if [ -n "$$unformatted" ]; then echo "gofmt: run gofmt -w on:"; echo "$$unformatted"; exit 1; fi
-	cd api && go vet ./...
+	cd api && go vet -tags smoke ./...
 
 lint-ai: ## ruff check, ruff format --check and pyright (strict) on the AI service
 	cd ai && $(PYTHON) -m ruff check . && $(PYTHON) -m ruff format --check . && $(PYTHON) -m pyright
@@ -87,10 +98,18 @@ test-api: ## Go API tests
 test-ai: ## Python AI service tests
 	cd ai && $(PYTHON) -m pytest -q
 
-test-db: ## Migration round-trip, API CRUD and job queue tests against the compose DB (each test gets a throwaway database)
+test-db: ## Migration round-trip, API CRUD, job queue and end-to-end pipeline tests against the compose DB (each test gets a throwaway database)
 	@url="$$(grep '^DATABASE_URL=' .env 2>/dev/null | cut -d= -f2-)"; \
 	if [ -z "$$url" ]; then echo "test-db: DATABASE_URL not set in .env (run make up first)"; exit 1; fi; \
-	cd api && TEST_DATABASE_URL="$$url" go test ./internal/db/ ./internal/server/ ./internal/jobs/ ./internal/tasks/ -v -count=1
+	cd api && TEST_DATABASE_URL="$$url" go test ./internal/db/ ./internal/server/ ./internal/jobs/ ./internal/tasks/ ./internal/e2e/ -v -count=1
+
+smoke: ## Smoke test: start a throwaway copy of the stack (fake LLM, no key), drive one role from resume upload to release over HTTP, remove it
+	@$(SMOKE_COMPOSE) down -v --remove-orphans >/dev/null 2>&1 || true
+	@trap 'status=$$?; [ $$status -eq 0 ] || $(SMOKE_COMPOSE) logs --no-color --tail 100 api ai; $(SMOKE_COMPOSE) down -v --remove-orphans; exit $$status' EXIT; \
+	set -e; \
+	$(SMOKE_COMPOSE) up --build -d --wait db ai api; \
+	$(SMOKE_COMPOSE) run --rm --no-deps api migrate up; \
+	cd api && SMOKE_API_URL=http://localhost:$(SMOKE_API_PORT) go test -tags smoke -run '^TestSmoke$$' -count=1 -v ./internal/e2e/
 
 test-web: ## Web typecheck + tests
 	cd web && npm run typecheck && npm test
