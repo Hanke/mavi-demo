@@ -20,7 +20,7 @@ SMOKE_COMPOSE := LLM_PROVIDER=fake EMBEDDING_PROVIDER=local ANTHROPIC_API_KEY= O
 	API_PORT=$(SMOKE_API_PORT) AI_PORT=$(SMOKE_AI_PORT) POSTGRES_PORT=$(SMOKE_POSTGRES_PORT) \
 	$(COMPOSE) --env-file /dev/null -p mavi-smoke
 
-.PHONY: help up down logs ps migrate migrate-down migrate-status seed seed-render seed-generate fixtures-render rubric-render eval cache-clear worker test test-api test-ai test-db test-web smoke health \
+.PHONY: help up down logs ps migrate migrate-down migrate-status seed seed-render seed-generate fixtures-render rubric-render eval cache-clear worker run-metrics test test-api test-ai test-db test-web smoke health \
         lint lint-api lint-ai lint-web fmt-ai generate generate-ai-spec generate-api generate-web check-contracts
 
 help: ## Show this help
@@ -74,6 +74,9 @@ rubric-render: ## Rewrite the tables of docs/rerank-rubric.md from ai/app/rubric
 
 worker: ## Run an extra background job worker next to the one inside the API (Ctrl-C to stop)
 	$(COMPOSE) run --rm --no-deps -e WORKER_ID=worker-$$$$ api worker
+
+run-metrics: ## What the matching runs took and cost: time per stage, LLM calls, tokens and estimated cost per run, then the averages
+	@$(COMPOSE) exec -T db sh -c 'psql -X -q -P pager=off -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -f -' < infra/db/reports/run_metrics.sql
 
 test: check-contracts lint test-api test-ai test-web ## Contract freshness, lint, then every test suite
 

@@ -13,6 +13,10 @@ in app/fake.py. Whichever it is, `build_provider` wraps it in a
 `CachingProvider`, so a completion already on disk (app/cache.py) is replayed
 instead of requested again. Unit tests script exact answers with a
 `ScriptedProvider`, swapped in through `get_provider` dependency overrides.
+
+What a request spends here is counted for it (app/usage.py): every completion
+asked for, which of them the cache answered, and the tokens of the ones that
+reached a model.
 """
 
 from __future__ import annotations
@@ -24,7 +28,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 from pydantic import BaseModel, ValidationError
 
 from app import cache as cachemod
-from app import delimit
+from app import delimit, usage
 from app.cache import Cache
 from app.settings import Settings
 
@@ -124,6 +128,13 @@ class AnthropicProvider:
             # The SDK resolves credentials per request and raises TypeError when
             # it finds none (no key, no `ant auth login` profile).
             raise ProviderError(f"anthropic: no credentials configured: {e}") from e
+        # Billed whatever the answer turns out to be. Nothing is cached by the
+        # provider here, so the cache fields are zero; they are prompt tokens all the same.
+        spent = response.usage
+        usage.tokens(
+            spent.input_tokens + (spent.cache_creation_input_tokens or 0) + (spent.cache_read_input_tokens or 0),
+            spent.output_tokens,
+        )
         if response.stop_reason == "refusal":
             raise ProviderError(f"anthropic: request refused ({response.stop_details})", permanent=True)
         if response.stop_reason == "max_tokens":
@@ -171,6 +182,8 @@ class OpenAIProvider:
             raise ProviderError(f"openai: {e.status_code}: {e}", permanent=e.status_code in _PERMANENT_STATUSES) from e
         except self._errors.APIConnectionError as e:
             raise ProviderError(f"openai: connection failed: {e}") from e
+        if response.usage is not None:
+            usage.tokens(response.usage.prompt_tokens, response.usage.completion_tokens)
         choice = response.choices[0]
         if choice.message.refusal:
             raise ProviderError(f"openai: request refused ({choice.message.refusal})", permanent=True)
@@ -222,13 +235,19 @@ class CachingProvider:
         return cachemod.key("llm", provider=self.name, model=self.model, system=system, user=user, schema=schema)
 
     def complete(self, system: str, user: str, schema: dict[str, Any]) -> str:
-        return self.cache.get_or_call(
-            self._key(system, user, schema),
-            lambda: self.inner.complete(system, user, schema),
-            kind="llm",
-            provider=self.name,
-            model=self.model,
+        asked = False
+
+        def call() -> str:
+            nonlocal asked
+            asked = True
+            return self.inner.complete(system, user, schema)
+
+        text = self.cache.get_or_call(
+            self._key(system, user, schema), call, kind="llm", provider=self.name, model=self.model
         )
+        if not asked:
+            usage.cache_hit()
+        return text
 
     def forget(self, system: str, user: str, schema: dict[str, Any]) -> None:
         """Drop the stored completion for this prompt, so the next call asks the provider."""
@@ -320,6 +339,7 @@ def complete_json[T: BaseModel](
     asked: list[str] = []
     for attempt in range(1, max_attempts + 1):
         asked.append(prompt)
+        usage.completion()
         text = provider.complete(system, prompt, schema)
         try:
             parsed = model.model_validate_json(text)

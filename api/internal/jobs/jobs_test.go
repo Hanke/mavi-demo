@@ -5,8 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log"
+	"log/slog"
 	"strings"
 	"sync"
 	"testing"
@@ -24,7 +23,7 @@ import (
 // lands in 'failed' with the error recorded; two workers never process the
 // same job.
 
-var quiet = log.New(io.Discard, "", 0)
+var quiet = slog.New(slog.DiscardHandler)
 
 // fast is a worker config tuned for tests: tight polling, no retry delay.
 func fast(id string, concurrency int) WorkerConfig {

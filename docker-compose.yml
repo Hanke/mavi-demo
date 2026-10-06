@@ -29,6 +29,11 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-}
+      # USD per million tokens, for the cost estimate of a matching run. Empty uses the
+      # list price of the model when the service knows it (ai/app/usage.py).
+      LLM_INPUT_PRICE_PER_MTOK: ${LLM_INPUT_PRICE_PER_MTOK:-}
+      LLM_OUTPUT_PRICE_PER_MTOK: ${LLM_OUTPUT_PRICE_PER_MTOK:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-local}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
       AI_CACHE: ${AI_CACHE:-on}
@@ -68,6 +73,7 @@ services:
       MATCH_RETRIEVAL_SIZE: ${MATCH_RETRIEVAL_SIZE:-20}
       MATCH_REVIEW_SIZE: ${MATCH_REVIEW_SIZE:-5}
       MATCH_MIN_SCORE: ${MATCH_MIN_SCORE:-0.6}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
     ports:
       - "${API_PORT:-8080}:8080"
     volumes:

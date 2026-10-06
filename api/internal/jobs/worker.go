@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
 
+	"github.com/colehanke/mavi-demo/api/internal/reqlog"
 	"github.com/colehanke/mavi-demo/api/internal/store"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -38,8 +39,8 @@ type WorkerConfig struct {
 	// of failed attempts (1 for the first); default DefaultBackoff.
 	Backoff func(attempts int) time.Duration
 	// Logger receives one line per claim, completion, retry, failure and
-	// reclaim; default log.Default().
-	Logger *log.Logger
+	// reclaim; default slog.Default().
+	Logger *slog.Logger
 }
 
 // DefaultBackoff waits 5s after the first failure and quadruples each time,
@@ -88,7 +89,7 @@ func NewWorker(pool *pgxpool.Pool, reg Registry, cfg WorkerConfig) *Worker {
 		cfg.Backoff = DefaultBackoff
 	}
 	if cfg.Logger == nil {
-		cfg.Logger = log.Default()
+		cfg.Logger = slog.Default()
 	}
 	return &Worker{pool: pool, reg: reg, kinds: reg.Kinds(), cfg: cfg}
 }
@@ -142,7 +143,7 @@ func (w *Worker) loop(ctx, jobCtx context.Context) {
 		switch {
 		case err != nil:
 			if ctx.Err() == nil {
-				w.cfg.Logger.Printf("jobs: worker %s: claim: %v", w.cfg.ID, err)
+				w.cfg.Logger.Error("jobs: claim failed", "worker", w.cfg.ID, "error", err.Error())
 			}
 			w.wait(ctx)
 		case ok:
@@ -198,37 +199,45 @@ func (w *Worker) claim() (Job, bool, error) {
 // run executes one claimed job and records the outcome. The bookkeeping
 // writes use their own short context so a cancelled jobCtx cannot leave the
 // row stuck in 'running'.
+//
+// Each attempt runs under a request id of its own (internal/reqlog): it is on
+// every line logged here and by the handler, with the job's id, kind and
+// attempt, and on the AI service's lines for the calls the handler makes.
 func (w *Worker) run(jobCtx context.Context, job Job) {
 	start := time.Now()
-	w.cfg.Logger.Printf("jobs: worker %s: job %d (%s) attempt %d/%d started", w.cfg.ID, job.ID, job.Kind, job.Attempts, job.MaxAttempts)
+	jobCtx = reqlog.With(reqlog.WithID(jobCtx, reqlog.NewID()),
+		"worker", w.cfg.ID, "job_id", job.ID, "job_kind", job.Kind, "attempt", job.Attempts)
+	log := w.cfg.Logger
+	log.InfoContext(jobCtx, "job started", "max_attempts", job.MaxAttempts)
 
 	err := w.invoke(jobCtx, job)
 
 	ctx, cancel := context.WithTimeout(context.Background(), bookkeepingTimeout)
 	defer cancel()
-	elapsed := time.Since(start).Round(time.Millisecond)
+	elapsed := slog.Int64("duration_ms", time.Since(start).Milliseconds())
 	switch {
 	case err == nil:
 		if err := w.complete(ctx, job); err != nil {
-			w.cfg.Logger.Printf("jobs: worker %s: job %d: record success: %v", w.cfg.ID, job.ID, err)
+			log.ErrorContext(jobCtx, "job: record success failed", "error", err.Error())
 			return
 		}
-		w.cfg.Logger.Printf("jobs: worker %s: job %d (%s) succeeded in %s", w.cfg.ID, job.ID, job.Kind, elapsed)
+		log.InfoContext(jobCtx, "job succeeded", elapsed)
 	case jobCtx.Err() != nil && !errors.Is(err, ErrPermanent):
 		// Shutting down: the handler was interrupted, not wrong. Hand the job
 		// back without charging an attempt.
 		if err := w.release(ctx, job); err != nil {
-			w.cfg.Logger.Printf("jobs: worker %s: job %d: release on shutdown: %v", w.cfg.ID, job.ID, err)
+			log.ErrorContext(jobCtx, "job: release on shutdown failed", "error", err.Error())
 			return
 		}
-		w.cfg.Logger.Printf("jobs: worker %s: job %d (%s) released on shutdown after %s", w.cfg.ID, job.ID, job.Kind, elapsed)
+		log.InfoContext(jobCtx, "job released on shutdown", elapsed)
 	default:
-		status, err := w.fail(ctx, job, err)
-		if err != nil {
-			w.cfg.Logger.Printf("jobs: worker %s: job %d: record failure: %v", w.cfg.ID, job.ID, err)
+		status, ferr := w.fail(ctx, job, err)
+		if ferr != nil {
+			log.ErrorContext(jobCtx, "job: record failure failed", "error", ferr.Error())
 			return
 		}
-		w.cfg.Logger.Printf("jobs: worker %s: job %d (%s) attempt %d/%d failed after %s -> %s", w.cfg.ID, job.ID, job.Kind, job.Attempts, job.MaxAttempts, elapsed, status)
+		// status is where the job went: back to queued for a retry, or failed.
+		log.WarnContext(jobCtx, "job attempt failed", elapsed, "max_attempts", job.MaxAttempts, "status", status, "error", err.Error())
 	}
 }
 
@@ -358,10 +367,10 @@ func (w *Worker) sweep(ctx context.Context) {
 		case <-t.C:
 			n, err := w.Reclaim(ctx, w.cfg.LockTimeout)
 			if err != nil && ctx.Err() == nil {
-				w.cfg.Logger.Printf("jobs: worker %s: reclaim stale jobs: %v", w.cfg.ID, err)
+				w.cfg.Logger.Error("jobs: reclaim stale jobs failed", "worker", w.cfg.ID, "error", err.Error())
 			}
 			if n > 0 {
-				w.cfg.Logger.Printf("jobs: worker %s: reclaimed %d job(s) whose lock expired", w.cfg.ID, n)
+				w.cfg.Logger.Warn("jobs: reclaimed jobs whose lock expired", "worker", w.cfg.ID, "jobs", n)
 			}
 		}
 	}

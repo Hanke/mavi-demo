@@ -188,6 +188,15 @@ def test_rerank_scores_every_candidate_best_first(provider: ScriptedProvider):
     assert body["results"][0]["reasons"] == ["CPA", "NetSuite"]
     assert body["provider"] == "scripted"
     assert body["rubric_version"] == rubric.VERSION
+    # One completion, which reached the provider. The scripted one reports no tokens and has no price.
+    assert body["usage"] == {
+        "llm_calls": 1,
+        "cache_hits": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "estimated_cost_usd": None,
+        "model": "scripted",
+    }
     user = provider.calls[0][1]
     assert all(i in user for i in ids)
     assert provider.calls[0][0] == extract.RERANK_SYSTEM
@@ -231,6 +240,7 @@ def test_rerank_retries_when_ids_are_missing_or_invented(provider: ScriptedProvi
     resp = client.post("/rerank", json=req)
     assert resp.status_code == 200, resp.text
     assert sorted(r["id"] for r in resp.json()["results"]) == sorted(ids)
+    assert resp.json()["usage"]["llm_calls"] == 2  # the correction is a call of its own
     retry_prompt = provider.calls[1][1]
     assert "exactly once" in retry_prompt
     assert "nobody" in retry_prompt

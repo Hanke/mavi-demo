@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/colehanke/mavi-demo/api/internal/reqlog"
 	"log"
 	"os"
 	"slices"
@@ -98,6 +99,11 @@ func (p *filterPool) runRole(roleID string) filterResult {
 	p.t.Helper()
 	r := p.want(p.do("POST", "/roles/"+roleID+"/filter-runs", "ops", "", nil), 201, "run filters")
 	out := filterResult{raw: r.Raw, pool: int(r.Body["pool"].(float64)), excluded: map[string]int{}}
+	// A run of the filters alone is recorded under the request's id, and has
+	// none of a matching run's metrics.
+	if id, _ := r.Body["request_id"].(string); !reqlog.Valid(id) || r.Body["metrics"] != nil {
+		p.t.Fatalf("request_id = %v and metrics = %v, want an id and null: %s", r.Body["request_id"], r.Body["metrics"], r.Raw)
+	}
 	for _, id := range r.Body["candidate_ids"].([]any) {
 		out.passed = append(out.passed, p.names[id.(string)])
 	}

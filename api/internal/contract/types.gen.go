@@ -380,6 +380,9 @@ type FilterRun struct {
 	// MatchedAt When a `match_role` job reranked this run's shortlist and wrote it to the role's matches. `null` for a run of the filters alone, or one whose rerank did not finish.
 	MatchedAt *time.Time `json:"matched_at"`
 
+	// Metrics What the matching run took and cost. `null` for a run of the filters alone, and for one whose job did not get to its end.
+	Metrics *RunMetrics `json:"metrics"`
+
 	// MinScore The minimum score the run applied (`MATCH_MIN_SCORE` when it ran): a candidate scoring below it is never put in the review queue. `null` when the run scored nobody.
 	MinScore *float64 `json:"min_score"`
 
@@ -394,6 +397,9 @@ type FilterRun struct {
 
 	// Qualified How many of the run's ranking can be put forward: those who scored at or above `min_score`, not counting a candidate deleted since or one whose match ops rejected or swapped out. `null` when the run scored nobody.
 	Qualified *int `json:"qualified"`
+
+	// RequestID The id the run is logged under: that of the `match_role` job attempt that made it or, for a run of the filters alone, of the HTTP request. Every log line either service wrote for the run carries it as `request_id`. `null` on a run recorded before the id was kept.
+	RequestID *string `json:"request_id"`
 
 	// RetrievalLimit The most candidates the run could retrieve (`MATCH_RETRIEVAL_SIZE` when it ran). 0 on a run recorded before retrieval existed, which retrieved nothing.
 	RetrievalLimit int `json:"retrieval_limit"`
@@ -790,6 +796,54 @@ type RoleMatchStatus struct {
 
 // RoleStatus defines model for RoleStatus.
 type RoleStatus string
+
+// RunMetrics What one matching run (a `match_role` job attempt) took and cost: the time of each stage, and what the rerank spent on the chat model as the AI service reported it. A `/rerank` call that failed reports nothing, so the model figures of a run that needs attention as `ai_failed` cover only the batches that answered.
+type RunMetrics struct {
+	// CacheHits Completions the AI service replayed from its response cache instead; they cost nothing.
+	CacheHits int `json:"cache_hits"`
+
+	// Candidates Candidates sent to the rerank.
+	Candidates int `json:"candidates"`
+
+	// EstimatedCostUsd The tokens at the model's list price, in US dollars. 0 for a run answered from the cache or by the `fake` provider; `null` when the AI service knows no price for the model.
+	EstimatedCostUsd *float64 `json:"estimated_cost_usd"`
+
+	// InputTokens Prompt tokens of `llm_calls`, as the provider counted them.
+	InputTokens int `json:"input_tokens"`
+
+	// LlmCalls Chat-model completions that reached the provider, over all batches. More than `rerank_calls` when an answer had to be sent back for correction; fewer when answers were replayed from the cache.
+	LlmCalls int `json:"llm_calls"`
+
+	// Model The chat model the AI service ran the rerank on; `null` when no batch answered.
+	Model *string `json:"model"`
+
+	// OutputTokens Output tokens of `llm_calls`, the model's thinking included.
+	OutputTokens int `json:"output_tokens"`
+
+	// RerankCalls Requests to the AI service's `/rerank`, one per batch of the shortlist; they run at once.
+	RerankCalls int `json:"rerank_calls"`
+
+	// StageMs How long each stage of a matching run took, in milliseconds. A stage the run did not reach is 0.
+	StageMs RunStageMs `json:"stage_ms"`
+
+	// TotalMs The whole run, from the job reading its role to the last write, in milliseconds.
+	TotalMs int `json:"total_ms"`
+}
+
+// RunStageMs How long each stage of a matching run took, in milliseconds. A stage the run did not reach is 0.
+type RunStageMs struct {
+	// Filter The hard filters and the retrieval by embedding, which are one statement.
+	Filter int `json:"filter"`
+
+	// Persist Writing the ranking to `matches` and the outcome to the run.
+	Persist int `json:"persist"`
+
+	// Rerank The AI service's `/rerank`, all batches; they run at once, so this is the slowest of them.
+	Rerank int `json:"rerank"`
+
+	// Texts Reading the role and the shortlisted candidates' text for the rerank.
+	Texts int `json:"texts"`
+}
 
 // RunStatus How a matching run ended. `matched`: at least two candidates passed the hard filters and scored at or above the minimum. `needs_attention`: the run could not deliver two profiles (see `AttentionReason`).
 type RunStatus string

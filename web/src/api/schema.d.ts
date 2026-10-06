@@ -922,8 +922,48 @@ export interface components {
             min_score: number | null;
             /** @description How many of the run's ranking can be put forward: those who scored at or above `min_score`, not counting a candidate deleted since or one whose match ops rejected or swapped out. `null` when the run scored nobody. */
             qualified: number | null;
+            /** @description The id the run is logged under: that of the `match_role` job attempt that made it or, for a run of the filters alone, of the HTTP request. Every log line either service wrote for the run carries it as `request_id`. `null` on a run recorded before the id was kept. */
+            request_id: string | null;
+            /** @description What the matching run took and cost. `null` for a run of the filters alone, and for one whose job did not get to its end. */
+            metrics: components["schemas"]["RunMetrics"] | null;
             /** Format: date-time */
             created_at: string;
+        };
+        /** @description What one matching run (a `match_role` job attempt) took and cost: the time of each stage, and what the rerank spent on the chat model as the AI service reported it. A `/rerank` call that failed reports nothing, so the model figures of a run that needs attention as `ai_failed` cover only the batches that answered. */
+        RunMetrics: {
+            /** @description The whole run, from the job reading its role to the last write, in milliseconds. */
+            total_ms: number;
+            stage_ms: components["schemas"]["RunStageMs"];
+            /** @description Candidates sent to the rerank. */
+            candidates: number;
+            /** @description Requests to the AI service's `/rerank`, one per batch of the shortlist; they run at once. */
+            rerank_calls: number;
+            /** @description Chat-model completions that reached the provider, over all batches. More than `rerank_calls` when an answer had to be sent back for correction; fewer when answers were replayed from the cache. */
+            llm_calls: number;
+            /** @description Completions the AI service replayed from its response cache instead; they cost nothing. */
+            cache_hits: number;
+            /** @description Prompt tokens of `llm_calls`, as the provider counted them. */
+            input_tokens: number;
+            /** @description Output tokens of `llm_calls`, the model's thinking included. */
+            output_tokens: number;
+            /**
+             * Format: double
+             * @description The tokens at the model's list price, in US dollars. 0 for a run answered from the cache or by the `fake` provider; `null` when the AI service knows no price for the model.
+             */
+            estimated_cost_usd: number | null;
+            /** @description The chat model the AI service ran the rerank on; `null` when no batch answered. */
+            model: string | null;
+        };
+        /** @description How long each stage of a matching run took, in milliseconds. A stage the run did not reach is 0. */
+        RunStageMs: {
+            /** @description The hard filters and the retrieval by embedding, which are one statement. */
+            filter: number;
+            /** @description Reading the role and the shortlisted candidates' text for the rerank. */
+            texts: number;
+            /** @description The AI service's `/rerank`, all batches; they run at once, so this is the slowest of them. */
+            rerank: number;
+            /** @description Writing the ranking to `matches` and the outcome to the run. */
+            persist: number;
         };
         /**
          * @description How a matching run ended. `matched`: at least two candidates passed the hard filters and scored at or above the minimum. `needs_attention`: the run could not deliver two profiles (see `AttentionReason`).

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/colehanke/mavi-demo/api/internal/reqlog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -131,8 +132,11 @@ func TestCORSAllowsRoleHeaders(t *testing.T) {
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("status = %d", rec.Code)
 	}
-	if got := rec.Header().Get("Access-Control-Allow-Headers"); got != "Content-Type, X-Role, X-Actor" {
+	if got := rec.Header().Get("Access-Control-Allow-Headers"); got != "Content-Type, X-Role, X-Actor, X-Request-ID" {
 		t.Fatalf("allow-headers = %q", got)
+	}
+	if got := rec.Header().Get("Access-Control-Expose-Headers"); got != "X-Request-ID" {
+		t.Fatalf("expose-headers = %q", got)
 	}
 	if rec.Header().Get("Access-Control-Allow-Credentials") != "true" {
 		t.Fatal("cookie session needs Access-Control-Allow-Credentials for a specific origin")
@@ -142,5 +146,30 @@ func TestCORSAllowsRoleHeaders(t *testing.T) {
 	New(Config{DB: stub{}, AI: stub{}, CORSOrigin: "*"}).ServeHTTP(rec, httptest.NewRequest(http.MethodOptions, "/candidates", nil))
 	if rec.Header().Get("Access-Control-Allow-Credentials") != "" {
 		t.Fatal("credentials must not be allowed with a wildcard origin")
+	}
+}
+
+// Every response names its request: the caller's id when it sent a usable
+// one, a new one otherwise, and never text that could not go in a log line.
+func TestRequestIDIsEchoedOrMadeUp(t *testing.T) {
+	h := New(Config{DB: stub{}, AI: stub{}, CORSOrigin: "*"})
+	send := func(id string) string {
+		req := httptest.NewRequest(http.MethodGet, "/health", nil)
+		if id != "" {
+			req.Header.Set(reqlog.Header, id)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Header().Get(reqlog.Header)
+	}
+	if got := send("trace-42"); got != "trace-42" {
+		t.Errorf("a given id came back as %q", got)
+	}
+	first, second := send(""), send("")
+	if !reqlog.Valid(first) || first == second {
+		t.Errorf("made-up ids: %q then %q", first, second)
+	}
+	if got := send(`not "an" id`); !reqlog.Valid(got) {
+		t.Errorf("an unusable id came back as %q", got)
 	}
 }

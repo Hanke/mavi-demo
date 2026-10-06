@@ -28,7 +28,7 @@ func HardFilter(ctx context.Context, st *store.Store, tax *taxonomy.Taxonomy, ro
 	if err != nil {
 		return store.FilterRun{}, err
 	}
-	logf("hard filter: role %s (%q): %s", role.ID, role.Title, funnel(run))
+	logf(ctx, "hard filter: role %s (%q): %s", role.ID, role.Title, funnel(run))
 	return run, nil
 }
 

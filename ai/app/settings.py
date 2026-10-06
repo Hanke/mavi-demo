@@ -1,6 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +14,11 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     # Empty means the provider's default in app/llm.py.
     llm_model: str = ""
+    # USD per million input and output tokens, for the cost estimate of a
+    # request (app/usage.py). Both empty means the list price of the model,
+    # when app/usage.py knows one.
+    llm_input_price_per_mtok: float | None = None
+    llm_output_price_per_mtok: float | None = None
 
     embedding_provider: Literal["openai", "local"] = "local"
     embedding_model: str = "text-embedding-3-small"
@@ -30,6 +36,12 @@ class Settings(BaseSettings):
     # Shared canonical vocabulary (infra/taxonomy.json). Empty means the repo default
     # next to this checkout; the compose file points it at the mounted /app/infra copy.
     taxonomy_path: str = ""
+
+    @field_validator("llm_input_price_per_mtok", "llm_output_price_per_mtok", mode="before")
+    @classmethod
+    def _blank_is_unset(cls, value: object) -> object:
+        # Compose passes a variable that is not set as an empty string.
+        return None if isinstance(value, str) and not value.strip() else value
 
 
 @lru_cache

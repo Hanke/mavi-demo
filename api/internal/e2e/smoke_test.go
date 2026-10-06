@@ -111,12 +111,28 @@ func TestSmoke(t *testing.T) {
 		job := send[contract.Job](c, ops, "GET", fmt.Sprintf("/jobs/%d", intake.MatchingJob.ID), nil, 200)
 		c.finished(job)
 		status = send[contract.RoleMatchStatus](c, ops, "GET", "/roles/"+role+"/match-status", nil, 200)
-		return status.Run != nil, "no run has an outcome; the first match_role job is " + string(job.Status)
+		// The metrics are the job's last write, a moment after the outcome.
+		return status.Run != nil && status.Run.Metrics != nil, "no run has an outcome and its metrics; the first match_role job is " + string(job.Status)
 	})
 	t.Logf("matching run: %s", funnel(*status.Run))
 	if status.Status != contract.RoleMatchStateInReview {
 		t.Fatalf("the role is %s (%v) after its matching run, want in_review", status.Status, status.Run.AttentionReason)
 	}
+	// The run says what it took and cost, and names the request id both
+	// services logged it under. The rerank really went to the AI service's
+	// (fake) model: at least one call, with a prompt, at no cost.
+	m := status.Run.Metrics
+	if status.Run.RequestID == nil || *status.Run.RequestID == "" {
+		t.Fatalf("the matching run has no request id: %+v", *status.Run)
+	}
+	if m.Candidates != len(status.Run.Retrieved) || m.RerankCalls < 1 || m.LlmCalls+m.CacheHits < m.RerankCalls ||
+		m.InputTokens <= 0 || m.OutputTokens <= 0 || m.EstimatedCostUsd == nil || *m.EstimatedCostUsd != 0 || m.Model == nil ||
+		m.TotalMs < m.StageMs.Rerank {
+		t.Fatalf("the matching run's metrics are %+v", *m)
+	}
+	t.Logf("matching run: request id %s; %dms (filter %d, texts %d, rerank %d, persist %d); %d llm calls, %d in / %d out tokens on %s",
+		*status.Run.RequestID, m.TotalMs, m.StageMs.Filter, m.StageMs.Texts, m.StageMs.Rerank, m.StageMs.Persist,
+		m.LlmCalls, m.InputTokens, m.OutputTokens, *m.Model)
 
 	// The two strong candidates are in the review queue.
 	queue := send[contract.ReviewQueue](c, ops, "GET", "/roles/"+role+"/review-queue", nil, 200)

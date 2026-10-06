@@ -15,6 +15,7 @@ import (
 	"github.com/colehanke/mavi-demo/api/internal/aiclient"
 	"github.com/colehanke/mavi-demo/api/internal/contract"
 	"github.com/colehanke/mavi-demo/api/internal/jobs"
+	"github.com/colehanke/mavi-demo/api/internal/reqlog"
 	"github.com/colehanke/mavi-demo/api/internal/store"
 	"github.com/colehanke/mavi-demo/api/internal/taxonomy"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -136,6 +137,11 @@ type matcher struct {
 // cover an embedding that landed in between. When only some of those who
 // passed are waiting, the rest are matched now, the waiting keep whatever
 // match they had, and a later run is queued to pick them up.
+//
+// Every run that is recorded is measured (runMeter): how long each stage
+// took, and the chat-model calls, tokens and estimated cost of its rerank, on
+// the run's row as metrics. The row also has the request id of this attempt,
+// which every line logged for it has in both services.
 func (m *matcher) run(ctx context.Context, job jobs.Job) error {
 	var p struct {
 		RoleID string `json:"role_id"`
@@ -143,6 +149,7 @@ func (m *matcher) run(ctx context.Context, job jobs.Job) error {
 	if err := json.Unmarshal(job.Payload, &p); err != nil || strings.TrimSpace(p.RoleID) == "" {
 		return jobs.PayloadError(job, `{"role_id": uuid}`)
 	}
+	meter := newRunMeter()
 	var status string
 	var embedded bool
 	err := m.pool.QueryRow(ctx, `SELECT status, coalesce(vector_norm(embedding) > 0, false) FROM roles WHERE id = $1`, p.RoleID).Scan(&status, &embedded)
@@ -150,7 +157,7 @@ func (m *matcher) run(ctx context.Context, job jobs.Job) error {
 		return err
 	}
 	if status != string(contract.RoleStatusOpen) {
-		logf("match: job %d: role %s is %s, not open; not matched", job.ID, p.RoleID, status)
+		logf(ctx, "match: job %d: role %s is %s, not open; not matched", job.ID, p.RoleID, status)
 		return nil
 	}
 	notEmbedded := fmt.Errorf("job %d: role %s is not embedded yet and no %s job is waiting to embed it; retrying", job.ID, p.RoleID, KindEmbedRole)
@@ -159,13 +166,17 @@ func (m *matcher) run(ctx context.Context, job jobs.Job) error {
 		return m.wait(ctx, job, notEmbedded, "role_id", []string{p.RoleID}, KindEmbedRole)
 	}
 
+	filtered := meter.stage(&meter.StageMs.Filter)
 	run, err := HardFilter(ctx, m.store, m.tax, p.RoleID, time.Now(), m.cfg.Retrieve)
+	filtered()
 	if errors.Is(err, store.ErrNotFound) {
 		return nil // deleted since the read above; nothing to match
 	}
 	if err != nil {
 		return err
 	}
+	ctx = reqlog.With(ctx, "role_id", p.RoleID, "run_id", run.ID)
+	defer m.record(ctx, job, run, meter)
 	if !run.RoleEmbedded {
 		return notEmbedded // the embedding was cleared by an edit between the two reads
 	}
@@ -174,7 +185,7 @@ func (m *matcher) run(ctx context.Context, job jobs.Job) error {
 			job.ID, len(run.UnrankedIds), p.RoleID), "candidate_id", run.UnrankedIds, KindEmbedProfile, KindParseResume)
 	}
 
-	ranked, err := m.rerank(ctx, job, run)
+	ranked, err := m.rerank(ctx, job, run, meter)
 	if err != nil {
 		return err
 	}
@@ -194,24 +205,26 @@ func (m *matcher) run(ctx context.Context, job jobs.Job) error {
 			return err
 		}
 	}
+	persisted := meter.stage(&meter.StageMs.Persist)
 	res, err := m.store.ReplaceRunMatches(ctx, run.ID, ranked, review, minScore, partial)
+	persisted()
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		return nil // the role was deleted while its candidates were reranked
 	case errors.Is(err, store.ErrSuperseded):
-		logf("match: job %d: role %s: run %s not written: a later run already was", job.ID, p.RoleID, run.ID)
+		logf(ctx, "match: job %d: role %s: run %s not written: a later run already was", job.ID, p.RoleID, run.ID)
 		return nil
 	case err != nil:
 		return err
 	}
-	logf("match: role %s: run %s: %d reranked, %d written (%d pending review), %d already decided and kept, %d from earlier runs removed",
+	logf(ctx, "match: role %s: run %s: %d reranked, %d written (%d pending review), %d already decided and kept, %d from earlier runs removed",
 		p.RoleID, run.ID, len(ranked), res.Written, res.PendingReview, res.Kept, res.Removed)
 	if reason := res.Outcome.Reason; reason != nil {
 		top := "no must-have excluded anybody"
 		if f := run.TopFilter; f != nil {
 			top = fmt.Sprintf("%s excluded the most candidates (%d)", f.Filter, f.Excluded)
 		}
-		logf("match: role %s: run %s needs attention: %s (%d passed the filters; minimum score %g); %s",
+		logf(ctx, "match: role %s: run %s needs attention: %s (%d passed the filters; minimum score %g); %s",
 			p.RoleID, run.ID, *reason, run.Passed, minScore, top)
 	}
 
@@ -219,6 +232,79 @@ func (m *matcher) run(ctx context.Context, job jobs.Job) error {
 		return m.later(ctx, job, matchPickupDelay, fmt.Sprintf("%d candidates who pass the filters are still being embedded", len(run.UnrankedIds)))
 	}
 	return nil
+}
+
+// runMeter measures a matching run for the metrics of its filter_runs row:
+// the time of each stage, and what the rerank's batches spent on the chat
+// model, as the AI service reported it with each answer.
+type runMeter struct {
+	contract.RunMetrics
+	started  time.Time
+	cost     float64
+	unpriced bool // a batch answered without a cost, so the run's is not known
+}
+
+func newRunMeter() *runMeter { return &runMeter{started: time.Now()} }
+
+// stage starts timing a stage; the function it returns ends it and writes
+// the milliseconds to dst.
+func (r *runMeter) stage(dst *int) (done func()) {
+	start := time.Now()
+	return func() { *dst = int(time.Since(start).Milliseconds()) }
+}
+
+// spent adds what one /rerank call reported of its use of the model.
+func (r *runMeter) spent(u aiclient.LLMUsage) {
+	r.LlmCalls += u.LlmCalls
+	r.CacheHits += u.CacheHits
+	r.InputTokens += u.InputTokens
+	r.OutputTokens += u.OutputTokens
+	if u.Model != "" {
+		r.Model = &u.Model
+	}
+	if u.EstimatedCostUsd == nil {
+		r.unpriced = true
+		return
+	}
+	r.cost += *u.EstimatedCostUsd
+}
+
+// metrics is the run as measured so far, up to now.
+func (r *runMeter) metrics() contract.RunMetrics {
+	out := r.RunMetrics
+	out.TotalMs = int(time.Since(r.started).Milliseconds())
+	if !r.unpriced {
+		cost := math.Round(r.cost*1e6) / 1e6
+		out.EstimatedCostUsd = &cost
+	}
+	return out
+}
+
+// record stores the run's metrics on its row as the job ends, whatever the
+// outcome, and logs them. Not being able to store them is logged and no more:
+// the run itself is done. A job interrupted by a shutdown is handed back to
+// the queue, and the run it leaves behind has none.
+func (m *matcher) record(ctx context.Context, job jobs.Job, run store.FilterRun, meter *runMeter) {
+	if ctx.Err() != nil {
+		return
+	}
+	metrics := meter.metrics()
+	if err := m.store.RecordRunMetrics(ctx, run.ID, metrics); err != nil {
+		logf(ctx, "match: job %d: run %s: could not record its metrics: %v", job.ID, run.ID, err)
+	}
+	fields := []any{
+		"total_ms", metrics.TotalMs, "filter_ms", metrics.StageMs.Filter, "texts_ms", metrics.StageMs.Texts,
+		"rerank_ms", metrics.StageMs.Rerank, "persist_ms", metrics.StageMs.Persist,
+		"candidates", metrics.Candidates, "rerank_calls", metrics.RerankCalls, "llm_calls", metrics.LlmCalls,
+		"cache_hits", metrics.CacheHits, "input_tokens", metrics.InputTokens, "output_tokens", metrics.OutputTokens,
+	}
+	if metrics.EstimatedCostUsd != nil {
+		fields = append(fields, "estimated_cost_usd", *metrics.EstimatedCostUsd)
+	}
+	if metrics.Model != nil {
+		fields = append(fields, "model", *metrics.Model)
+	}
+	logf(reqlog.With(ctx, fields...), "match: run %s finished", run.ID)
 }
 
 // wait is what a run does when it cannot go on without an embedding: if a job
@@ -256,7 +342,7 @@ func (m *matcher) later(ctx context.Context, job jobs.Job, delay time.Duration, 
 	if err != nil {
 		return fmt.Errorf("job %d: queue the next %s: %w", job.ID, KindMatchRole, err)
 	}
-	logf("match: job %d: %s; job %d runs it again", job.ID, why, next.ID)
+	logf(ctx, "match: job %d: %s; job %d runs it again", job.ID, why, next.ID)
 	return nil
 }
 
@@ -267,10 +353,11 @@ func (m *matcher) later(ctx context.Context, job jobs.Job, delay time.Duration, 
 // nobody, with no call made; one whose candidates are all gone or have
 // nothing to read since the filters ran a moment ago is not, and is retried
 // against the pool as it is now.
-func (m *matcher) rerank(ctx context.Context, job jobs.Job, run store.FilterRun) ([]store.RankedMatch, error) {
+func (m *matcher) rerank(ctx context.Context, job jobs.Job, run store.FilterRun, meter *runMeter) ([]store.RankedMatch, error) {
 	if len(run.Retrieved) == 0 {
 		return nil, nil
 	}
+	read := meter.stage(&meter.StageMs.Texts)
 	similarity := make(map[string]float64, len(run.Retrieved))
 	ids := make([]string, len(run.Retrieved))
 	for i, r := range run.Retrieved {
@@ -288,10 +375,13 @@ func (m *matcher) rerank(ctx context.Context, job jobs.Job, run store.FilterRun)
 	if err != nil {
 		return nil, err
 	}
+	read()
 
 	groups := batches(candidates)
 	responses := make([]aiclient.RerankResponse, len(groups))
 	errs := make([]error, len(groups))
+	meter.Candidates, meter.RerankCalls = len(candidates), len(groups)
+	reranked := meter.stage(&meter.StageMs.Rerank)
 	var wg sync.WaitGroup
 	for i, group := range groups {
 		wg.Add(1)
@@ -301,6 +391,14 @@ func (m *matcher) rerank(ctx context.Context, job jobs.Job, run store.FilterRun)
 		}()
 	}
 	wg.Wait()
+	reranked()
+	// A call that failed says nothing of what it spent, so a failed run's
+	// figures are those of the batches that answered.
+	for i, resp := range responses {
+		if errs[i] == nil {
+			meter.spent(resp.Usage)
+		}
+	}
 	// A 4xx means this request can never be scored. The rest, including the
 	// 502 the service answers when the model's output does not validate, is
 	// worth another attempt. Nothing is kept of a run with a failed batch,
@@ -360,10 +458,10 @@ func (m *matcher) aiFailed(ctx context.Context, job jobs.Job, run store.FilterRu
 		return
 	}
 	if err := m.store.FailRun(ctx, run.ID, cause); err != nil {
-		logf("match: job %d: run %s: could not record the failed rerank: %v", job.ID, run.ID, err)
+		logf(ctx, "match: job %d: run %s: could not record the failed rerank: %v", job.ID, run.ID, err)
 		return
 	}
-	logf("match: role %s: run %s needs attention: ai_failed: %v", run.RoleID, run.ID, cause)
+	logf(ctx, "match: role %s: run %s needs attention: ai_failed: %v", run.RoleID, run.ID, cause)
 }
 
 // batches splits a shortlist, in order, into the groups sent to /rerank: each
@@ -495,7 +593,7 @@ func (m *matcher) candidateTexts(ctx context.Context, ids []string) ([]aiclient.
 		if text := texts[id]; text != "" {
 			out = append(out, aiclient.RerankCandidate{ID: id, Text: text})
 		} else {
-			logf("match: candidate %s has no resume or profile text to rerank (or was deleted); left out", id)
+			logf(ctx, "match: candidate %s has no resume or profile text to rerank (or was deleted); left out", id)
 		}
 	}
 	return out, nil

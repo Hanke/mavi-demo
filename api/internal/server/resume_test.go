@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"strconv"
 	"strings"
@@ -122,6 +123,6 @@ func TestResumeUploadRejections(t *testing.T) {
 func silence(t *testing.T) {
 	t.Helper()
 	old := logf
-	logf = func(string, ...any) {}
+	logf = func(context.Context, string, ...any) {}
 	t.Cleanup(func() { logf = old })
 }

@@ -70,6 +70,19 @@ func (s *Store) FailRun(ctx context.Context, runID string, cause error) error {
 	return mapErr(err)
 }
 
+// RecordRunMetrics stores what the matching run runID took and cost: the
+// time of each stage, and the chat-model calls, tokens and estimated cost of
+// its rerank. The job writes it once, as it ends, whatever the outcome; a run
+// that is gone (the role was deleted) is left alone.
+func (s *Store) RecordRunMetrics(ctx context.Context, runID string, metrics contract.RunMetrics) error {
+	doc, err := json.Marshal(metrics)
+	if err != nil {
+		return err
+	}
+	_, err = s.pool.Exec(ctx, `UPDATE filter_runs SET metrics = $2 WHERE id = $1`, runID, doc)
+	return mapErr(err)
+}
+
 // ReplaceRunMatches makes ranked, the reranked shortlist of filter run runID
 // best first, the role's matches: one row per (role, candidate), so running a
 // role again replaces what the earlier run wrote rather than adding to it.

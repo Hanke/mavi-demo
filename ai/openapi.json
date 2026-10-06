@@ -457,6 +457,53 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "LLMUsage": {
+        "description": "What a request spent on the chat model.",
+        "properties": {
+          "cache_hits": {
+            "description": "Completions replayed from the response cache instead: no call, no tokens.",
+            "title": "Cache Hits",
+            "type": "integer"
+          },
+          "estimated_cost_usd": {
+            "description": "The tokens at the model's list price; null when no price is known for the model.",
+            "format": "double",
+            "nullable": true,
+            "title": "Estimated Cost Usd",
+            "type": "number"
+          },
+          "input_tokens": {
+            "description": "Prompt tokens of those calls, as the provider counted them.",
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "llm_calls": {
+            "description": "Completions that reached the provider, a correction retry included.",
+            "title": "Llm Calls",
+            "type": "integer"
+          },
+          "model": {
+            "description": "The chat model the service is configured with.",
+            "title": "Model",
+            "type": "string"
+          },
+          "output_tokens": {
+            "description": "Output tokens of those calls, the model's thinking included.",
+            "title": "Output Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "llm_calls",
+          "cache_hits",
+          "input_tokens",
+          "output_tokens",
+          "estimated_cost_usd",
+          "model"
+        ],
+        "title": "LLMUsage",
+        "type": "object"
+      },
       "OptionalDimensionScore": {
         "additionalProperties": false,
         "description": "A candidate's level on a dimension the role may give nothing to score against.",
@@ -807,12 +854,17 @@
             "description": "The version of the rubric (docs/rerank-rubric.md) the scores follow.",
             "title": "Rubric Version",
             "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/LLMUsage",
+            "description": "What this request spent on the chat model."
           }
         },
         "required": [
           "results",
           "rubric_version",
-          "provider"
+          "provider",
+          "usage"
         ],
         "title": "RerankResponse",
         "type": "object"

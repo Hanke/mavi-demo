@@ -8,8 +8,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -20,6 +21,7 @@ import (
 	"github.com/colehanke/mavi-demo/api/internal/auth"
 	"github.com/colehanke/mavi-demo/api/internal/contract"
 	"github.com/colehanke/mavi-demo/api/internal/jobs"
+	"github.com/colehanke/mavi-demo/api/internal/reqlog"
 	"github.com/colehanke/mavi-demo/api/internal/store"
 	"github.com/colehanke/mavi-demo/api/internal/tasks"
 	"github.com/colehanke/mavi-demo/api/internal/taxonomy"
@@ -89,7 +91,7 @@ func New(cfg Config) http.Handler {
 	for _, rt := range s.routes() {
 		mux.Handle(rt.pattern, auth.Require(writeError, s.ready(rt.handler), rt.roles...))
 	}
-	return s.cors(mux)
+	return s.requestLog(s.cors(mux))
 }
 
 const healthRoute = "GET /health"
@@ -218,7 +220,8 @@ func (s *Server) cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", s.corsOrigin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, "+auth.RoleHeader+", "+auth.ActorHeader)
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, "+auth.RoleHeader+", "+auth.ActorHeader+", "+reqlog.Header)
+		w.Header().Set("Access-Control-Expose-Headers", reqlog.Header)
 		if s.corsOrigin != "*" {
 			// Lets the mavi_role / mavi_actor session cookies travel from the web origin.
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -229,6 +232,74 @@ func (s *Server) cors(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// requestLog gives every request its id and writes its access line. The id
+// is the caller's X-Request-ID when it sends a usable one, otherwise new; it
+// is returned in the same header, carried by the request's context onto
+// every line logged for the request, and sent on to the AI service with any
+// call the request makes (internal/reqlog), which is how one request is
+// followed across both services. The health probe and CORS preflights are
+// logged at debug.
+func (s *Server) requestLog(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.Header.Get(reqlog.Header)
+		if !reqlog.Valid(id) {
+			id = reqlog.NewID()
+		}
+		ctx := reqlog.WithID(r.Context(), id)
+		w.Header().Set(reqlog.Header, id)
+		rw := &responseLog{ResponseWriter: w, ctx: ctx}
+		r = r.WithContext(ctx)
+		start := time.Now()
+		next.ServeHTTP(rw, r)
+
+		level := slog.LevelInfo
+		if r.Pattern == healthRoute || r.Method == http.MethodOptions {
+			level = slog.LevelDebug
+		}
+		if rw.status == 0 {
+			rw.status = http.StatusOK // a handler that wrote nothing
+		}
+		// route is the pattern the mux matched; "" for a path it does not serve.
+		slog.Log(ctx, level, "request", "method", r.Method, "path", r.URL.Path, "route", r.Pattern,
+			"status", rw.status, "duration_ms", time.Since(start).Milliseconds(), "role", r.Header.Get(auth.RoleHeader))
+	})
+}
+
+// responseLog is the ResponseWriter of a logged request: it notes the status
+// for the access line, and holds the request's context so that a helper with
+// only the writer in hand (fail) logs with the request id.
+type responseLog struct {
+	http.ResponseWriter
+	ctx    context.Context
+	status int
+}
+
+func (w *responseLog) WriteHeader(code int) {
+	if w.status == 0 {
+		w.status = code
+	}
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *responseLog) Write(b []byte) (int, error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	return w.ResponseWriter.Write(b)
+}
+
+// Unwrap lets http.ResponseController reach the writer underneath.
+func (w *responseLog) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+// requestCtx is the context of the request w answers, for logging; the
+// background context when w is not a logged request's writer.
+func requestCtx(w http.ResponseWriter) context.Context {
+	if rw, ok := w.(*responseLog); ok {
+		return rw.ctx
+	}
+	return context.Background()
 }
 
 // ---------------------------------------------------------------------------
@@ -294,13 +365,16 @@ func fail(w http.ResponseWriter, err error) {
 	case errors.Is(err, context.Canceled):
 		// client went away; nothing useful to write
 	default:
-		log.Printf("internal error: %v", err)
+		logf(requestCtx(w), "internal error: %v", err)
 		writeError(w, http.StatusInternalServerError, "internal error")
 	}
 }
 
-// logf is the server's log line; a variable so tests can silence or capture it.
-var logf = log.Printf
+// logf is the server's log line, written with the request id ctx carries; a
+// variable so tests can silence or capture it.
+var logf = func(ctx context.Context, format string, args ...any) {
+	slog.WarnContext(ctx, fmt.Sprintf(format, args...))
+}
 
 // constraint names the violated constraint, for error messages.
 func constraint(err error) string {

@@ -130,7 +130,7 @@ six POST endpoints plus `/health`, every request and response a Pydantic model
 | `POST /extract-text` | The file itself as the request body: a PDF or a DOCX, within the [upload limits](#untrusted-documents) | `{text, kind, pages}` — the text of the file, ready for `/parse-resume` or `/parse-jd`; `kind` is `pdf` or `docx` as found from the content, `pages` is null for a DOCX |
 | `POST /parse-resume` | `{text, as_of?}` — the resume as plain text; `as_of` is the date `years_experience` counts to (default today) | `{contact, profile, provider}` — `contact` is the header (`full_name`, `email`, `phone`, `location`, each null when the resume does not give it); `profile` is a `CandidateProfile`: `positions` (title, employer, start and end year), `years_experience`, `certifications`, `software`, `industries` (taxonomy ids, already canonical), `qualifications` (each one as written, with its issuing body, jurisdiction and whether it is fully held; see [Qualifications](#qualifications-across-jurisdictions)), `gaap_exposure` (the frameworks and standards the resume names), plus headline, skills, languages, availability and time zone |
 | `POST /parse-jd` | `{text}` | `{company, requirements, provider}` — `requirements` is a `RoleRequirements`, split into must-haves and nice-to-haves in fields that line up with the candidate profile (see [JD requirements](#jd-requirements)); each entry of `required_qualifications` says whether an equivalent is acceptable (`accept_equivalents`) and whether the JD said so (`equivalents_stated`) |
-| `POST /rerank` | `{role, candidates: [{id, text}]}` — the JD (or a rendering of the role) and up to 50 candidates, each an opaque id (letters, digits and `_ . : -`) plus the text to judge | `{results: [{id, score, dimensions, reasons}], rubric_version, provider}` — every id exactly once, best first; `dimensions` is the candidate's level (0 to 4, or null), a sentence of evidence and the `quotes` from the candidate's text that back it on each dimension of the [rerank rubric](#rerank-rubric), and `score` (0..1) is computed from those levels. Every quote is a substring of that candidate's `text`; equal scores are ordered by id |
+| `POST /rerank` | `{role, candidates: [{id, text}]}` — the JD (or a rendering of the role) and up to 50 candidates, each an opaque id (letters, digits and `_ . : -`) plus the text to judge | `{results: [{id, score, dimensions, reasons}], rubric_version, provider, usage}` — every id exactly once, best first; `dimensions` is the candidate's level (0 to 4, or null), a sentence of evidence and the `quotes` from the candidate's text that back it on each dimension of the [rerank rubric](#rerank-rubric), and `score` (0..1) is computed from those levels. Every quote is a substring of that candidate's `text`; equal scores are ordered by id. `usage` is what the request spent on the chat model: `llm_calls`, `cache_hits`, `input_tokens`, `output_tokens`, `estimated_cost_usd` and `model` (see [What a run cost](#what-a-run-cost)) |
 | `POST /embed` | `{text}` — up to 60,000 characters, like the parsers | `{embedding, dim, provider}` |
 | `POST /embed-batch` | `{inputs: [...]}` — up to 256 inputs, each exactly one of `{text}`, `{profile}` (a `CandidateProfile`) or `{requirements}` (a `RoleRequirements`) | `{embeddings, texts, dim, provider}` — one vector per input in the order given, and the text each was computed from |
 
@@ -690,6 +690,7 @@ Run `make` to list them. The main ones:
 - `make fixtures-render` — rewrite the fixture PDFs from their text files (see [Parser fixtures](#parser-fixtures))
 - `make rubric-render` — rewrite the tables of `docs/rerank-rubric.md` from `ai/app/rubric.py` (see [Rerank rubric](#rerank-rubric))
 - `make worker` — an extra background job worker container next to the one inside the API (see [Background jobs](#background-jobs))
+- `make run-metrics` — what the matching runs took and cost: time per stage, LLM calls, tokens and estimated cost for the latest runs, then the averages per run (see [What a run cost](#what-a-run-cost))
 - `make test-db` — migration up/down round-trip, the API CRUD / role tests, the job queue tests and the end-to-end pipeline test against the compose DB (each test creates and drops a throwaway database)
 - `make smoke` — start a throwaway copy of the stack with the fake LLM, drive one role from resume upload to release over HTTP, and remove it (see [End-to-end tests](#end-to-end-tests))
 - `make generate` / `make check-contracts` — regenerate the shared types from the OpenAPI documents, or fail if regenerating changes anything (see [Contracts](#contracts))
@@ -717,7 +718,7 @@ the API writes.
 | `matches` | One row per (role, candidate): `score`, `explanation`, `breakdown`, `status` (proposed / pending_review / approved / rejected / swapped; `pending_review` is the review queue a [matching run](#matching-run) fills), `released_at` (set when ops releases the role's two approved matches to the employer) |
 | `review_events` | Append-only audit of ops approve / reject / swap / release / unrelease actions on a match: `actor` (who), `reason`, `replacement_candidate_id` (whom a swap brought in), `metadata`; written in the same transaction as the change it records (see [Review and release](#review-and-release)) |
 | `jobs` | Postgres-backed background queue: `kind`, `payload`, `status` (queued / running / succeeded / failed), `priority`, `run_at`, `attempts` / `max_attempts`, `last_error`, `locked_by` / `locked_at`; claimed with `FOR UPDATE SKIP LOCKED` on the partial `jobs_dequeue_idx` (see [Background jobs](#background-jobs)) |
-| `filter_runs` | One row per run of a role's [hard filters](#hard-filters): the size of the pool, the number of candidates left after each filter (`after_profile` … `after_timezone_overlap`), the ids that passed and the day the time-zone overlap was worked out for; then the [shortlist](#retrieval) retrieved from those who passed (`retrieval_limit`, `retrieved_ids`, `retrieved_similarities`), who could not be compared (`unranked_ids`) and whether the role had an embedding (`role_embedded`); `matched_at` is set when a [matching run](#matching-run) wrote the run's reranked shortlist to `matches`; deleted with the role |
+| `filter_runs` | One row per run of a role's [hard filters](#hard-filters): the size of the pool, the number of candidates left after each filter (`after_profile` … `after_timezone_overlap`), the ids that passed and the day the time-zone overlap was worked out for; then the [shortlist](#retrieval) retrieved from those who passed (`retrieval_limit`, `retrieved_ids`, `retrieved_similarities`), who could not be compared (`unranked_ids`) and whether the role had an embedding (`role_embedded`); `matched_at` is set when a [matching run](#matching-run) wrote the run's reranked shortlist to `matches`; `request_id` is the id the run is logged under in both services and `metrics` what a matching run took and cost (see [Observability](#observability)); deleted with the role |
 
 The hard-filter fields are real, indexed columns rather than JSON keys, so
 the pool is filtered directly in SQL (each must-have the JD parser returns has
@@ -836,6 +837,9 @@ is the whole pipeline for one role, as a background job:
    two and releases the role (see [Review and release](#review-and-release)).
 5. **Outcome.** The run is recorded on its `filter_runs` row as `matched` or
    `needs_attention` (see [When a run cannot deliver two](#when-a-run-cannot-deliver-two)).
+6. **Metrics.** As the job ends, whatever the outcome, the row gets the time
+   each of these stages took and the chat-model calls, tokens and estimated
+   cost of the rerank (see [What a run cost](#what-a-run-cost)).
 
 Role intake queues the job; to run a role again, queue another:
 
@@ -995,6 +999,124 @@ curl -s localhost:8080/roles/<role id>/review-events -H 'X-Role: ops'
 [`api/internal/server/review_test.go`](api/internal/server/review_test.go)
 walks one role through all of it and reads the trail back.
 
+## Observability
+
+Both services write their logs as JSON, one object per line on stderr, with
+the same keys: `time`, `level`, `service` (`api` or `ai`), `msg`, and
+`request_id`, the id of the request the line was written for. The rest of a
+line is fields: the access line of either service has `method`, `path`,
+`status` and `duration_ms`; the API's line for a call to the AI service has
+`op`, `status` and `duration_ms`; a job's lines have `worker`, `job_id`,
+`job_kind` and `attempt`. `LOG_LEVEL` sets the level for both (default
+`info`); the health probes, which run every few seconds, are logged at
+`debug`.
+
+### Request ids
+
+- **An HTTP request** to the API has the id of its `X-Request-ID` header when
+  it sends a usable one (1 to 64 letters, digits and `. _ : -`), and otherwise
+  one made up for it (16 hex characters). Either way it comes back in the
+  response's `X-Request-ID`.
+- **A background job** runs each attempt under a new id.
+- **The API sends the id on** with every call it makes to the AI service
+  ([`api/internal/aiclient`](api/internal/aiclient/client.go)), which logs
+  under the same id and returns it
+  ([`ai/app/logs.py`](ai/app/logs.py)). Called directly, the AI service
+  takes or makes up an id the same way.
+- **A run keeps its id.** `filter_runs.request_id` (`request_id` on the run in
+  the API) is the id of the `match_role` job attempt that made the run, or of
+  the HTTP request for a run of the filters alone.
+
+So one matching run is followed through both services by one id:
+
+```sh
+rid=$(curl -s localhost:8080/roles/<role id>/match-status -H 'X-Role: ops' | jq -r .run.request_id)
+docker compose logs --no-log-prefix api ai | grep -F "\"request_id\":\"$rid\"" | jq -c 'del(.time)'
+```
+
+```
+{"level":"INFO","msg":"job started","service":"api","max_attempts":3,"request_id":"dbfd84b835accabc","worker":"bf27181c0e16-1","job_id":218,"job_kind":"match_role","attempt":1}
+{"level":"INFO","msg":"hard filter: role 2222… (\"Staff Accountant\"): pool 190 -> … -> retrieved 19 of 20","service":"api","request_id":"dbfd84b835accabc","job_id":218,…}
+{"level":"INFO","service":"ai","logger":"app.logs","msg":"request","request_id":"dbfd84b835accabc","method":"POST","path":"/rerank","status":200,"duration_ms":168,"llm_calls":1,"cache_hits":0,"input_tokens":7510,"output_tokens":2833}
+{"level":"INFO","service":"ai","logger":"app.logs","msg":"request","request_id":"dbfd84b835accabc","method":"POST","path":"/rerank","status":200,"duration_ms":169,"llm_calls":1,"cache_hits":0,"input_tokens":7019,"output_tokens":2574}
+{"level":"INFO","msg":"ai call","service":"api","op":"rerank","status":200,"duration_ms":169,"request_id":"dbfd84b835accabc","job_id":218,…,"role_id":"2222…","run_id":"f839…"}
+{"level":"INFO","msg":"ai call","service":"api","op":"rerank","status":200,"duration_ms":170,"request_id":"dbfd84b835accabc","job_id":218,…,"role_id":"2222…","run_id":"f839…"}
+{"level":"INFO","msg":"match: run f839… finished","service":"api","request_id":"dbfd84b835accabc","job_id":218,…,"total_ms":228,"filter_ms":53,"texts_ms":1,"rerank_ms":170,"persist_ms":3,"candidates":19,"rerank_calls":2,"llm_calls":2,"cache_hits":0,"input_tokens":14529,"output_tokens":5407,"estimated_cost_usd":0,"model":"fake-7"}
+{"level":"INFO","msg":"job succeeded","service":"api","duration_ms":229,"request_id":"dbfd84b835accabc","worker":"bf27181c0e16-1","job_id":218,"job_kind":"match_role","attempt":1}
+```
+
+(The lines of a real run, shortened, on the `fake` provider.) Things to know:
+
+- **One id per attempt.** A retried job is a new attempt with a new id, and
+  its run is a new `filter_runs` row with that id. Every line of a job also
+  has `job_id`, which finds all of its attempts.
+- **The request that queued a job has its own id.** `POST /roles/intake` is
+  logged under the id of that HTTP request, with its `/parse-jd` and
+  `/embed-batch` calls; the matching job it queues runs under the job's. The
+  response's `matching_job.id` is the `job_id` to look for.
+- **A line from outside any request** (start-up, the worker's sweeper, a
+  migration) has no `request_id`.
+
+### What a run cost
+
+Every `match_role` job leaves what it took on its run, as `metrics` (written
+as the job ends, a moment after the outcome; `null` for a run of the filters
+alone, and for a job a shutdown interrupted):
+
+| Field | |
+| --- | --- |
+| `total_ms` | The whole run, from the job reading its role to its last write |
+| `stage_ms.filter` | The hard filters and the retrieval, which are one statement |
+| `stage_ms.texts` | Reading the role and the shortlist's resumes for the rerank |
+| `stage_ms.rerank` | The AI service's `/rerank`; the batches run at once, so this is the slowest of them |
+| `stage_ms.persist` | Writing the ranking to `matches` and the outcome to the run |
+| `candidates`, `rerank_calls` | How many candidates were reranked, in how many `/rerank` requests (batches of 10) |
+| `llm_calls` | Completions that reached the provider, over all batches. An answer sent back for correction is a second call |
+| `cache_hits` | Completions replayed from the [response cache](#response-cache) instead |
+| `input_tokens`, `output_tokens` | The tokens of `llm_calls`, as the provider counted them (output includes the model's thinking) |
+| `estimated_cost_usd` | Those tokens at the model's list price; `null` when no price is known for the model (see [Provider configuration](#provider-configuration)) |
+| `model` | The chat model the rerank ran on |
+
+The AI service counts them per request ([`ai/app/usage.py`](ai/app/usage.py))
+and returns them as `usage` with each `/rerank` answer; the job adds up its
+batches ([`api/internal/tasks/match.go`](api/internal/tasks/match.go)). The
+same figures are fields of the job's `match: run … finished` log line and of
+the AI service's access line for each `/rerank`.
+
+```sh
+curl -s localhost:8080/roles/<role id>/match-status -H 'X-Role: ops' | jq .run.metrics
+curl -s localhost:8080/roles/<role id>/filter-runs -H 'X-Role: ops' | jq '.[] | {created_at, match_status, request_id, metrics}'
+make run-metrics    # the latest runs, then the averages per run and per candidate, by model
+```
+
+`make run-metrics` ([`infra/db/reports/run_metrics.sql`](infra/db/reports/run_metrics.sql))
+is where the cost and latency of a match are read from: per model, the average
+and the median and 95th percentile of `total_ms`, the average tokens and cost
+of a run, and the cost per candidate reranked.
+
+What the figures do and do not say:
+
+- **It is what the run spent, so a replay is free.** A run whose answers all
+  came from the response cache has `llm_calls: 0`, no tokens and a cost of 0,
+  and takes milliseconds. `make run-metrics` leaves such runs out of its
+  averages; to measure a run again, set `AI_CACHE=off` or `refresh`.
+- **The cost is an estimate.** It is input and output tokens at the list
+  price of the configured model. It knows nothing of a discount, and when the
+  provider answered a declined request on a fallback model the tokens are
+  still priced as the configured one.
+- **A failed call reports nothing.** A `/rerank` that fails or times out does
+  not say what it spent, so the figures of an `ai_failed` run cover only the
+  batches that answered. The AI service's access line for the failed request
+  has its calls and tokens, under the run's `request_id`.
+- **Only the rerank is on the run.** The JD parse and the embedding of role
+  intake, and the resume parses, are other requests and jobs; their calls and
+  tokens are on their own access lines.
+- **The `fake` provider has no tokens.** It reports the size of its prompt
+  and answer at four characters to a token, so a run without a key still
+  shows how large its prompts are, at a cost of 0. Its latency is that of
+  regexes, not of a model. The figures to quote come from runs on a real
+  model.
+
 ## End-to-end tests
 
 Two tests take one role through the whole loop, from the candidates in the
@@ -1023,7 +1145,10 @@ deployed. Four candidates sign up as talent and upload fixture resumes (the
 PDFs in [`infra/fixtures/resumes`](infra/fixtures/resumes)), an employer
 pastes a JD, the worker parses, embeds and matches, ops approves the two
 strong candidates from the review queue and releases, and the employer sees
-those two and not the third candidate who was matched. The JD is in the test
+those two and not the third candidate who was matched. It also checks that
+the matching run names its request id and carries its
+[metrics](#what-a-run-cost): a rerank that reached the AI service's model,
+with tokens, at no cost. The JD is in the test
 and is written for the fake provider, which reads the bullets under
 "Requirements" as the must-haves.
 
@@ -1318,6 +1443,14 @@ behind `/parse-resume`, `/parse-jd` and `/rerank`; the matching key must be set,
 or those endpoints answer `502 llm provider error: ... no credentials configured`
 while everything else keeps working. `LLM_MODEL` overrides the provider's default
 chat model (`claude-opus-5-5` for Anthropic).
+
+The cost a matching run records is its tokens at the model's list price, which
+[`ai/app/usage.py`](ai/app/usage.py) knows for the Claude models. For any other
+model set both `LLM_INPUT_PRICE_PER_MTOK` and `LLM_OUTPUT_PRICE_PER_MTOK` (US
+dollars per million tokens), or the cost is recorded as `null`; set, they take
+the place of the list price. `LOG_LEVEL` (`debug`, `info`, `warn` or `error`;
+default `info`) is the level both services log at (see
+[Observability](#observability)).
 
 `LLM_PROVIDER=fake` needs no key and no network. It is the same `Provider`
 interface with [`ai/app/fake.py`](ai/app/fake.py) behind it: regexes and

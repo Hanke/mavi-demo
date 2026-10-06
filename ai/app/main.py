@@ -9,14 +9,19 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app import documents, embeddings, embedtext, extract, llm, rubric
+from app import documents, embeddings, embedtext, extract, llm, logs, rubric, usage
 from app.extract import RerankCandidate, RerankResult
 from app.llm import InvalidOutputError, Provider
 from app.schemas import CandidateProfile, Contact, Document, RoleRequirements
 from app.settings import Settings, get_settings
+from app.usage import LLMUsage
+
+logs.configure()
 
 # Route names double as operation ids so generated clients get `embed`, not `embed_embed_post`.
 app = FastAPI(title="Mavi AI", version="0.1.0", generate_unique_id_function=lambda route: route.name)
+# Every request gets an id (the caller's X-Request-ID, when it sends one), a usage meter and an access line.
+app.add_middleware(logs.RequestContext)
 
 
 @app.exception_handler(RequestValidationError)
@@ -159,6 +164,7 @@ class RerankResponse(BaseModel):
     results: list[RerankResult] = Field(description="Every candidate, best first.")
     rubric_version: str = Field(description="The version of the rubric (docs/rerank-rubric.md) the scores follow.")
     provider: str
+    usage: LLMUsage = Field(description="What this request spent on the chat model.")
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -252,12 +258,19 @@ def parse_jd(req: ParseJDRequest, provider: Provider = Depends(get_provider)) ->
 
 
 @app.post("/rerank", response_model=RerankResponse)
-def rerank(req: RerankRequest, provider: Provider = Depends(get_provider)) -> RerankResponse:
+def rerank(
+    req: RerankRequest, provider: Provider = Depends(get_provider), settings: Settings = Depends(get_settings)
+) -> RerankResponse:
     try:
         results = extract.rerank(provider, req.role, req.candidates)
     except llm.LLMError as e:
         raise _http_error(e) from e
-    return RerankResponse(results=results, rubric_version=rubric.VERSION, provider=provider.name)
+    return RerankResponse(
+        results=results,
+        rubric_version=rubric.VERSION,
+        provider=provider.name,
+        usage=usage.report(provider.name, provider.model, settings),
+    )
 
 
 def _http_error(e: llm.LLMError) -> HTTPException:

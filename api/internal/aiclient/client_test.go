@@ -3,6 +3,7 @@ package aiclient
 import (
 	"context"
 	"errors"
+	"github.com/colehanke/mavi-demo/api/internal/reqlog"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -316,5 +317,26 @@ func TestRerankChecksEveryCandidateIsAnsweredOnce(t *testing.T) {
 		if _, err := New(srv.URL).Rerank(context.Background(), "Controller", candidates); !errors.Is(err, ErrBadResponse) {
 			t.Fatalf("answer %s: err = %v, want ErrBadResponse", answer, err)
 		}
+	}
+}
+
+// The request id of the caller's context goes to the service with the call,
+// which is what puts the same id on both services' log lines.
+func TestRequestIDIsSentToTheService(t *testing.T) {
+	var got []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = append(got, r.Header.Get(reqlog.Header))
+		_, _ = w.Write([]byte(`{"status":"ok","llm_provider":"fake","embedding_provider":"local"}`))
+	}))
+	defer srv.Close()
+	c := New(srv.URL)
+	if err := c.Health(reqlog.WithID(context.Background(), "job-attempt-1")); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Health(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0] != "job-attempt-1" || got[1] != "" {
+		t.Fatalf("X-Request-ID received = %q", got)
 	}
 }

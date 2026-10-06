@@ -18,6 +18,7 @@ import (
 	"github.com/colehanke/mavi-demo/api/internal/contract"
 	"github.com/colehanke/mavi-demo/api/internal/dbtest"
 	"github.com/colehanke/mavi-demo/api/internal/jobs"
+	"github.com/colehanke/mavi-demo/api/internal/reqlog"
 	"github.com/colehanke/mavi-demo/api/internal/store"
 	"github.com/colehanke/mavi-demo/api/internal/taxonomy"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -30,13 +31,18 @@ import (
 // failFor and stallFor name a candidate whose batch, and no other, goes
 // wrong: a 502 for the first, no answer inside the client's deadline (cut to
 // stallTimeout) for the second. That is a run failing part-way.
+//
+// usage is what each answer says it spent on the model, and requestIDs the
+// X-Request-ID each request came with.
 type rerankAI struct {
-	levels   map[string]int
-	status   int
-	failFor  string
-	stallFor string
-	mu       sync.Mutex // batches arrive at once
-	requests []aiclient.RerankRequest
+	levels     map[string]int
+	status     int
+	failFor    string
+	stallFor   string
+	usage      aiclient.LLMUsage
+	mu         sync.Mutex // batches arrive at once
+	requests   []aiclient.RerankRequest
+	requestIDs []string
 }
 
 const stallTimeout = 200 * time.Millisecond
@@ -51,6 +57,7 @@ func (f *rerankAI) client(t *testing.T) *aiclient.Client {
 		}
 		f.mu.Lock()
 		f.requests = append(f.requests, req)
+		f.requestIDs = append(f.requestIDs, r.Header.Get(reqlog.Header))
 		failFor, stallFor := f.failFor, f.stallFor
 		f.mu.Unlock()
 		status := f.status
@@ -71,7 +78,7 @@ func (f *rerankAI) client(t *testing.T) *aiclient.Client {
 			_, _ = w.Write([]byte(`{"detail":"nope"}`))
 			return
 		}
-		out := aiclient.RerankResponse{Provider: "fake", RubricVersion: "1", Results: []aiclient.RerankResult{}}
+		out := aiclient.RerankResponse{Provider: "fake", RubricVersion: "1", Results: []aiclient.RerankResult{}, Usage: f.usage}
 		for _, c := range req.Candidates {
 			level, ok := f.levels[c.ID]
 			if !ok {
@@ -121,7 +128,7 @@ type matchPool struct {
 func newMatchPool(t *testing.T) *matchPool {
 	t.Helper()
 	old := logf
-	logf = func(string, ...any) {}
+	logf = func(context.Context, string, ...any) {}
 	t.Cleanup(func() { logf = old })
 	p := &matchPool{t: t, pool: dbtest.Pool(t)}
 	p.scan(&p.role, `INSERT INTO roles (title, description, must_haves, embedding, embedding_model)
@@ -976,5 +983,82 @@ func TestMatchRoleRefusedRerankNeedsAttention(t *testing.T) {
 	}
 	if got := outcome(p.status()); got != "needs_attention ai_failed" {
 		t.Fatalf("after a refused rerank: %s", got)
+	}
+}
+
+// runs is the role's recorded runs, newest first.
+func (p *matchPool) runs() []store.FilterRun {
+	p.t.Helper()
+	runs, err := store.New(p.pool).ListFilterRuns(context.Background(), p.role, store.Page{})
+	if err != nil {
+		p.t.Fatal(err)
+	}
+	return runs
+}
+
+// A run is stored with what it took and cost and with the id it was logged
+// under, which is the id the AI service was sent with every batch.
+func TestMatchRoleRecordsItsMetricsAndRequestID(t *testing.T) {
+	p := newMatchPool(t)
+	for i := range rerankBatchSize + 2 { // two batches
+		p.add(fmt.Sprintf("Candidate %02d", i), float64(i))
+	}
+	cost := 0.0125
+	ai := &rerankAI{usage: aiclient.LLMUsage{LlmCalls: 2, CacheHits: 1, InputTokens: 1000, OutputTokens: 200, EstimatedCostUsd: &cost, Model: "claude-opus-5-5"}}
+	ctx := reqlog.WithID(context.Background(), "attempt-1")
+	if err := p.handler(ai, MatchConfig{})(ctx, job(KindMatchRole, "role_id", p.role)); err != nil {
+		t.Fatal(err)
+	}
+
+	runs := p.runs()
+	if len(runs) != 1 || runs[0].RequestID == nil || *runs[0].RequestID != "attempt-1" {
+		t.Fatalf("runs = %+v, want one with request id attempt-1", runs)
+	}
+	if len(ai.requestIDs) != 2 || ai.requestIDs[0] != "attempt-1" || ai.requestIDs[1] != "attempt-1" {
+		t.Errorf("the AI service was sent request ids %q, want attempt-1 with both batches", ai.requestIDs)
+	}
+	m := runs[0].Metrics
+	if m == nil {
+		t.Fatal("the run has no metrics")
+	}
+	if m.Candidates != rerankBatchSize+2 || m.RerankCalls != 2 || m.LlmCalls != 4 || m.CacheHits != 2 ||
+		m.InputTokens != 2000 || m.OutputTokens != 400 || m.Model == nil || *m.Model != "claude-opus-5-5" {
+		t.Errorf("metrics = %+v", *m)
+	}
+	if m.EstimatedCostUsd == nil || *m.EstimatedCostUsd != 0.025 {
+		t.Errorf("estimated cost = %v, want 0.025", m.EstimatedCostUsd)
+	}
+	stages := m.StageMs.Filter + m.StageMs.Texts + m.StageMs.Rerank + m.StageMs.Persist
+	if m.TotalMs < stages || m.TotalMs < 0 || stages < 0 {
+		t.Errorf("total %dms is less than its stages (%+v)", m.TotalMs, m.StageMs)
+	}
+}
+
+// A cost is only stored when every batch gave one: a model with no known
+// price leaves it null, not a partial sum. And a failed run keeps the
+// figures of the batches that answered.
+func TestMatchRoleMetricsWithoutAPriceAndAfterAFailure(t *testing.T) {
+	p := newMatchPool(t)
+	ids := make([]string, rerankBatchSize+1)
+	for i := range ids {
+		ids[i] = p.add(fmt.Sprintf("Candidate %02d", i), float64(i))
+	}
+	ai := &rerankAI{usage: aiclient.LLMUsage{LlmCalls: 1, InputTokens: 500, OutputTokens: 50, Model: "some-model"}}
+	p.match(ai, MatchConfig{})
+	m := p.runs()[0].Metrics
+	if m == nil || m.EstimatedCostUsd != nil || m.LlmCalls != 2 || m.InputTokens != 1000 {
+		t.Fatalf("metrics with no price = %+v", m)
+	}
+
+	ai.failFor = ids[len(ids)-1] // the second batch fails
+	if err := p.handler(ai, MatchConfig{})(context.Background(), job(KindMatchRole, "role_id", p.role)); err == nil {
+		t.Fatal("a failed batch did not fail the job")
+	}
+	failed := p.runs()[0]
+	if failed.AttentionReason == nil || *failed.AttentionReason != contract.AttentionReasonAiFailed {
+		t.Fatalf("latest run = %+v, want ai_failed", failed)
+	}
+	if m := failed.Metrics; m == nil || m.RerankCalls != 2 || m.LlmCalls != 1 || m.InputTokens != 500 || m.StageMs.Persist != 0 {
+		t.Errorf("metrics of the failed run = %+v", m)
 	}
 }

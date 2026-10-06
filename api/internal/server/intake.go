@@ -77,7 +77,7 @@ func (s *Server) intakeRole(w http.ResponseWriter, r *http.Request) {
 	if s.embedRoleNow != nil {
 		ectx, cancel := context.WithTimeout(detached, intakeEmbedTimeout)
 		if err := s.embedRoleNow(ectx, role.ID); err != nil {
-			logf("role intake: embed role %s: %v; leaving it to %s", role.ID, err, tasks.KindEmbedRole)
+			logf(detached, "role intake: embed role %s: %v; leaving it to %s", role.ID, err, tasks.KindEmbedRole)
 		} else if embedded, err := s.store.GetRole(ectx, role.ID); err == nil {
 			role = embedded
 		}
@@ -92,7 +92,7 @@ func (s *Server) intakeRole(w http.ResponseWriter, r *http.Request) {
 		// A role nobody will be matched to is not what was asked for, and a
 		// retry would add a second one, so this one is taken back.
 		if derr := s.store.DeleteRole(qctx, role.ID); derr != nil {
-			logf("role intake: role %s has no %s job and could not be removed: %v", role.ID, tasks.KindMatchRole, derr)
+			logf(detached, "role intake: role %s has no %s job and could not be removed: %v", role.ID, tasks.KindMatchRole, derr)
 		}
 		fail(w, err)
 		return
@@ -179,6 +179,6 @@ func failParseJD(w http.ResponseWriter, err error) {
 	if errors.Is(err, context.Canceled) {
 		return // client went away
 	}
-	logf("parse job description: %v", err)
+	logf(requestCtx(w), "parse job description: %v", err)
 	writeError(w, http.StatusServiceUnavailable, "the job description could not be parsed right now; try again shortly")
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/colehanke/mavi-demo/api/internal/contract"
+	"github.com/colehanke/mavi-demo/api/internal/reqlog"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -31,7 +32,7 @@ var filterOrder = []contract.FilterName{
 const filterRunCols = `id::text, role_id::text, overlap_on, pool, after_profile, after_certifications, after_software,
 	after_experience, after_availability, after_timezone_overlap, candidate_ids::text[], created_at,
 	retrieval_limit, retrieved_ids::text[], retrieved_similarities, unranked_ids::text[], role_embedded, matched_at,
-	match_status, attention_reason, attention_detail, min_score, qualified`
+	match_status, attention_reason, attention_detail, min_score, qualified, request_id, metrics`
 
 func scanFilterRun(row pgx.Row) (FilterRun, error) {
 	var run FilterRun
@@ -43,10 +44,16 @@ func scanFilterRun(row pgx.Row) (FilterRun, error) {
 	}
 	var retrieved []string
 	var similarities []float64
+	var metrics []byte
 	dest = append(dest, &run.CandidateIds, &run.CreatedAt, &run.RetrievalLimit, &retrieved, &similarities, &run.UnrankedIds, &run.RoleEmbedded, &run.MatchedAt,
-		&run.MatchStatus, &run.AttentionReason, &run.AttentionDetail, &run.MinScore, &run.Qualified)
+		&run.MatchStatus, &run.AttentionReason, &run.AttentionDetail, &run.MinScore, &run.Qualified, &run.RequestID, &metrics)
 	if err := row.Scan(dest...); err != nil {
 		return run, mapErr(err)
+	}
+	if metrics != nil {
+		if err := json.Unmarshal(metrics, &run.Metrics); err != nil {
+			return run, fmt.Errorf("filter run %s: metrics: %w", run.ID, err)
+		}
 	}
 	if len(retrieved) != len(similarities) {
 		return run, fmt.Errorf("filter run %s: %d retrieved ids but %d similarities", run.ID, len(retrieved), len(similarities))
@@ -119,6 +126,9 @@ const MaxRetrievalLimit = 50
 // version of the role. today is the day the time-zone overlap is worked out
 // for when the role has no start date. A role that does not exist is
 // ErrNotFound.
+//
+// The run is recorded with the request id ctx carries (internal/reqlog), the
+// id its log lines have in both services.
 //
 // Each filter is a boolean per candidate (the `checked` CTE) rather than a
 // WHERE clause, so the same pass that picks the candidates counts where the
@@ -236,7 +246,7 @@ func (s *Store) RunHardFilter(ctx context.Context, roleID string, today time.Tim
 		)
 		INSERT INTO filter_runs (role_id, overlap_on, pool, after_profile, after_certifications, after_software,
 			after_experience, after_availability, after_timezone_overlap, candidate_ids,
-			retrieval_limit, retrieved_ids, retrieved_similarities, unranked_ids, role_embedded)
+			retrieval_limit, retrieved_ids, retrieved_similarities, unranked_ids, role_embedded, request_id)
 		SELECT r.id, r.on_day, count(k.id),
 		       count(*) FILTER (WHERE k.cleared >= 1), count(*) FILTER (WHERE k.cleared >= 2),
 		       count(*) FILTER (WHERE k.cleared >= 3), count(*) FILTER (WHERE k.cleared >= 4),
@@ -245,12 +255,12 @@ func (s *Store) RunHardFilter(ctx context.Context, roleID string, today time.Tim
 		       $4,
 		       (SELECT ids FROM shortlist), (SELECT similarities FROM shortlist),
 		       (SELECT coalesce(array_agg(id ORDER BY full_name, id), '{}') FROM ranked WHERE distance IS NULL),
-		       r.embedded
+		       r.embedded, nullif($5, '')
 		FROM role r
 		LEFT JOIN staged k ON true
 		GROUP BY r.id, r.on_day, r.embedded
 		RETURNING `+filterRunCols,
-		role.ID, time.Date(y, m, d, 0, 0, 0, 0, time.UTC), string(setsJSON), limit))
+		role.ID, time.Date(y, m, d, 0, 0, 0, 0, time.UTC), string(setsJSON), limit, reqlog.ID(ctx)))
 	if err != nil {
 		return FilterRun{}, err
 	}

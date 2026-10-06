@@ -24,7 +24,7 @@ from dataclasses import replace
 from datetime import date
 from typing import Any
 
-from app import delimit, qualifications, rubric, taxonomy
+from app import delimit, qualifications, rubric, taxonomy, usage
 from app.extract import MAX_QUOTE_CHARS, MAX_QUOTES
 from app.grounding import mention_of, standards_named
 from app.llm import ProviderError
@@ -65,6 +65,12 @@ MAX_YEARS = 70
 # Word overlap with the role that counts as the top level of experience_depth: a
 # resume for the same job shares about half of a JD's words, never all of them.
 OVERLAP_SCALE = 2.0
+# English prose runs at about four characters to a token.
+CHARS_PER_TOKEN = 4
+
+
+def _approx_tokens(text: str) -> int:
+    return -(-len(text) // CHARS_PER_TOKEN)
 
 
 class FakeProvider:
@@ -76,12 +82,17 @@ class FakeProvider:
     def complete(self, system: str, user: str, schema: dict[str, Any]) -> str:
         title = schema.get("title")
         if title == "ResumeExtraction":
-            return json.dumps(_resume(user))
-        if title == "JDExtraction":
-            return json.dumps(_jd(user))
-        if title == "RerankOutput":
-            return json.dumps(_rerank(user))
-        raise ProviderError(f"fake: no answer defined for schema {title!r}")
+            answer = json.dumps(_resume(user))
+        elif title == "JDExtraction":
+            answer = json.dumps(_jd(user))
+        elif title == "RerankOutput":
+            answer = json.dumps(_rerank(user))
+        else:
+            raise ProviderError(f"fake: no answer defined for schema {title!r}")
+        # No model, so no tokens: a count by size stands in, so that a run without a
+        # key still shows how big its prompts are. It is free either way (app/usage.py).
+        usage.tokens(_approx_tokens(system) + _approx_tokens(user), _approx_tokens(answer))
+        return answer
 
 
 def _named(kind: Kind, text: str) -> list[str]:

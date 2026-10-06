@@ -243,7 +243,7 @@ func TestParseResumeDoesNotWriteAStaleParse(t *testing.T) {
 // stays, the job succeeds, and an embed_profile job takes over.
 func TestParseResumeHandsAFailedEmbeddingToItsOwnJob(t *testing.T) {
 	old := logf
-	logf = func(string, ...any) {}
+	logf = func(context.Context, string, ...any) {}
 	t.Cleanup(func() { logf = old })
 
 	pool := dbtest.Pool(t)

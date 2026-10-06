@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,6 +16,7 @@ import (
 	"github.com/colehanke/mavi-demo/api/internal/aiclient"
 	"github.com/colehanke/mavi-demo/api/internal/db"
 	"github.com/colehanke/mavi-demo/api/internal/jobs"
+	"github.com/colehanke/mavi-demo/api/internal/reqlog"
 	"github.com/colehanke/mavi-demo/api/internal/server"
 	"github.com/colehanke/mavi-demo/api/internal/store"
 	"github.com/colehanke/mavi-demo/api/internal/tasks"
@@ -24,11 +26,14 @@ import (
 
 func main() {
 	if err := run(); err != nil {
-		log.Fatal(err)
+		slog.Error(err.Error())
+		os.Exit(1)
 	}
 }
 
 func run() error {
+	// JSON lines on stderr from here on, the standard log package's included.
+	reqlog.Setup()
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -151,7 +156,7 @@ func newWorker(pool *pgxpool.Pool, handlers jobs.Registry, concurrency int) *job
 		cfg.LockTimeout = d
 	}
 	w := jobs.NewWorker(pool, handlers, cfg)
-	log.Printf("worker %s: concurrency %d, kinds %v", w.ID(), concurrency, handlers.Kinds())
+	slog.Info("worker started", "worker", w.ID(), "concurrency", concurrency, "kinds", handlers.Kinds())
 	return w
 }
 

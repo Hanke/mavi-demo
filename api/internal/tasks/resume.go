@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -26,8 +26,11 @@ type resumeParser struct {
 	embed *embedder
 }
 
-// logf is the handlers' log line; a variable so tests can silence or capture it.
-var logf = log.Printf
+// logf is the handlers' log line, written with the request id and job fields
+// ctx carries (internal/reqlog); a variable so tests can silence or capture it.
+var logf = func(ctx context.Context, format string, args ...any) {
+	slog.InfoContext(ctx, fmt.Sprintf(format, args...))
+}
 
 // parse turns a candidate's resume text (candidates.resume_text, which the
 // upload endpoint fills) into their profile: the AI service's /parse-resume
@@ -82,7 +85,7 @@ func (r *resumeParser) parse(ctx context.Context, job jobs.Job) error {
 		if _, _, qerr := r.queue.Enqueue(qctx, jobs.EnqueueInput{Kind: KindEmbedProfile, Payload: job.Payload}); qerr != nil {
 			return fmt.Errorf("profile stored but not embedded (%v), and queueing %s failed: %w", err, KindEmbedProfile, qerr)
 		}
-		logf("tasks: job %d: profile for candidate %s stored; embedding failed (%v), queued %s", job.ID, p.CandidateID, err, KindEmbedProfile)
+		logf(ctx, "tasks: job %d: profile for candidate %s stored; embedding failed (%v), queued %s", job.ID, p.CandidateID, err, KindEmbedProfile)
 	}
 	return nil
 }

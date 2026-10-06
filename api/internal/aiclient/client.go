@@ -6,6 +6,10 @@
 // what it said), so callers can decide between retrying, degrading and
 // failing.
 //
+// A call carries the request id of its context to the service as the
+// X-Request-ID header (internal/reqlog), and is logged with its operation,
+// status and duration, so that one id finds the call in both services' logs.
+//
 // Request and response types come from ai/openapi.json, the OpenAPI document
 // the FastAPI app exports, generated into types.gen.go by oapi-codegen. A
 // change to a Python model has to be re-exported (`make generate`) before
@@ -21,9 +25,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/colehanke/mavi-demo/api/internal/reqlog"
 )
 
 // Default per-operation timeouts. Embedding calls out to a provider, so it
@@ -307,9 +314,32 @@ func (c *Client) do(ctx context.Context, op, method, path string, body any, time
 	return c.send(ctx, op, method, path, contentType, reader, timeout, out)
 }
 
-// send performs one round trip with a body that is already encoded (nil for
-// none) and decodes the JSON response into out when non-nil.
-func (c *Client) send(parent context.Context, op, method, path, contentType string, body io.Reader, timeout time.Duration, out any) error {
+// send is roundTrip, logged: one line per call with the operation, the status
+// the service answered with (0 when it did not) and how long the call took.
+// The health probe is logged at debug.
+func (c *Client) send(ctx context.Context, op, method, path, contentType string, body io.Reader, timeout time.Duration, out any) error {
+	start := time.Now()
+	err := c.roundTrip(ctx, op, method, path, contentType, body, timeout, out)
+	level, status := slog.LevelInfo, http.StatusOK
+	attrs := []any{"op", op}
+	var ae *Error
+	switch {
+	case errors.As(err, &ae):
+		level, status = slog.LevelWarn, ae.StatusCode
+		attrs = append(attrs, "error", ae.Error())
+	case err != nil: // the caller's own cancellation or deadline
+		level, status = slog.LevelWarn, 0
+		attrs = append(attrs, "error", err.Error())
+	case op == "health":
+		level = slog.LevelDebug
+	}
+	slog.Log(ctx, level, "ai call", append(attrs, "status", status, "duration_ms", time.Since(start).Milliseconds())...)
+	return err
+}
+
+// roundTrip performs one round trip with a body that is already encoded (nil
+// for none) and decodes the JSON response into out when non-nil.
+func (c *Client) roundTrip(parent context.Context, op, method, path, contentType string, body io.Reader, timeout time.Duration, out any) error {
 	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 
@@ -320,6 +350,9 @@ func (c *Client) send(parent context.Context, op, method, path, contentType stri
 	req.Header.Set("Accept", "application/json")
 	if contentType != "" {
 		req.Header.Set("Content-Type", contentType)
+	}
+	if id := reqlog.ID(ctx); id != "" {
+		req.Header.Set(reqlog.Header, id)
 	}
 
 	resp, err := c.http.Do(req)

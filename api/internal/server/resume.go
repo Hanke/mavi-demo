@@ -105,6 +105,6 @@ func failExtract(w http.ResponseWriter, err error) {
 	if errors.Is(err, context.Canceled) {
 		return // client went away
 	}
-	logf("extract resume text: %v", err)
+	logf(requestCtx(w), "extract resume text: %v", err)
 	writeError(w, http.StatusServiceUnavailable, "the resume could not be read right now; try again shortly")
 }

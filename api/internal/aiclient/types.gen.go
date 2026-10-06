@@ -293,6 +293,27 @@ type HealthResponse struct {
 	Status            string `json:"status"`
 }
 
+// LLMUsage What a request spent on the chat model.
+type LLMUsage struct {
+	// CacheHits Completions replayed from the response cache instead: no call, no tokens.
+	CacheHits int `json:"cache_hits"`
+
+	// EstimatedCostUsd The tokens at the model's list price; null when no price is known for the model.
+	EstimatedCostUsd *float64 `json:"estimated_cost_usd"`
+
+	// InputTokens Prompt tokens of those calls, as the provider counted them.
+	InputTokens int `json:"input_tokens"`
+
+	// LlmCalls Completions that reached the provider, a correction retry included.
+	LlmCalls int `json:"llm_calls"`
+
+	// Model The chat model the service is configured with.
+	Model string `json:"model"`
+
+	// OutputTokens Output tokens of those calls, the model's thinking included.
+	OutputTokens int `json:"output_tokens"`
+}
+
 // OptionalDimensionScore A candidate's level on a dimension the role may give nothing to score against.
 type OptionalDimensionScore struct {
 	// Evidence One sentence: what in the candidate's text decides the level, or why the dimension is null.
@@ -441,6 +462,9 @@ type RerankResponse struct {
 
 	// RubricVersion The version of the rubric (docs/rerank-rubric.md) the scores follow.
 	RubricVersion string `json:"rubric_version"`
+
+	// Usage What a request spent on the chat model.
+	Usage LLMUsage `json:"usage"`
 }
 
 // RerankResult defines model for RerankResult.

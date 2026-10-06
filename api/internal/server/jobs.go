@@ -104,12 +104,12 @@ func (s *Server) getJob(w http.ResponseWriter, r *http.Request) {
 func (s *Server) enqueueEmbedding(r *http.Request, kind, idField, id string) {
 	payload, err := json.Marshal(map[string]string{idField: id})
 	if err != nil {
-		logf("enqueue %s for %s %s: %v", kind, idField, id, err)
+		logf(r.Context(), "enqueue %s for %s %s: %v", kind, idField, id, err)
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
 	defer cancel()
 	if _, _, err := s.jobs.Enqueue(ctx, jobs.EnqueueInput{Kind: kind, Payload: payload}); err != nil {
-		logf("enqueue %s for %s %s: %v", kind, idField, id, err)
+		logf(r.Context(), "enqueue %s for %s %s: %v", kind, idField, id, err)
 	}
 }
